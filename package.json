@@ -1,5 +1,5 @@
 {
-  "name": "my-turborepo",
+  "name": "flexboard",
   "private": true,
   "scripts": {
     "build": "turbo run build",
