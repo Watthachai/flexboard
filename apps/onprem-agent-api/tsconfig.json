@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    // --- การตั้งค่าที่สำคัญที่สุดสำหรับการแก้ปัญหานี้ ---
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    // --- การตั้งค่าพื้นฐานสำหรับโปรเจกต์ Node.js + TypeScript ---
+    "target": "ES2022",
+    "sourceMap": true,
+    "outDir": "dist",
+    "strict": true,
+    "lib": ["esnext"],
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*"], // บอกให้ TypeScript สนใจแค่ไฟล์ในโฟลเดอร์ src
+  "exclude": ["node_modules"]
+}

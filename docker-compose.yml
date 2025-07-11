@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # Service สำหรับ Agent API
+  onprem-agent-api:
+    # สั่งให้ build จาก Dockerfile ในโฟลเดอร์ที่ระบุ
+    build:
+      context: ./apps/onprem-agent-api
+      dockerfile: Dockerfile
+    # ตั้งชื่อ Container
+    container_name: flexboard-agent-api
+    # Restart container เสมอถ้ามันล่ม
+    restart: unless-stopped
+    # กำหนด Environment Variables
+    environment:
+      # สำคัญมาก! ลูกค้าจะต้องแก้ค่านี้เป็น Connection String ของเขา
+      DATABASE_URL: "sqlserver://your_local_sql_server;database=YourTestDB;user=YourUser;password=YourPassword;trustServerCertificate=true"
+    # เปิด port 3001 ของ container ให้แมพกับ port 3001 ของเครื่อง host
+    ports:
+      - "3001:3001"
+    # ทำให้ container นี้อยู่ใน network ชื่อ 'flexboard-net'
+    networks:
+      - flexboard-net
+
+  # Service สำหรับ Viewer UI
+  onprem-viewer-ui:
+    build:
+      context: ./apps/onprem-viewer-ui
+      dockerfile: Dockerfile
+    container_name: flexboard-viewer-ui
+    restart: unless-stopped
+    environment:
+      # บอก Next.js ให้เรียก API จาก container ชื่อ 'onprem-agent-api'
+      # Docker Compose จะ resolve ชื่อนี้ให้เป็น IP ภายใน Docker network
+      NEXT_PUBLIC_API_URL: "http://onprem-agent-api:3001"
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    # ทำให้ container นี้เชื่อมต่อกับ agent-api ได้
+    depends_on:
+      - onprem-agent-api
+    networks:
+      - flexboard-net
+
+# กำหนด Network กลาง
+networks:
+  flexboard-net:
+    driver: bridge

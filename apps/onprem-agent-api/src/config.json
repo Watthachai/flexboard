@@ -1,0 +1,5 @@
+{
+  "sales-by-month": {
+    "query": "SELECT FORMAT(OrderDate, 'yyyy-MM') AS month, SUM(TotalDue) AS total_sales FROM Sales.SalesOrderHeader GROUP BY FORMAT(OrderDate, 'yyyy-MM') ORDER BY month"
+  }
+}
