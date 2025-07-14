@@ -8,6 +8,7 @@ CREATE TABLE "tenants" (
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+
     CONSTRAINT "tenants_pkey" PRIMARY KEY ("id")
 );
 
@@ -20,6 +21,7 @@ CREATE TABLE "dashboards" (
     "description" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+
     CONSTRAINT "dashboards_pkey" PRIMARY KEY ("id")
 );
 
@@ -34,6 +36,7 @@ CREATE TABLE "widgets" (
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+
     CONSTRAINT "widgets_pkey" PRIMARY KEY ("id")
 );
 
@@ -47,6 +50,7 @@ CREATE TABLE "metadata_versions" (
     "published_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "created_by" TEXT NOT NULL,
+
     CONSTRAINT "metadata_versions_pkey" PRIMARY KEY ("id")
 );
 
@@ -60,6 +64,7 @@ CREATE TABLE "sync_logs" (
     "sync_duration_ms" INTEGER,
     "error_message" TEXT,
     "synced_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
     CONSTRAINT "sync_logs_pkey" PRIMARY KEY ("id")
 );
 
@@ -73,36 +78,33 @@ CREATE TABLE "users" (
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tenants_slug_key" ON "tenants" ("slug");
+CREATE UNIQUE INDEX "tenants_slug_key" ON "tenants"("slug");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "tenants_api_key_key" ON "tenants" ("api_key");
+CREATE UNIQUE INDEX "tenants_api_key_key" ON "tenants"("api_key");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "dashboards_tenant_id_slug_key" ON "dashboards" ("tenant_id", "slug");
+CREATE UNIQUE INDEX "dashboards_tenant_id_slug_key" ON "dashboards"("tenant_id", "slug");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "metadata_versions_tenant_id_version_key" ON "metadata_versions" ("tenant_id", "version");
+CREATE UNIQUE INDEX "metadata_versions_tenant_id_version_key" ON "metadata_versions"("tenant_id", "version");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_email_key" ON "users" ("email");
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- AddForeignKey
-ALTER TABLE "dashboards"
-ADD CONSTRAINT "dashboards_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "dashboards" ADD CONSTRAINT "dashboards_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "widgets"
-ADD CONSTRAINT "widgets_dashboard_id_fkey" FOREIGN KEY ("dashboard_id") REFERENCES "dashboards" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "widgets" ADD CONSTRAINT "widgets_dashboard_id_fkey" FOREIGN KEY ("dashboard_id") REFERENCES "dashboards"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "metadata_versions"
-ADD CONSTRAINT "metadata_versions_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "metadata_versions" ADD CONSTRAINT "metadata_versions_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "sync_logs"
-ADD CONSTRAINT "sync_logs_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "sync_logs" ADD CONSTRAINT "sync_logs_tenant_id_fkey" FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id") ON DELETE SET NULL ON UPDATE CASCADE;
