@@ -1,6 +1,6 @@
 // apps/onprem-agent-api/src/server.ts
 import Fastify from "fastify";
-import { PrismaClient } from "../src/generated/prisma-client";
+import { PrismaClient } from "../node_modules/.prisma/client";
 import fs from "fs/promises";
 import path from "path";
 
