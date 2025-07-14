@@ -1,6 +1,6 @@
 // Control Plane API for Railway Deployment
 import Fastify, { FastifyRequest, FastifyReply } from "fastify";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../node_modules/.prisma/client";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
