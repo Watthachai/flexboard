@@ -1,0 +1,33 @@
+# Flexboard Control Plane on Render.com
+# This file configures automatic deployment to Render
+
+services:
+  # Control Plane API Service
+  - type: web
+    name: flexboard-control-plane
+    env: node
+    plan: free
+    buildCommand: cd apps/control-plane-api && pnpm install && pnpm run build
+    startCommand: cd apps/control-plane-api && pnpm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_VERSION
+        value: v1
+      - key: API_KEY_PREFIX
+        value: fxb
+      - key: MAX_SYNC_LOG_RETENTION_DAYS
+        value: "30"
+      # These must be set in Render Dashboard:
+      # - JWT_SECRET: (generate with: openssl rand -hex 32)
+      # - CORS_ORIGINS: https://your-frontend-domains.com
+      # - DATABASE_URL: (auto-provided by PostgreSQL addon)
+
+# Database
+databases:
+  - name: flexboard-db
+    databaseName: flexboard_control_plane
+    user: flexboard_user
+    plan: free
+    # This will auto-generate DATABASE_URL environment variable

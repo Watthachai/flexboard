@@ -11,10 +11,21 @@ services:
     container_name: flexboard-agent-api
     # Restart container เสมอถ้ามันล่ม
     restart: unless-stopped
-    # กำหนด Environment Variables
+    # กำหนด Environment Variables - ลูกค้าจะต้องสร้างไฟล์ .env
     environment:
-      # สำคัญมาก! ลูกค้าจะต้องแก้ค่านี้เป็น Connection String ของเขา
-      DATABASE_URL: "sqlserver://your_local_sql_server;database=YourTestDB;user=YourUser;password=YourPassword;trustServerCertificate=true"
+      # สำคัญมาก! ต้องแก้ให้ตรงกับ Database ของลูกค้า
+      DATABASE_URL: "${DATABASE_URL}"
+      # Control Plane Configuration (Phase 2)
+      CONTROL_PLANE_URL: "${CONTROL_PLANE_URL:-http://localhost:3000}"
+      FLEXBOARD_API_KEY: "${FLEXBOARD_API_KEY:-fxb_demo_key}"
+      # Server Configuration  
+      NODE_ENV: "${NODE_ENV:-production}"
+      PORT: "${AGENT_PORT:-3001}"
+      # CORS for Viewer
+      CORS_ORIGIN: "http://onprem-viewer-ui:3000"
+      # Agent Configuration
+      AGENT_VERSION: "${AGENT_VERSION:-1.0.0}"
+      SYNC_INTERVAL: "${SYNC_INTERVAL:-300000}"
     # เปิด port 3001 ของ container ให้แมพกับ port 3001 ของเครื่อง host
     ports:
       - "3001:3001"

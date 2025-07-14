@@ -1,20 +1,44 @@
 {
   "name": "control-plane-api",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Flexboard Control Plane API for Railway deployment",
+  "main": "dist/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc && prisma generate",
+    "start": "node dist/server.js",
+    "migrate": "prisma migrate deploy",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:reset": "prisma migrate reset",
+    "postinstall": "prisma generate",
+    "check-types": "tsc --noEmit"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "flexboard",
+    "analytics",
+    "dashboard",
+    "control-plane"
+  ],
+  "author": "วัฒชัย เตชะลือ",
   "license": "ISC",
   "packageManager": "pnpm@10.12.4",
+  "dependencies": {
+    "@prisma/client": "^6.11.1",
+    "fastify": "^5.4.0",
+    "@fastify/cors": "^11.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3"
+  },
   "devDependencies": {
     "@types/node": "^24.0.10",
-    "add": "^2.0.6",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/bcryptjs": "^2.4.6",
     "prisma": "^6.11.1",
     "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }
