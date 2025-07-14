@@ -7,7 +7,7 @@ services:
     name: flexboard-control-plane
     env: node
     plan: free
-    buildCommand: cd apps/control-plane-api && pnpm install && pnpm run build
+    buildCommand: pnpm install --frozen-lockfile && cd apps/control-plane-api && pnpm prisma generate && pnpm run build
     startCommand: cd apps/control-plane-api && pnpm start
     healthCheckPath: /health
     envVars:
