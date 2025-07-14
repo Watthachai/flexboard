@@ -1,5 +1,14 @@
 {
   "sales-by-month": {
-    "query": "SELECT FORMAT(OrderDate, 'yyyy-MM') AS month, SUM(TotalDue) AS total_sales FROM Sales.SalesOrderHeader GROUP BY FORMAT(OrderDate, 'yyyy-MM') ORDER BY month"
+    "query": "SELECT FORMAT(OrderDate, 'yyyy-MM') AS month, SUM(TotalDue) AS total_sales FROM Sales.SalesOrderHeader WHERE OrderDate >= DATEADD(month, -12, GETDATE()) GROUP BY FORMAT(OrderDate, 'yyyy-MM') ORDER BY month",
+    "type": "bar"
+  },
+  "top-products": {
+    "query": "SELECT TOP 10 p.Name AS product_name, SUM(sod.LineTotal) AS revenue FROM Sales.SalesOrderDetail sod INNER JOIN Production.Product p ON sod.ProductID = p.ProductID GROUP BY p.Name ORDER BY revenue DESC",
+    "type": "bar"
+  },
+  "sales-summary": {
+    "query": "SELECT COUNT(*) AS total_orders, SUM(TotalDue) AS total_revenue, AVG(TotalDue) AS avg_order_value FROM Sales.SalesOrderHeader WHERE OrderDate >= DATEADD(month, -1, GETDATE())",
+    "type": "kpi"
   }
 }

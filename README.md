@@ -1,38 +1,194 @@
-# Turborepo starter
+# Flexboard - Hybrid Analytics Platform
 
-This Turborepo starter is maintained by the Turborepo core team.
+🚀 **A multi-tenant SaaS analytics platform with hybrid cloud-on-premise architecture**
 
-## Using this example
+Flexboard enables enterprises to build beautiful, real-time dashboards while keeping sensitive data on-premise. The platform combines cloud convenience with data sovereignty through a unique hybrid architecture.
 
-Run the following command:
+## 🏗️ Architecture Overview
 
-```sh
-npx create-turbo@latest
+```
+┌────────────## 📚 Documentation
+
+- **[Phase 2 Implementation Guide](PHASE_2_IMPLEMENTATION.md)** - Complete technical implementation
+- **[Railway Deployment Guide](RAILWAY_DEPLOYMENT_GUIDE.md)** - Cloud deployment instructions
+- **[Railway Environment Setup](RAILWAY_ENV_SETUP.md)** - Environment variables configuration
+- **[Comprehensive Guide](COMPREHENSIVE_GUIDE.md)** - Full platform documentation────────────────────────┐
+│           CLOUD (Railway)               │
+│  ┌─────────────────────────────────────┐│
+│  │      Control Plane API              ││ ← Multi-tenant SaaS management
+│  │  • Dashboard configuration          ││
+│  │  • Agent sync orchestration         ││
+│  │  • Customer onboarding              ││
+│  └─────────────────────────────────────┘│
+└─────────────────────────────────────────┘
+                     │
+                HTTP/HTTPS Sync
+                 (Outbound Only)
+                     │
+┌─────────────────────────────────────────┐
+│         ON-PREMISE (Customer)           │
+│  ┌─────────────────────────────────────┐│
+│  │       Analytics Agent               ││ ← Executes SQL, serves data
+│  │  • Polls for config updates        ││
+│  │  • Executes customer SQL           ││
+│  │  • Caches for offline resilience   ││
+│  └─────────────────────────────────────┘│
+│  ┌─────────────────────────────────────┐│
+│  │      Dashboard Viewer               ││ ← Beautiful React dashboards
+│  │  • Real-time visualizations        ││
+│  │  • Responsive design               ││
+│  └─────────────────────────────────────┘│
+└─────────────────────────────────────────┘
 ```
 
-## What's inside?
+## 🎯 Key Features
 
-This Turborepo includes the following packages/apps:
+### ✅ **Phase 1 (MVP) - Complete**
 
-### Apps and Packages
+- 📊 Multi-widget dashboards (KPI, Line Charts, Bar Charts, Tables)
+- 🔄 Real-time data fetching from SQL Server
+- 📱 Responsive design with Tailwind CSS
+- 🐳 Docker containerization
+- 🚀 Production-ready deployment
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+### ✅ **Phase 2 (Control Plane) - Complete**
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+- ☁️ Multi-tenant SaaS Control Plane on Railway
+- 🔄 Real-time configuration sync with on-premise agents
+- 📊 PostgreSQL metadata management
+- 🔐 Secure API key authentication
+- 📈 Comprehensive monitoring & logging
+- 🚀 Zero-downtime configuration updates
 
-### Utilities
+### 🔮 **Phase 3 (Enterprise) - Roadmap**
 
-This Turborepo has some additional tools already setup for you:
+- 👥 Role-based access control & user management
+- 🎨 White-label branding for customers
+- 🔗 Enterprise SSO integration
+- ⚡ Real-time WebSocket updates
+- 📱 Mobile-responsive administration
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
+## 🚀 Quick Start
 
-### Build
+### For SaaS Providers (Deploy Control Plane)
+
+```bash
+# 1. Clone repository
+git clone https://github.com/yourusername/flexboard
+cd flexboard
+
+# 2. Install dependencies
+pnpm install
+
+# 3. Deploy Control Plane (Choose one platform)
+
+# Option A: Render.com (Recommended - Free PostgreSQL included)
+# - Go to https://render.com/
+# - Connect GitHub repo
+# - Use render.yaml for automatic setup
+# - See RENDER_DEPLOYMENT.md for details
+
+# Option B: Vercel + Supabase
+# - Create Supabase project for database
+# - Deploy API to Vercel
+# - Configure DATABASE_URL
+
+# Option C: Fly.io
+flyctl apps create flexboard-control-plane
+flyctl postgres create flexboard-db
+flyctl deploy
+
+# 4. Set environment variables (required):
+# - JWT_SECRET: Use `openssl rand -hex 32` to generate
+# - CORS_ORIGINS: https://your-frontend-domains.com (comma-separated)
+#
+# See RENDER_DEPLOYMENT.md or FREE_DEPLOYMENT_OPTIONS.md for detailed instructions
+```
+
+### For Enterprise Customers (On-Premise Setup)
+
+```bash
+# 1. Get your API key from SaaS provider
+export FLEXBOARD_API_KEY="fxb_your_api_key"
+export CONTROL_PLANE_URL="https://your-control-plane.railway.app"
+
+# 2. Configure database connection
+export DATABASE_URL="sqlserver://server;database=YourDB;user=sa;password=pass;trustServerCertificate=true"
+
+# 3. Start analytics agent
+cd apps/onprem-agent-api
+pnpm install && pnpm dev
+
+# 4. Start dashboard viewer
+cd apps/onprem-viewer-ui
+pnpm install && pnpm dev
+
+# 5. Open http://localhost:3000
+```
+
+## 📦 Project Structure
+
+```
+flexboard/
+├── apps/
+│   ├── control-plane-api/     # ☁️ Multi-tenant SaaS Control Plane
+│   │   ├── src/server.ts      # Fastify API with Prisma + PostgreSQL
+│   │   ├── prisma/schema.prisma # Database schema for metadata
+│   │   └── railway.toml       # Railway deployment config
+│   │
+│   ├── onprem-agent-api/      # 🏢 On-premise Analytics Agent
+│   │   ├── src/server.ts      # Fastify API with SQL Server integration
+│   │   ├── src/config.json    # Local widget configurations (fallback)
+│   │   └── Dockerfile         # Container deployment
+│   │
+│   ├── onprem-viewer-ui/      # 📊 Dashboard Frontend
+│   │   ├── src/app/page.tsx   # Multi-widget dashboard
+│   │   └── Dockerfile         # Container deployment
+│   │
+│   └── control-plane-ui/      # 🎛️ SaaS Management Interface (Future)
+│
+├── packages/
+│   ├── ui/                    # 🎨 Shared React components
+│   ├── eslint-config/         # 📏 Code quality standards
+│   └── typescript-config/     # 🔧 TypeScript configurations
+│
+├── docs/
+│   ├── PHASE_2_IMPLEMENTATION.md  # 📚 Detailed implementation guide
+│   ├── RAILWAY_DEPLOYMENT_GUIDE.md # 🚀 Cloud deployment instructions
+│   └── COMPREHENSIVE_GUIDE.md     # 📖 Complete platform documentation
+│
+└── test-integration.js       # 🧪 End-to-end integration tests
+```
+
+## 🔄 How It Works
+
+### Multi-Tenant Configuration Sync
+
+1. **SaaS Provider**: Creates tenant and dashboard configurations via Control Plane
+2. **Control Plane**: Stores metadata in PostgreSQL with versioning
+3. **Agent Polling**: On-premise agent polls every 5 minutes for updates
+4. **Configuration Sync**: Agent receives new configurations and caches locally
+5. **Query Execution**: Agent executes SQL against customer database
+6. **Dashboard Display**: Frontend displays real-time data with beautiful charts
+
+### Sample Workflow
+
+```bash
+# 1. SaaS Provider creates tenant
+curl -X POST https://control-plane.railway.app/api/tenants \\
+  -d '{"name":"Acme Corp","slug":"acme"}'
+# Returns: API key for customer
+
+# 2. Customer configures agent
+export FLEXBOARD_API_KEY="fxb_abc123..."
+pnpm dev
+
+# 3. Agent automatically syncs configuration
+# 4. Dashboard immediately shows new widgets
+# 5. Real-time data updates every 30 seconds
+```
+
+## 🛠️ Development
 
 To build all apps and packages, run the following command:
 
@@ -123,13 +279,177 @@ yarn exec turbo link
 pnpm exec turbo link
 ```
 
-## Useful Links
+### Prerequisites
 
-Learn more about the power of Turborepo:
+- Node.js 18+
+- pnpm (package manager)
+- SQL Server or PostgreSQL database
+- Railway account (for Control Plane deployment)
 
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+### Local Development Setup
+
+```bash
+# Install all dependencies
+pnpm install
+
+# Start Control Plane locally (optional)
+cd apps/control-plane-api
+docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=password postgres:15
+export DATABASE_URL="postgresql://postgres:password@localhost:5432/flexboard"
+pnpm dev # Runs on port 3000
+
+# Start Agent API
+cd apps/onprem-agent-api
+export DATABASE_URL="sqlserver://..." # Your SQL Server
+pnpm dev # Runs on port 3001
+
+# Start Dashboard UI
+cd apps/onprem-viewer-ui
+pnpm dev # Runs on port 3000
+```
+
+### Running Integration Tests
+
+```bash
+# Test full Control Plane ↔ Agent workflow
+node test-integration.js
+
+# Manual testing endpoints
+curl http://localhost:3001/api/health        # Agent health
+curl http://localhost:3000/health           # Control Plane health
+curl -X POST http://localhost:3001/api/sync # Trigger manual sync
+```
+
+## 🚀 Production Deployment
+
+### Control Plane (Cloud)
+
+#### Option A: Render.com (Recommended)
+
+```bash
+# One-time setup
+1. Go to https://render.com/
+2. Connect GitHub repository
+3. Create Web Service from repo
+4. Add PostgreSQL database (free 1GB)
+5. Set environment variables
+
+# Environment variables:
+JWT_SECRET=<openssl rand -hex 32>
+CORS_ORIGINS=https://your-domains.com
+DATABASE_URL=<auto-provided by Render>
+```
+
+#### Option B: Vercel + Supabase
+
+```bash
+# Database setup
+1. Create Supabase project (2GB free)
+2. Get PostgreSQL connection string
+
+# API deployment
+vercel --prod
+# Set DATABASE_URL in Vercel dashboard
+```
+
+#### Option C: Fly.io
+
+```bash
+flyctl auth signup
+flyctl apps create flexboard-control-plane
+flyctl postgres create flexboard-db
+flyctl deploy
+```
+
+### On-Premise (Customer Environment)
+
+```bash
+# Docker deployment
+docker build -t flexboard-agent apps/onprem-agent-api
+docker run -d \\
+  -e CONTROL_PLANE_URL=https://your-control-plane.railway.app \\
+  -e FLEXBOARD_API_KEY=fxb_... \\
+  -e DATABASE_URL=sqlserver://... \\
+  flexboard-agent
+
+# Docker Compose (recommended)
+cd apps/onprem-agent-api
+docker-compose up -d
+```
+
+## 📊 Sample Dashboards
+
+### Sales Analytics Dashboard
+
+```json
+{
+  "monthly-revenue": {
+    "query": "SELECT MONTH(OrderDate) as month, SUM(TotalDue) as revenue FROM Sales.SalesOrderHeader WHERE YEAR(OrderDate) = 2024 GROUP BY MONTH(OrderDate)",
+    "type": "line"
+  },
+  "top-customers": {
+    "query": "SELECT TOP 10 c.CompanyName, SUM(soh.TotalDue) as total FROM Sales.Customer c JOIN Sales.SalesOrderHeader soh ON c.CustomerID = soh.CustomerID GROUP BY c.CompanyName ORDER BY total DESC",
+    "type": "table"
+  }
+}
+```
+
+### E-commerce KPIs
+
+```json
+{
+  "total-orders": {
+    "query": "SELECT COUNT(*) as value FROM Orders WHERE MONTH(OrderDate) = MONTH(GETDATE())",
+    "type": "kpi"
+  },
+  "conversion-rate": {
+    "query": "SELECT CAST(COUNT(DISTINCT CustomerID) * 100.0 / COUNT(*) as DECIMAL(5,2)) as value FROM WebsiteVisits WHERE MONTH(VisitDate) = MONTH(GETDATE())",
+    "type": "kpi"
+  }
+}
+```
+
+## 🔐 Security
+
+### Data Sovereignty
+
+- ✅ Customer data never leaves on-premise environment
+- ✅ Only metadata (dashboard configs) stored in cloud
+- ✅ Agent polls Control Plane (outbound-only connections)
+- ✅ No inbound connections required
+
+### Authentication & Authorization
+
+- 🔑 Unique API keys per tenant
+- 🔒 HTTPS-only communication
+- 🛡️ JWT token support (ready for implementation)
+- 📊 Audit logging for all operations
+
+## 📚 Documentation
+
+- **[Phase 2 Implementation Guide](PHASE_2_IMPLEMENTATION.md)** - Complete technical implementation
+- **[Railway Deployment Guide](RAILWAY_DEPLOYMENT_GUIDE.md)** - Cloud deployment instructions
+- **[Comprehensive Guide](COMPREHENSIVE_GUIDE.md)** - Full platform documentation
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
+
+## 📄 License
+
+This project is licensed under the ISC License - see the [LICENSE](LICENSE) file for details.
+
+## 🎯 Roadmap
+
+- **Q1 2025**: Phase 3 implementation with enterprise features
+- **Q2 2025**: Mobile administration interface
+- **Q3 2025**: Advanced analytics and ML insights
+- **Q4 2025**: Multi-cloud deployment options
+
+---
+
+**🚀 Built with love by วัฒชัย เตชะลือ - Ready for enterprise deployment!**

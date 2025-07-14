@@ -52,4 +52,4 @@ COPY --from=builder /app/dist/config.json ./dist/config.json
 EXPOSE 3001
 
 # คำสั่งที่จะรันเมื่อ container เริ่มทำงาน
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/server.js"]
