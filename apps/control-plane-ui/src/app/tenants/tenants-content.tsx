@@ -1,74 +1,31 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useTenantList } from "@/hooks";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 
-interface Tenant {
-  id: string;
-  name: string;
-  slug: string;
-  description?: string;
-  isActive: boolean;
-  createdAt: string;
-  _count: {
-    dashboards: number;
-  };
-}
-
 export default function TenantsContent() {
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchTenants();
-  }, []);
-
-  const fetchTenants = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/tenants");
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Failed to fetch tenants");
-      }
-
-      setTenants(data.data);
-    } catch (error) {
-      console.error("Error fetching tenants:", error);
-      setError(
-        error instanceof Error ? error.message : "Failed to fetch tenants"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { tenants, loading, error } = useTenantList();
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">Loading tenants...</div>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground">Loading tenants...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-red-500">Error: {error}</div>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-red-500">Error: {error}</div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Tenants</h1>
           <p className="text-muted-foreground">
@@ -77,7 +34,7 @@ export default function TenantsContent() {
         </div>
         <Link
           href="/tenant-management/new"
-          className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors"
+          className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-md hover:bg-primary/90 transition-colors"
         >
           Add New Tenant
         </Link>
@@ -91,7 +48,7 @@ export default function TenantsContent() {
           </p>
           <Link
             href="/tenant-management/new"
-            className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-md hover:bg-primary/90 transition-colors"
           >
             Create First Tenant
           </Link>

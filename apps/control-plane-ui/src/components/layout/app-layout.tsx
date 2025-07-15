@@ -15,8 +15,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       />
 
       <div className="md:ml-64">
-        <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-        <main className="pt-16">{children}</main>
+        <div className="p-4 md:p-8">
+          <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+          <main>{children}</main>
+        </div>
       </div>
     </div>
   );

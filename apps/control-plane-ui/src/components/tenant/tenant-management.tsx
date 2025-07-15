@@ -1,345 +1,217 @@
+/**
+ * Tenant Management Component
+ * Modern tenant management using Clean Architecture hooks
+ */
+
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import React, { useState } from "react";
+import { useTenantList } from "@/hooks";
+import { CreateTenantRequest } from "@/types";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Plus, Building2, Settings, Eye, Calendar } from "lucide-react";
-
-interface Tenant {
-  id: string;
-  name: string;
-  slug: string;
-  licenseType: string;
-  apiKey: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  _count: {
-    dashboards: number;
-    metadataVersions: number;
-  };
-}
-
-interface CreateTenantForm {
-  name: string;
-  slug: string;
-  licenseType: string;
-}
+import { Plus, Building2, Users, Calendar, MoreHorizontal } from "lucide-react";
 
 export function TenantManagementNew() {
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createForm, setCreateForm] = useState<CreateTenantForm>({
-    name: "",
-    slug: "",
-    licenseType: "basic",
-  });
-  const [creating, setCreating] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
-  // Fetch tenants
-  useEffect(() => {
-    fetchTenants();
-  }, []);
+  const {
+    tenants,
+    loading,
+    error,
+    createTenant,
+    updateTenant,
+    deleteTenant,
+    refresh,
+  } = useTenantList();
 
-  const fetchTenants = async () => {
+  const handleCreateTenant = async (data: CreateTenantRequest) => {
     try {
-      const response = await fetch("/api/tenants");
-      const result = await response.json();
-
-      if (result.success) {
-        setTenants(result.data);
-      }
+      await createTenant(data);
+      setShowCreateForm(false);
+      // Show success message
     } catch (error) {
-      console.error("Failed to fetch tenants:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateTenant = async () => {
-    if (!createForm.name.trim()) return;
-
-    setCreating(true);
-    try {
-      const response = await fetch("/api/tenants", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(createForm),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        setTenants([result.data, ...tenants]);
-        setCreateDialogOpen(false);
-        setCreateForm({ name: "", slug: "", licenseType: "basic" });
-      } else {
-        alert(result.error || "Failed to create tenant");
-      }
-    } catch (error) {
+      // Show error message
       console.error("Failed to create tenant:", error);
-      alert("Failed to create tenant");
-    } finally {
-      setCreating(false);
-    }
-  };
-
-  const handleToggleStatus = async (id: string, currentStatus: boolean) => {
-    try {
-      const response = await fetch(`/api/tenants/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ isActive: !currentStatus }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        setTenants(
-          tenants.map((tenant) =>
-            tenant.id === id ? { ...tenant, isActive: !currentStatus } : tenant
-          )
-        );
-      }
-    } catch (error) {
-      console.error("Failed to toggle tenant status:", error);
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
-  const getLicenseBadgeColor = (license: string) => {
-    switch (license) {
-      case "enterprise":
-        return "bg-purple-500 text-white";
-      case "professional":
-        return "bg-blue-500 text-white";
-      case "basic":
-      default:
-        return "bg-gray-500 text-white";
     }
   };
 
   if (loading) {
     return (
-      <div className="space-y-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold text-foreground">
-              Tenant Management
-            </h2>
-            <p className="text-muted-foreground">
-              Manage organizations and their dashboard access
-            </p>
-          </div>
-        </div>
-        <Card className="p-8 text-center glass-card">
-          <div className="animate-pulse">Loading tenants...</div>
-        </Card>
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <Card className="p-6">
+        <div className="text-center">
+          <p className="text-destructive mb-4">Error: {error}</p>
+          <Button onClick={refresh} variant="outline">
+            Try Again
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-foreground">
+          <h2 className="text-2xl font-bold tracking-tight">
             Tenant Management
           </h2>
           <p className="text-muted-foreground">
-            Manage organizations and their dashboard access
+            Manage tenants and their configurations
           </p>
         </div>
-        <Button onClick={() => setCreateDialogOpen(true)}>
-          <Plus size={16} className="mr-2" />
+        <Button onClick={() => setShowCreateForm(true)}>
+          <Plus className="mr-2 h-4 w-4" />
           Add Tenant
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="p-6 glass-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Total Tenants
-              </p>
-              <p className="text-3xl font-bold text-foreground">
-                {tenants.length}
-              </p>
-            </div>
-            <Building2 className="h-8 w-8 text-muted-foreground" />
-          </div>
-        </Card>
-        <Card className="p-6 glass-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Active
-              </p>
-              <p className="text-3xl font-bold text-green-600">
-                {tenants.filter((t) => t.isActive).length}
-              </p>
-            </div>
-            <div className="h-3 w-3 bg-green-500 rounded-full" />
-          </div>
-        </Card>
-        <Card className="p-6 glass-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Total Dashboards
-              </p>
-              <p className="text-3xl font-bold text-foreground">
-                {tenants.reduce(
-                  (sum, tenant) => sum + tenant._count?.dashboards || 0,
-                  0
-                )}
-              </p>
-            </div>
-            <div className="h-8 w-8 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
-              <div className="h-4 w-4 bg-blue-600 rounded" />
-            </div>
-          </div>
-        </Card>
+      {/* Tenant Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {tenants.map((tenant) => (
+          <Card key={tenant.id} className="hover:shadow-md transition-shadow">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  <CardTitle className="text-lg">{tenant.name}</CardTitle>
+                </div>
+                <Badge variant={tenant.isActive ? "default" : "secondary"}>
+                  {tenant.isActive ? "Active" : "Inactive"}
+                </Badge>
+              </div>
+              {tenant.description && (
+                <CardDescription>{tenant.description}</CardDescription>
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <Users className="mr-2 h-4 w-4" />
+                  {tenant._count.users} users, {tenant._count.dashboards}{" "}
+                  dashboards
+                </div>
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Created {new Date(tenant.createdAt).toLocaleDateString()}
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Navigate to tenant details
+                    console.log("View tenant:", tenant.id);
+                  }}
+                >
+                  View Details
+                </Button>
+                <Button variant="ghost" size="sm">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Create Form */}
-      {createDialogOpen && (
-        <Card className="p-6 glass-card">
-          <h3 className="text-lg font-semibold text-foreground mb-4">
-            Create New Tenant
-          </h3>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="name">Organization Name</Label>
-              <Input
-                id="name"
-                value={createForm.name}
-                onChange={(e) =>
-                  setCreateForm({
-                    ...createForm,
-                    name: e.target.value,
-                    slug: e.target.value
-                      .toLowerCase()
-                      .replace(/[^a-z0-9]/g, "-"),
-                  })
-                }
-                placeholder="Acme Corporation"
-              />
-            </div>
-            <div>
-              <Label htmlFor="slug">Slug</Label>
-              <Input
-                id="slug"
-                value={createForm.slug}
-                onChange={(e) =>
-                  setCreateForm({ ...createForm, slug: e.target.value })
-                }
-                placeholder="acme-corporation"
-              />
-            </div>
-            <div>
-              <Label htmlFor="license">License Type</Label>
-              <select
-                id="license"
-                value={createForm.licenseType}
-                onChange={(e) =>
-                  setCreateForm({ ...createForm, licenseType: e.target.value })
-                }
-                className="w-full p-2 border rounded"
-              >
-                <option value="basic">Basic</option>
-                <option value="professional">Professional</option>
-                <option value="enterprise">Enterprise</option>
-              </select>
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleCreateTenant} disabled={creating}>
-                {creating ? "Creating..." : "Create Tenant"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setCreateDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-            </div>
+      {/* Empty State */}
+      {tenants.length === 0 && (
+        <Card className="p-12">
+          <div className="text-center">
+            <Building2 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No tenants yet</h3>
+            <p className="text-muted-foreground mb-6">
+              Get started by creating your first tenant
+            </p>
+            <Button onClick={() => setShowCreateForm(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create First Tenant
+            </Button>
           </div>
         </Card>
       )}
 
-      {/* Tenants List */}
-      <Card className="glass-card">
-        <div className="p-6">
-          <h3 className="text-lg font-semibold text-foreground mb-4">
-            All Tenants
-          </h3>
-          <div className="space-y-4">
-            {tenants.map((tenant) => (
-              <div
-                key={tenant.id}
-                className="flex items-center justify-between p-4 border rounded-lg"
+      {/* Create Form Modal - Simplified for now */}
+      {showCreateForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md mx-4">
+            <CardHeader>
+              <CardTitle>Create New Tenant</CardTitle>
+              <CardDescription>
+                Add a new tenant to your organization
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const data: CreateTenantRequest = {
+                    name: formData.get("name") as string,
+                    description: formData.get("description") as string,
+                    slug: (formData.get("name") as string)
+                      .toLowerCase()
+                      .replace(/\s+/g, "-")
+                      .replace(/[^a-z0-9-]/g, ""),
+                  };
+                  handleCreateTenant(data);
+                }}
+                className="space-y-4"
               >
                 <div>
-                  <div className="font-medium text-foreground">
-                    {tenant.name}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {tenant.slug}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    API Key: {tenant.apiKey}
-                  </div>
+                  <label className="text-sm font-medium">Name</label>
+                  <input
+                    name="name"
+                    required
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Enter tenant name"
+                  />
                 </div>
-                <div className="flex items-center gap-4">
-                  <Badge className={getLicenseBadgeColor(tenant.licenseType)}>
-                    {tenant.licenseType.charAt(0).toUpperCase() +
-                      tenant.licenseType.slice(1)}
-                  </Badge>
-                  <Badge variant={tenant.isActive ? "default" : "secondary"}>
-                    {tenant.isActive ? "Active" : "Inactive"}
-                  </Badge>
-                  <div className="text-sm text-muted-foreground">
-                    {tenant._count?.dashboards || 0} dashboards
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm">
-                      <Eye size={14} className="mr-1" />
-                      View
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        handleToggleStatus(tenant.id, tenant.isActive)
-                      }
-                    >
-                      {tenant.isActive ? "Deactivate" : "Activate"}
-                    </Button>
-                  </div>
+                <div>
+                  <label className="text-sm font-medium">Description</label>
+                  <textarea
+                    name="description"
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Enter description (optional)"
+                    rows={3}
+                  />
                 </div>
-              </div>
-            ))}
-          </div>
+                <div className="flex gap-2 pt-4">
+                  <Button type="submit" className="flex-1">
+                    Create Tenant
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowCreateForm(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         </div>
-      </Card>
+      )}
     </div>
   );
 }
