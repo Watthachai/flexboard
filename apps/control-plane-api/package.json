@@ -4,7 +4,7 @@
   "description": "Flexboard Control Plane API for Railway deployment",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev": "PORT=3000 ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "prisma generate && tsc",
     "start": "prisma migrate deploy && node dist/server.js",
     "migrate": "prisma migrate deploy",

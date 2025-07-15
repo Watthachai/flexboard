@@ -6,10 +6,10 @@ import { Card } from "@/components/ui/card";
 import { Search, Bell, User, Menu } from "lucide-react";
 
 interface HeaderProps {
-  onMenuToggle: () => void;
+  onMenuClick?: () => void;
 }
 
-export function Header({ onMenuToggle }: HeaderProps) {
+export function Header({ onMenuClick }: HeaderProps) {
   return (
     <div className="sticky top-0 z-40 mb-8">
       <Card className="glass-card p-0">
@@ -20,7 +20,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
                 variant="ghost"
                 size="icon"
                 className="md:hidden mr-2 flex-shrink-0"
-                onClick={onMenuToggle}
+                onClick={onMenuClick}
               >
                 <Menu size={20} />
               </Button>
