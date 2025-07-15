@@ -9,6 +9,7 @@ Flexboard enables enterprises to build beautiful, real-time dashboards while kee
 ```
 ┌────────────## 📚 Documentation
 
+- **[Environment Configuration](docs/ENVIRONMENT.md)** - Complete environment setup guide
 - **[Phase 2 Implementation Guide](PHASE_2_IMPLEMENTATION.md)** - Complete technical implementation
 - **[Railway Deployment Guide](RAILWAY_DEPLOYMENT_GUIDE.md)** - Cloud deployment instructions
 - **[Railway Environment Setup](RAILWAY_ENV_SETUP.md)** - Environment variables configuration
@@ -70,7 +71,7 @@ Flexboard enables enterprises to build beautiful, real-time dashboards while kee
 
 ## 🚀 Quick Start
 
-### For SaaS Providers (Deploy Control Plane)
+### Option 1: Environment-Managed Development
 
 ```bash
 # 1. Clone repository
@@ -80,50 +81,64 @@ cd flexboard
 # 2. Install dependencies
 pnpm install
 
-# 3. Deploy Control Plane (Choose one platform)
+# 3. Validate environment configuration
+npm run env:validate
 
-# Option A: Render.com (Recommended - Free PostgreSQL included)
-# - Go to https://render.com/
-# - Connect GitHub repo
-# - Use render.yaml for automatic setup
-# - See RENDER_DEPLOYMENT.md for details
+# 4. Start all services with proper environment
+npm run dev
 
-# Option B: Vercel + Supabase
-# - Create Supabase project for database
-# - Deploy API to Vercel
-# - Configure DATABASE_URL
+# 5. Access services:
+# - Control Plane UI: http://localhost:3003
+# - Control Plane API: http://localhost:3000
+# - OnPrem Agent API: http://localhost:3001
+# - OnPrem Viewer UI: http://localhost:3002
+```
 
-# Option C: Fly.io
-flyctl apps create flexboard-control-plane
-flyctl postgres create flexboard-db
-flyctl deploy
+### Option 2: Manual Service Startup
 
-# 4. Set environment variables (required):
-# - JWT_SECRET: Use `openssl rand -hex 32` to generate
-# - CORS_ORIGINS: https://your-frontend-domains.com (comma-separated)
-#
-# See RENDER_DEPLOYMENT.md or FREE_DEPLOYMENT_OPTIONS.md for detailed instructions
+```bash
+# 1. Setup environment files (see docs/ENVIRONMENT.md)
+npm run env:setup
+
+# 2. Start services individually
+# Terminal 1: Control Plane API
+cd apps/control-plane-api && npm run dev
+
+# Terminal 2: Control Plane UI
+cd apps/control-plane-ui && npm run dev
+
+# Terminal 3: OnPrem Agent API
+cd apps/onprem-agent-api && npm run dev
+
+# Terminal 4: OnPrem Viewer UI
+cd apps/onprem-viewer-ui && npm run dev
+```
+
+### For SaaS Providers (Deploy Control Plane)
+
+```bash
+# Deploy to Railway (Recommended)
+# - See RAILWAY_DEPLOYMENT_GUIDE.md for details
+# - Uses PostgreSQL from Render.com (free tier)
+
+# Environment variables required:
+# - DATABASE_URL: PostgreSQL connection string
+# - JWT_SECRET: Use `openssl rand -hex 32`
+# - CORS_ORIGINS: Frontend domains (comma-separated)
 ```
 
 ### For Enterprise Customers (On-Premise Setup)
 
 ```bash
-# 1. Get your API key from SaaS provider
-export FLEXBOARD_API_KEY="fxb_your_api_key"
+# 1. Get API credentials from SaaS provider
+export TENANT_API_KEY="fxb_your_api_key"
 export CONTROL_PLANE_URL="https://your-control-plane.railway.app"
 
-# 2. Configure database connection
+# 2. Configure local database
 export DATABASE_URL="sqlserver://server;database=YourDB;user=sa;password=pass;trustServerCertificate=true"
 
-# 3. Start analytics agent
-cd apps/onprem-agent-api
-pnpm install && pnpm dev
-
-# 4. Start dashboard viewer
-cd apps/onprem-viewer-ui
-pnpm install && pnpm dev
-
-# 5. Open http://localhost:3000
+# 3. Start on-premise services
+npm run dev  # or use Docker: npm run docker:dev
 ```
 
 ## 📦 Project Structure

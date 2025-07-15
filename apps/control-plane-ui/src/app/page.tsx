@@ -11,13 +11,13 @@ import {
   Activity,
 } from "lucide-react";
 
-import { Sidebar } from "@/components/layout/sidebar";
+import { NavSidebar } from "@/components/layout/nav-sidebar";
 import { Header } from "@/components/layout/header";
 import { StatsCard } from "@/components/dashboard/stats-card";
 import { RecentTenants } from "@/components/dashboard/recent-tenants";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { QuickActions } from "@/components/dashboard/quick-actions";
-import { TenantManagement } from "@/components/tenant/tenant-management";
+import { TenantManagementNew } from "@/components/tenant/tenant-management";
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -81,7 +81,7 @@ export default function AdminDashboard() {
   const renderContent = () => {
     switch (activeTab) {
       case "tenants":
-        return <TenantManagement />;
+        return <TenantManagementNew />;
       case "users":
         return (
           <Card className="text-center py-12 glass-card">
@@ -137,20 +137,15 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen">
-      <div className="flex">
-        <Sidebar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          isOpen={sidebarOpen}
-          onToggle={() => setSidebarOpen(!sidebarOpen)}
-        />
+      <NavSidebar
+        isOpen={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+      />
 
-        {/* Main Content */}
-        <div className="flex-1 min-h-screen ml-0 md:ml-64">
-          <div className="p-4 md:p-8">
-            <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
-            <div>{renderContent()}</div>
-          </div>
+      <div className="md:ml-64">
+        <div className="p-4 md:p-8">
+          <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+          <div>{renderContent()}</div>
         </div>
       </div>
     </div>

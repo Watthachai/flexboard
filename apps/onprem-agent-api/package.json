@@ -4,8 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "postinstall": "prisma generate"
+    "dev": "PORT=3001 ts-node-dev --respawn --transpile-only src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "postinstall": "prisma generate",
+    "check-types": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
