@@ -13,7 +13,7 @@ import {
   WidgetType,
   ItemTypes,
 } from "./visual-dashboard-editor";
-import DraggableWidget from "./draggable-widget";
+import DraggableWidget from "../widget/draggable-widget";
 
 interface DashboardCanvasProps {
   dashboard: DashboardConfig;

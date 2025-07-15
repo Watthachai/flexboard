@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Widget } from "./visual-dashboard-editor";
+import { Widget } from "../dashboard/visual-dashboard-editor";
 import { Settings, Palette, Database, Code, X } from "lucide-react";
 
 interface WidgetPropertiesPanelProps {

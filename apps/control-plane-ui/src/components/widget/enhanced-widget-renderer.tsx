@@ -24,7 +24,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Card } from "@/components/ui/card";
-import { Widget } from "./visual-dashboard-editor";
+import { Widget } from "../dashboard/visual-dashboard-editor";
 import {
   TrendingUp,
   TrendingDown,

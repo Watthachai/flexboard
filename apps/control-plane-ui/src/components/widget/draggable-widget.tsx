@@ -24,7 +24,11 @@ import {
   Image,
   Calendar,
 } from "lucide-react";
-import { Widget, WidgetType, ItemTypes } from "./visual-dashboard-editor";
+import {
+  Widget,
+  WidgetType,
+  ItemTypes,
+} from "../dashboard/visual-dashboard-editor";
 
 // Widget icons mapping
 const WIDGET_ICONS: Record<

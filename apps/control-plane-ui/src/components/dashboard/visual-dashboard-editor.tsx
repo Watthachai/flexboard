@@ -10,9 +10,9 @@ import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import WidgetLibrarySidebar from "./widget-library-sidebar";
+import WidgetLibrarySidebar from "../widget/widget-library-sidebar";
 import DashboardCanvas from "./dashboard-canvas";
-import WidgetPropertiesPanel from "./widget-properties-panel";
+import WidgetPropertiesPanel from "../widget/widget-properties-panel";
 import {
   Save,
   Eye,
@@ -35,9 +35,9 @@ import {
   Search,
   Share2,
 } from "lucide-react";
-import DashboardTemplateMarketplace from "./template-marketplace";
-import CollaborationSystem from "./collaboration-system";
-import DashboardExportImport from "./export-import-system";
+import DashboardTemplateMarketplace from "../template/template-marketplace";
+import CollaborationSystem from "../system/collaboration-system";
+import DashboardExportImport from "../system/export-import-system";
 
 // Widget Types
 export type WidgetType =

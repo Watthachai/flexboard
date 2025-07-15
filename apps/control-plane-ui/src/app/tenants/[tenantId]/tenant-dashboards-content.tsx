@@ -1,109 +1,55 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useTenantDetail, useDashboardList } from "@/hooks";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
-interface Dashboard {
-  id: string;
-  name: string;
-  slug: string;
-  description?: string;
-  widgetCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface Tenant {
-  id: string;
-  name: string;
-  slug: string;
-  description?: string;
-  isActive: boolean;
-}
 
 export default function TenantDashboardsContent() {
   const params = useParams();
   const router = useRouter();
   const tenantId = params.tenantId as string;
 
-  const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [dashboards, setDashboards] = useState<Dashboard[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [createLoading, setCreateLoading] = useState(false);
+  // Use the modular hooks
+  const {
+    tenant,
+    loading: tenantLoading,
+    error: tenantError,
+  } = useTenantDetail({
+    tenantId: tenantId,
+    autoFetch: !!tenantId,
+  });
 
-  useEffect(() => {
-    if (tenantId) {
-      fetchTenantData();
-    }
-  }, [tenantId]);
+  const {
+    dashboards,
+    loading: dashboardsLoading,
+    error: dashboardsError,
+    createDashboard,
+  } = useDashboardList({
+    filters: { tenantId: tenantId },
+  });
 
-  const fetchTenantData = async () => {
+  const loading = tenantLoading || dashboardsLoading;
+  const error = tenantError || dashboardsError;
+
+  const handleCreateDashboard = async () => {
     try {
-      setLoading(true);
-
-      // Fetch tenant info
-      const tenantResponse = await fetch(`/api/tenants/${tenantId}`);
-      const tenantData = await tenantResponse.json();
-
-      if (!tenantData.success) {
-        throw new Error(tenantData.error || "Failed to fetch tenant");
-      }
-
-      setTenant(tenantData.data);
-
-      // Fetch dashboards
-      const dashboardsResponse = await fetch(
-        `/api/tenants/${tenantId}/dashboards`
-      );
-      const dashboardsData = await dashboardsResponse.json();
-
-      if (!dashboardsData.success) {
-        throw new Error(dashboardsData.error || "Failed to fetch dashboards");
-      }
-
-      setDashboards(dashboardsData.data);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-      setError(error instanceof Error ? error.message : "Failed to fetch data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createDashboard = async () => {
-    try {
-      setCreateLoading(true);
-
-      const response = await fetch(`/api/tenants/${tenantId}/dashboards`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: "New Dashboard",
-          description: "A new dashboard for your analytics",
-        }),
+      const newDashboard = await createDashboard({
+        name: "New Dashboard",
+        description: "A new dashboard for your analytics",
+        tenantId,
       });
 
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Failed to create dashboard");
+      if (newDashboard) {
+        // Navigate to dashboard builder
+        router.push(`/tenants/${tenantId}/dashboards/${newDashboard.id}`);
       }
-
-      // Navigate to dashboard builder
-      router.push(`/tenants/${tenantId}/dashboards/${data.data.id}`);
     } catch (error) {
       console.error("Error creating dashboard:", error);
       alert(
         error instanceof Error ? error.message : "Failed to create dashboard"
       );
-    } finally {
-      setCreateLoading(false);
     }
   };
 
@@ -165,11 +111,10 @@ export default function TenantDashboardsContent() {
         </div>
         <div className="flex gap-2">
           <Button
-            onClick={createDashboard}
-            disabled={createLoading}
+            onClick={handleCreateDashboard}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            {createLoading ? "Creating..." : "Create Dashboard"}
+            Create Dashboard
           </Button>
         </div>
       </div>
@@ -212,11 +157,10 @@ export default function TenantDashboardsContent() {
               Get started by creating your first dashboard for {tenant.name}
             </p>
             <Button
-              onClick={createDashboard}
-              disabled={createLoading}
+              onClick={handleCreateDashboard}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
-              {createLoading ? "Creating..." : "Create First Dashboard"}
+              Create First Dashboard
             </Button>
           </div>
         </Card>
@@ -232,7 +176,7 @@ export default function TenantDashboardsContent() {
                   <div>
                     <h3 className="font-semibold text-lg">{dashboard.name}</h3>
                     <p className="text-sm text-muted-foreground">
-                      /{dashboard.slug}
+                      Dashboard ID: {dashboard.id.substring(0, 8)}...
                     </p>
                   </div>
                 </div>
@@ -244,10 +188,7 @@ export default function TenantDashboardsContent() {
                 )}
 
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>
-                    {dashboard.widgetCount}{" "}
-                    {dashboard.widgetCount === 1 ? "widget" : "widgets"}
-                  </span>
+                  <span>Dashboard</span>
                   <span>
                     Updated {new Date(dashboard.updatedAt).toLocaleDateString()}
                   </span>
