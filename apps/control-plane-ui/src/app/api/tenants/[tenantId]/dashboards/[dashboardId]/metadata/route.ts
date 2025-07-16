@@ -3,13 +3,13 @@ import { envConfig } from "@/config/env";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ dashboardId: string }> }
+  { params }: { params: Promise<{ tenantId: string; dashboardId: string }> }
 ) {
   try {
-    const { dashboardId } = await params;
+    const { tenantId, dashboardId } = await params;
 
     const response = await fetch(
-      `${envConfig.apiUrl}/dashboards/${dashboardId}/metadata`,
+      `${envConfig.apiUrl}/api/dashboards/${dashboardId}/metadata`,
       {
         method: "GET",
         headers: {
@@ -25,13 +25,9 @@ export async function GET(
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error fetching metadata:", error);
+    console.error("Error fetching dashboard metadata:", error);
     return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to fetch metadata",
-      },
+      { success: false, error: "Failed to fetch dashboard metadata" },
       { status: 500 }
     );
   }
@@ -39,14 +35,14 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ dashboardId: string }> }
+  { params }: { params: Promise<{ tenantId: string; dashboardId: string }> }
 ) {
   try {
-    const { dashboardId } = await params;
+    const { tenantId, dashboardId } = await params;
     const body = await request.json();
 
     const response = await fetch(
-      `${envConfig.apiUrl}/dashboards/${dashboardId}/metadata`,
+      `${envConfig.apiUrl}/api/dashboards/${dashboardId}/metadata`,
       {
         method: "PUT",
         headers: {
@@ -63,13 +59,9 @@ export async function PUT(
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Error saving metadata:", error);
+    console.error("Error updating dashboard metadata:", error);
     return NextResponse.json(
-      {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to save metadata",
-      },
+      { success: false, error: "Failed to update dashboard metadata" },
       { status: 500 }
     );
   }

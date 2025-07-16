@@ -85,8 +85,8 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
 
         const dashboard = await prisma.dashboard.findFirst({
           where: {
-            id: dashboardId,
             tenantId,
+            OR: [{ id: dashboardId }, { slug: dashboardId }],
           },
           include: {
             widgets: true,
@@ -303,8 +303,10 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         const { dashboardId } = request.params;
 
         // Get dashboard to find tenant
-        const dashboard = await prisma.dashboard.findUnique({
-          where: { id: dashboardId },
+        const dashboard = await prisma.dashboard.findFirst({
+          where: {
+            OR: [{ id: dashboardId }, { slug: dashboardId }],
+          },
           include: {
             tenant: true,
           },
@@ -387,8 +389,10 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         const { metadata, createdBy = "admin" } = request.body;
 
         // Get dashboard to find tenant
-        const dashboard = await prisma.dashboard.findUnique({
-          where: { id: dashboardId },
+        const dashboard = await prisma.dashboard.findFirst({
+          where: {
+            OR: [{ id: dashboardId }, { slug: dashboardId }],
+          },
         });
 
         if (!dashboard) {

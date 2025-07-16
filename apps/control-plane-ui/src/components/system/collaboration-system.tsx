@@ -173,7 +173,7 @@ export default function CollaborationSystem({
   return (
     <>
       {/* Collaboration Toolbar */}
-      <div className="flex items-center space-x-4 p-4 bg-white border-b border-gray-200">
+      <div className="flex items-center space-x-4 p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         {/* Connection Status */}
         <div className="flex items-center space-x-2">
           {isConnected ? (
@@ -181,7 +181,7 @@ export default function CollaborationSystem({
           ) : (
             <WifiOff className="w-4 h-4 text-red-500" />
           )}
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
             {isConnected ? "Connected" : "Disconnected"}
           </span>
         </div>

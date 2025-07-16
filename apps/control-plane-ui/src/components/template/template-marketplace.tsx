@@ -25,7 +25,7 @@ import {
   ShoppingCart,
   Clock,
 } from "lucide-react";
-import { DashboardConfig } from "./visual-dashboard-editor";
+import { DashboardConfig } from "@/types/dashboard-editor";
 
 interface DashboardTemplate {
   id: string;
@@ -256,11 +256,11 @@ export default function DashboardTemplateMarketplace({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-5/6 flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-6xl h-5/6 flex flex-col">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
               Template Marketplace
             </h2>
             <Button variant="ghost" onClick={onClose}>
@@ -285,7 +285,7 @@ export default function DashboardTemplateMarketplace({
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md"
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               {CATEGORIES.map((category) => (
                 <option key={category} value={category}>

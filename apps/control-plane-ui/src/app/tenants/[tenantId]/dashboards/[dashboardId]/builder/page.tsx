@@ -1,3 +1,4 @@
+import AppLayout from "@/components/layout/app-layout";
 import VisualDashboardEditor from "@/components/dashboard/visual-dashboard-editor";
 
 interface PageProps {
@@ -13,6 +14,8 @@ export default async function VisualDashboardBuilderPage({
   const { tenantId, dashboardId } = await params;
 
   return (
-    <VisualDashboardEditor tenantId={tenantId} dashboardId={dashboardId} />
+    <AppLayout>
+      <VisualDashboardEditor tenantId={tenantId} dashboardId={dashboardId} />
+    </AppLayout>
   );
 }

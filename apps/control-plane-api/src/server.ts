@@ -2,6 +2,7 @@ import Fastify, { FastifyRequest, FastifyReply } from "fastify";
 import { PrismaClient } from "../node_modules/.prisma/client";
 import { tenantRoutes } from "./routes/tenants";
 import { dashboardRoutes } from "./routes/dashboards";
+import { userRoutes } from "./routes/users";
 import { envConfig, validateEnvConfig, createServerConfig } from "./config/env";
 
 // Validate environment variables before starting
@@ -22,6 +23,8 @@ console.log("Registering tenant routes...");
 fastify.register(tenantRoutes);
 console.log("Registering dashboard routes...");
 fastify.register(dashboardRoutes);
+console.log("Registering user routes...");
+fastify.register(userRoutes);
 
 const prisma = new PrismaClient();
 

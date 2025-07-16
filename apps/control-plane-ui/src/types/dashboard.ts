@@ -30,7 +30,7 @@ export interface WidgetConfig {
   colors?: string[];
 
   // Filters
-  filters?: Record<string, any>;
+  filters?: Record<string, unknown>;
   dateRange?: {
     start: string;
     end: string;

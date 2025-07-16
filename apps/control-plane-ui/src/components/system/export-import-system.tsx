@@ -26,7 +26,7 @@ import {
   Calendar,
   Settings,
 } from "lucide-react";
-import { DashboardConfig } from "./visual-dashboard-editor";
+import { DashboardConfig } from "@/types/dashboard-editor";
 
 interface ExportOptions {
   format: "json" | "png" | "pdf";
@@ -216,11 +216,13 @@ export default function DashboardExportImport({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-5/6 overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-5/6 overflow-hidden">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-gray-900">Export & Share</h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Export & Share
+            </h2>
             <Button variant="ghost" onClick={onClose}>
               ✕
             </Button>
@@ -239,12 +241,14 @@ export default function DashboardExportImport({
             {/* Export Tab */}
             <TabsContent value="export" className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold mb-4">Export Dashboard</h3>
+                <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                  Export Dashboard
+                </h3>
 
                 {/* Format Selection */}
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Export Format
                     </label>
                     <div className="grid grid-cols-3 gap-3">

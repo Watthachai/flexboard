@@ -5,14 +5,14 @@
 
 "use client";
 
-import React, { forwardRef } from "react";
+import React, { forwardRef, useRef, useEffect, useState } from "react";
 import { useDrop } from "react-dnd";
 import {
   DashboardConfig,
   Widget,
   WidgetType,
   ItemTypes,
-} from "./visual-dashboard-editor";
+} from "@/types/dashboard-editor";
 import DraggableWidget from "../widget/draggable-widget";
 
 interface DashboardCanvasProps {
@@ -43,15 +43,23 @@ const DashboardCanvas = forwardRef<HTMLDivElement, DashboardCanvasProps>(
     ref
   ) => {
     const [{ isOver }, drop] = useDrop({
-      accept: ItemTypes.NEW_WIDGET,
-      drop: (item: { type: WidgetType }, monitor) => {
+      accept: [ItemTypes.NEW_WIDGET, ItemTypes.WIDGET],
+      drop: (item: { type?: WidgetType; id?: string }, monitor) => {
         const clientOffset = monitor.getClientOffset();
         if (clientOffset && ref && "current" in ref && ref.current) {
           const canvasRect = ref.current.getBoundingClientRect();
           const x = clientOffset.x - canvasRect.left;
           const y = clientOffset.y - canvasRect.top;
-          onDropWidget(item.type, x, y);
+
+          if (item.type) {
+            // ลาก widget ใหม่จาก library
+            onDropWidget(item.type, x, y);
+          } else if (item.id) {
+            // เลื่อน widget ที่มีอยู่แล้ว
+            onMoveWidget(item.id, x, y);
+          }
         }
+        return { moved: true };
       },
       collect: (monitor) => ({
         isOver: monitor.isOver(),
@@ -71,30 +79,54 @@ const DashboardCanvas = forwardRef<HTMLDivElement, DashboardCanvasProps>(
     };
 
     const { columns, rows, gridSize } = dashboard.layout;
-    const canvasWidth = columns * gridSize;
-    const canvasHeight = rows * gridSize;
+
+    // คำนวณขนาด canvas ให้เต็มพื้นที่ที่มี
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [canvasSize, setCanvasSize] = useState({
+      width: columns * gridSize,
+      height: rows * gridSize,
+    });
+
+    // Update canvas size based on container
+    useEffect(() => {
+      const updateSize = () => {
+        if (containerRef.current) {
+          const container = containerRef.current;
+          const availableWidth = container.clientWidth - 32; // padding
+          const availableHeight = container.clientHeight - 32;
+
+          // คำนวณขนาดที่เหมาะสม
+          const calculatedWidth = Math.max(availableWidth, columns * gridSize);
+          const calculatedHeight = Math.max(availableHeight, rows * gridSize);
+
+          setCanvasSize({ width: calculatedWidth, height: calculatedHeight });
+        }
+      };
+
+      updateSize();
+      window.addEventListener("resize", updateSize);
+      return () => window.removeEventListener("resize", updateSize);
+    }, [columns, rows, gridSize]);
 
     return (
-      <div className="p-4 h-full">
+      <div ref={containerRef} className="p-4 h-full w-full overflow-auto">
         <div
           ref={setRef}
           className={`
-            relative bg-white border-2 border-dashed rounded-lg
-            ${isOver ? "border-blue-400 bg-blue-50" : "border-gray-300"}
-            ${isPreviewMode ? "border-solid border-gray-200" : ""}
+            relative bg-white dark:bg-gray-800 border-2 border-dashed rounded-lg mx-auto
+            ${isOver ? "border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20" : "border-gray-300 dark:border-gray-600"}
+            ${isPreviewMode ? "border-solid border-gray-200 dark:border-gray-700" : ""}
           `}
           style={{
-            width: canvasWidth,
-            height: canvasHeight,
-            minWidth: "100%",
-            minHeight: "600px",
+            width: canvasSize.width,
+            height: canvasSize.height,
           }}
           onClick={() => !isPreviewMode && onSelectWidget(null)}
         >
           {/* Grid Background */}
           {!isPreviewMode && (
             <div
-              className="absolute inset-0 pointer-events-none opacity-20"
+              className="absolute inset-0 pointer-events-none opacity-20 dark:opacity-10"
               style={{
                 backgroundImage: `
                   linear-gradient(to right, #e5e7eb 1px, transparent 1px),

@@ -13,6 +13,33 @@
 			"group": "build",
 			"isBackground": true,
 			"problemMatcher": []
+		},
+		{
+			"label": "Dev: Run Control Plane API",
+			"type": "shell",
+			"command": "turbo",
+			"args": [
+				"dev",
+				"--filter=control-plane-api"
+			],
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": []
+		},
+		{
+			"label": "Dev: Run Full Stack",
+			"type": "shell",
+			"command": "turbo",
+			"args": [
+				"dev",
+				"--filter=control-plane-api",
+				"--filter=control-plane-ui",
+				"--filter=onprem-agent-api",
+				"--filter=onprem-viewer-ui"
+			],
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": []
 		}
 	]
 }

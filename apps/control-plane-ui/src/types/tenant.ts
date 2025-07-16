@@ -31,7 +31,7 @@ export interface TenantSettings {
 export interface TenantFeature {
   name: string;
   enabled: boolean;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
 }
 
 export interface TenantLimits {
@@ -108,7 +108,7 @@ export type WidgetType =
   | "image";
 
 export interface WidgetConfig {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface LayoutSettings {
@@ -124,7 +124,7 @@ export interface DashboardFilter {
   name: string;
   type: "dropdown" | "input" | "daterange" | "multiselect";
   options?: FilterOption[];
-  defaultValue?: any;
+  defaultValue?: unknown;
 }
 
 export interface FilterOption {
@@ -136,7 +136,7 @@ export interface DashboardVariable {
   id: string;
   name: string;
   type: "static" | "query" | "computed";
-  value: any;
+  value: unknown;
   query?: string;
 }
 

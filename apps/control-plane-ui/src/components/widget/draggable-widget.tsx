@@ -24,11 +24,7 @@ import {
   Image,
   Calendar,
 } from "lucide-react";
-import {
-  Widget,
-  WidgetType,
-  ItemTypes,
-} from "../dashboard/visual-dashboard-editor";
+import { Widget, WidgetType, ItemTypes } from "@/types/dashboard-editor";
 
 // Widget icons mapping
 const WIDGET_ICONS: Record<
@@ -74,11 +70,24 @@ export default function DraggableWidget({
 
   const [{ isDragging }, drag] = useDrag({
     type: ItemTypes.WIDGET,
-    item: { id: widget.id },
+    item: { id: widget.id, x: widget.x, y: widget.y },
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
     canDrag: !isPreviewMode && !isResizing,
+    end: (item, monitor) => {
+      // เมื่อการลากจบ ให้อัพเดทตำแหน่งจริง
+      const dropResult = monitor.getDropResult();
+      if (dropResult && monitor.didDrop()) {
+        const clientOffset = monitor.getClientOffset();
+        if (clientOffset) {
+          // คำนวณตำแหน่งใหม่
+          const newX = Math.round(clientOffset.x / gridSize) * gridSize;
+          const newY = Math.round(clientOffset.y / gridSize) * gridSize;
+          onMove(widget.id, newX, newY);
+        }
+      }
+    },
   });
 
   // Handle widget movement
@@ -95,7 +104,7 @@ export default function DraggableWidget({
     onResize(widget.id, newWidth, newHeight);
   };
 
-  const Icon = WIDGET_ICONS[widget.type];
+  const Icon = WIDGET_ICONS[widget.type] || Hash;
 
   const widgetStyle = {
     left: widget.x * gridSize,
@@ -122,12 +131,12 @@ export default function DraggableWidget({
         onSelect();
       }}
     >
-      <Card className="h-full p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
+      <Card className="h-full p-4 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow border border-gray-200 dark:border-gray-700">
         {/* Widget Header */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center space-x-2">
-            <Icon className="w-4 h-4 text-gray-600" />
-            <span className="text-sm font-medium text-gray-900">
+            <Icon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
               {widget.title}
             </span>
           </div>
@@ -177,7 +186,7 @@ export default function DraggableWidget({
         {/* Resize Handle */}
         {isSelected && !isPreviewMode && (
           <div
-            className="absolute bottom-0 right-0 w-4 h-4 cursor-nw-resize"
+            className="absolute bottom-0 right-0 w-4 h-4 cursor-nw-resize bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-tl"
             onMouseDown={(e) => {
               e.stopPropagation();
               setIsResizing(true);
@@ -207,7 +216,7 @@ export default function DraggableWidget({
               document.addEventListener("mouseup", handleMouseUp);
             }}
           >
-            <GripHorizontal className="w-4 h-4 text-gray-400 rotate-45" />
+            <GripHorizontal className="w-4 h-4 text-gray-400 dark:text-gray-500 rotate-45" />
           </div>
         )}
       </Card>
@@ -221,30 +230,34 @@ function WidgetPreview({ widget }: { widget: Widget }) {
     case "kpi":
       return (
         <div className="text-center">
-          <div className="text-2xl font-bold text-blue-600">42</div>
-          <div className="text-xs text-gray-500">Sample KPI</div>
+          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            42
+          </div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            Sample KPI
+          </div>
         </div>
       );
 
     case "chart":
     case "line-chart":
       return (
-        <div className="w-full h-full bg-gray-50 rounded flex items-center justify-center">
-          <Activity className="w-8 h-8 text-gray-400" />
+        <div className="w-full h-full bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
+          <Activity className="w-8 h-8 text-gray-400 dark:text-gray-500" />
         </div>
       );
 
     case "bar-chart":
       return (
-        <div className="w-full h-full bg-gray-50 rounded flex items-center justify-center">
-          <BarChart3 className="w-8 h-8 text-gray-400" />
+        <div className="w-full h-full bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
+          <BarChart3 className="w-8 h-8 text-gray-400 dark:text-gray-500" />
         </div>
       );
 
     case "pie-chart":
       return (
-        <div className="w-full h-full bg-gray-50 rounded flex items-center justify-center">
-          <PieChart className="w-8 h-8 text-gray-400" />
+        <div className="w-full h-full bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
+          <PieChart className="w-8 h-8 text-gray-400 dark:text-gray-500" />
         </div>
       );
 
@@ -252,36 +265,51 @@ function WidgetPreview({ widget }: { widget: Widget }) {
       return (
         <div className="w-full">
           <div className="grid grid-cols-3 gap-1 text-xs">
-            <div className="bg-gray-100 p-1">Col 1</div>
-            <div className="bg-gray-100 p-1">Col 2</div>
-            <div className="bg-gray-100 p-1">Col 3</div>
-            <div className="p-1">Data</div>
-            <div className="p-1">Data</div>
-            <div className="p-1">Data</div>
+            <div className="bg-gray-100 dark:bg-gray-600 p-1 text-gray-900 dark:text-white">
+              Col 1
+            </div>
+            <div className="bg-gray-100 dark:bg-gray-600 p-1 text-gray-900 dark:text-white">
+              Col 2
+            </div>
+            <div className="bg-gray-100 dark:bg-gray-600 p-1 text-gray-900 dark:text-white">
+              Col 3
+            </div>
+            <div className="p-1 text-gray-700 dark:text-gray-300">Data</div>
+            <div className="p-1 text-gray-700 dark:text-gray-300">Data</div>
+            <div className="p-1 text-gray-700 dark:text-gray-300">Data</div>
           </div>
         </div>
       );
 
     case "text":
       return (
-        <div className="text-sm text-gray-600">Sample text content...</div>
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          Sample text content...
+        </div>
       );
 
     case "image":
       return (
-        <div className="w-full h-full bg-gray-100 rounded flex items-center justify-center">
-          <Image className="w-8 h-8 text-gray-400" />
+        <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded flex items-center justify-center">
+          <Image className="w-8 h-8 text-gray-400 dark:text-gray-500" />
         </div>
       );
 
     case "date":
       return (
-        <div className="text-sm text-gray-600">
+        <div className="text-sm text-gray-600 dark:text-gray-400">
           {new Date().toLocaleDateString()}
         </div>
       );
 
     default:
-      return <div className="text-xs text-gray-400">Widget Preview</div>;
+      return (
+        <div className="text-xs text-gray-400 dark:text-gray-500">
+          Widget Preview
+        </div>
+      );
   }
 }
+
+// Named export for better compatibility
+export { DraggableWidget };

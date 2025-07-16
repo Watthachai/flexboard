@@ -4,3 +4,4 @@
  */
 
 export { RecentTenants } from "./recent-tenants";
+export { TenantManagementNew } from "./tenant-management";

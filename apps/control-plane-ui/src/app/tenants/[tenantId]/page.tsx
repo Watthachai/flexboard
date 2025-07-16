@@ -1,10 +1,10 @@
 import AppLayout from "@/components/layout/app-layout";
-import TenantDashboardsContent from "./tenant-dashboards-content";
+import TenantDetailContent from "@/components/tenant/tenant-detail-content";
 
-export default function TenantDashboardsPage() {
+export default function TenantDetailPage() {
   return (
     <AppLayout>
-      <TenantDashboardsContent />
+      <TenantDetailContent />
     </AppLayout>
   );
 }

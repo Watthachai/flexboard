@@ -20,17 +20,24 @@ import {
 interface NavSidebarProps {
   isOpen: boolean;
   onToggle: () => void;
+  activeTab?: string;
+  onTabChange?: (tab: string) => void;
 }
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: Home },
-  { href: "/tenants", label: "Tenants", icon: Building2 },
-  { href: "/tenant-management", label: "Tenant Management", icon: Users },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { id: "dashboard", href: "/", label: "Dashboard", icon: Home },
+  { id: "tenants", href: "/tenants", label: "Tenants", icon: Building2 },
+  { id: "users", href: "/users", label: "User Management", icon: Users },
+  { id: "analytics", href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { id: "settings", href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function NavSidebar({ isOpen, onToggle }: NavSidebarProps) {
+export function NavSidebar({
+  isOpen,
+  onToggle,
+  activeTab,
+  onTabChange,
+}: NavSidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -71,13 +78,24 @@ export function NavSidebar({ isOpen, onToggle }: NavSidebarProps) {
         <nav className="space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive =
-              item.href === "/"
+            const isActive = activeTab
+              ? activeTab === item.id
+              : item.href === "/"
                 ? pathname === "/"
                 : pathname.startsWith(item.href);
 
+            const handleClick = (e: React.MouseEvent) => {
+              if (onTabChange && item.id !== "tenants") {
+                e.preventDefault();
+                onTabChange(item.id);
+                onToggle();
+              } else {
+                onToggle();
+              }
+            };
+
             return (
-              <Link key={item.href} href={item.href} onClick={onToggle}>
+              <Link key={item.href} href={item.href} onClick={handleClick}>
                 <Button
                   variant={isActive ? "default" : "ghost"}
                   className={cn(
