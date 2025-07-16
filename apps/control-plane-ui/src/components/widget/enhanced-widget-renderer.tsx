@@ -24,7 +24,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Card } from "@/components/ui/card";
-import { Widget } from "../dashboard/visual-dashboard-editor";
+import { Widget } from "@/types/dashboard-editor";
 import {
   TrendingUp,
   TrendingDown,
@@ -115,7 +115,7 @@ export default function EnhancedWidgetRenderer({
 
     try {
       if (widget.config.dataSource === "api" && widget.config.apiEndpoint) {
-        const response = await fetch(widget.config.apiEndpoint);
+        const response = await fetch(widget.config.apiEndpoint as string);
         if (!response.ok) throw new Error("Failed to fetch data");
         const result = await response.json();
         setWidgetData(result);
@@ -198,7 +198,7 @@ export default function EnhancedWidgetRenderer({
 
 // KPI Widget Component
 function KPIWidget({ widget, data }: { widget: Widget; data: any }) {
-  const kpiType = widget.config.kpiType || "revenue";
+  const kpiType = (widget.config.kpiType as string) || "revenue";
   const kpiData =
     data?.[kpiType] || data?.revenue || SAMPLE_DATA.kpiData.revenue;
 
@@ -406,7 +406,7 @@ function ImageWidget({ widget }: { widget: Widget }) {
     <Card className="h-full p-4">
       {widget.config.imageUrl ? (
         <img
-          src={widget.config.imageUrl}
+          src={widget.config.imageUrl as string}
           alt={widget.title}
           className="w-full h-full object-cover rounded"
         />

@@ -41,6 +41,9 @@ export type {
   DashboardSortOrder,
 } from "./dashboard";
 
+// Dashboard editor types
+export * from "./dashboard-editor";
+
 // User types
 export type {
   User,

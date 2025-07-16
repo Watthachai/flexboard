@@ -3,7 +3,7 @@
  * Centralized HTTP client with error handling and interceptors
  */
 
-import { ApiResponse, ApiError as ApiErrorType } from "@/types/api";
+import { ApiResponse } from "@/types/api";
 
 export interface RequestConfig {
   timeout?: number;
@@ -15,7 +15,7 @@ class ApiClient {
   private baseURL: string;
   private defaultHeaders: Record<string, string>;
 
-  constructor(baseURL: string = "/api") {
+  constructor(baseURL: string = "") {
     this.baseURL = baseURL;
     this.defaultHeaders = {
       "Content-Type": "application/json",
@@ -42,7 +42,7 @@ class ApiClient {
   private async request<T>(
     method: string,
     endpoint: string,
-    data?: any,
+    data?: unknown,
     config?: RequestConfig
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
@@ -65,7 +65,7 @@ class ApiClient {
 
     // Add query parameters for GET requests
     if (data && method === "GET") {
-      const params = new URLSearchParams(data);
+      const params = new URLSearchParams(data as Record<string, string>);
       const separator = endpoint.includes("?") ? "&" : "?";
       endpoint += `${separator}${params.toString()}`;
     }
@@ -121,7 +121,7 @@ class ApiClient {
    */
   async post<T>(
     endpoint: string,
-    data?: any,
+    data?: unknown,
     config?: RequestConfig
   ): Promise<ApiResponse<T>> {
     return this.request<T>("POST", endpoint, data, config);
@@ -132,7 +132,7 @@ class ApiClient {
    */
   async put<T>(
     endpoint: string,
-    data?: any,
+    data?: unknown,
     config?: RequestConfig
   ): Promise<ApiResponse<T>> {
     return this.request<T>("PUT", endpoint, data, config);
@@ -143,7 +143,7 @@ class ApiClient {
    */
   async patch<T>(
     endpoint: string,
-    data?: any,
+    data?: unknown,
     config?: RequestConfig
   ): Promise<ApiResponse<T>> {
     return this.request<T>("PATCH", endpoint, data, config);

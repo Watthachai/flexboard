@@ -13,11 +13,8 @@ import {
 
 import { NavSidebar } from "@/components/layout/nav-sidebar";
 import { Header } from "@/components/layout/header";
-import { StatsCard } from "@/components/dashboard/stats-card";
-import { RecentTenants } from "@/components/dashboard/recent-tenants";
-import { RecentActivity } from "@/components/dashboard/recent-activity";
-import { QuickActions } from "@/components/dashboard/quick-actions";
-import { TenantManagementNew } from "@/components/tenant/tenant-management";
+import { RecentTenants, TenantManagementNew } from "@/components/tenant";
+import { QuickActions, RecentActivity, StatsCard } from "@/components/common";
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -140,6 +137,8 @@ export default function AdminDashboard() {
       <NavSidebar
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
       />
 
       <div className="md:ml-64">

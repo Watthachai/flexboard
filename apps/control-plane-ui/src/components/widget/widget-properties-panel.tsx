@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Widget } from "../dashboard/visual-dashboard-editor";
+import { Widget } from "@/types/dashboard-editor";
 import { Settings, Palette, Database, Code, X } from "lucide-react";
 
 interface WidgetPropertiesPanelProps {
@@ -34,10 +34,12 @@ export default function WidgetPropertiesPanel({
   if (!widget) return null;
 
   return (
-    <div className="w-80 bg-white border-l border-gray-200 overflow-y-auto">
+    <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-y-auto">
       <div className="p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Properties</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            Properties
+          </h2>
           <Button variant="ghost" size="sm">
             <X className="w-4 h-4" />
           </Button>
@@ -132,7 +134,7 @@ export default function WidgetPropertiesPanel({
             <div>
               <Label htmlFor="background-color">Background Color</Label>
               <Select
-                value={widget.config.backgroundColor || "white"}
+                value={(widget.config.backgroundColor as string) || "white"}
                 onValueChange={(value) =>
                   onUpdateWidget({
                     config: { ...widget.config, backgroundColor: value },
@@ -155,7 +157,7 @@ export default function WidgetPropertiesPanel({
             <div>
               <Label htmlFor="text-color">Text Color</Label>
               <Select
-                value={widget.config.textColor || "black"}
+                value={(widget.config.textColor as string) || "black"}
                 onValueChange={(value) =>
                   onUpdateWidget({
                     config: { ...widget.config, textColor: value },
@@ -177,7 +179,7 @@ export default function WidgetPropertiesPanel({
             <div>
               <Label htmlFor="border-radius">Border Radius</Label>
               <Select
-                value={widget.config.borderRadius || "medium"}
+                value={(widget.config.borderRadius as string) || "medium"}
                 onValueChange={(value) =>
                   onUpdateWidget({
                     config: { ...widget.config, borderRadius: value },
@@ -202,7 +204,7 @@ export default function WidgetPropertiesPanel({
             <div>
               <Label htmlFor="data-source">Data Source</Label>
               <Select
-                value={widget.config.dataSource || "none"}
+                value={(widget.config.dataSource as string) || "none"}
                 onValueChange={(value) =>
                   onUpdateWidget({
                     config: { ...widget.config, dataSource: value },
@@ -226,7 +228,7 @@ export default function WidgetPropertiesPanel({
                 <Label htmlFor="api-endpoint">API Endpoint</Label>
                 <Input
                   id="api-endpoint"
-                  value={widget.config.apiEndpoint || ""}
+                  value={(widget.config.apiEndpoint as string) || ""}
                   onChange={(e) =>
                     onUpdateWidget({
                       config: { ...widget.config, apiEndpoint: e.target.value },
@@ -242,7 +244,7 @@ export default function WidgetPropertiesPanel({
                 <Label htmlFor="sql-query">SQL Query</Label>
                 <Textarea
                   id="sql-query"
-                  value={widget.config.sqlQuery || ""}
+                  value={(widget.config.sqlQuery as string) || ""}
                   onChange={(e) =>
                     onUpdateWidget({
                       config: { ...widget.config, sqlQuery: e.target.value },
@@ -261,7 +263,7 @@ export default function WidgetPropertiesPanel({
               <Input
                 id="refresh-interval"
                 type="number"
-                value={widget.config.refreshInterval || 30}
+                value={(widget.config.refreshInterval as number) || 30}
                 onChange={(e) =>
                   onUpdateWidget({
                     config: {
@@ -280,7 +282,7 @@ export default function WidgetPropertiesPanel({
               <Label htmlFor="custom-css">Custom CSS</Label>
               <Textarea
                 id="custom-css"
-                value={widget.config.customCss || ""}
+                value={(widget.config.customCss as string) || ""}
                 onChange={(e) =>
                   onUpdateWidget({
                     config: { ...widget.config, customCss: e.target.value },
@@ -295,7 +297,7 @@ export default function WidgetPropertiesPanel({
               <Label htmlFor="custom-js">Custom JavaScript</Label>
               <Textarea
                 id="custom-js"
-                value={widget.config.customJs || ""}
+                value={(widget.config.customJs as string) || ""}
                 onChange={(e) =>
                   onUpdateWidget({
                     config: { ...widget.config, customJs: e.target.value },
@@ -328,7 +330,7 @@ function WidgetSpecificProperties({
             <Label htmlFor="kpi-value">Value</Label>
             <Input
               id="kpi-value"
-              value={widget.config.value || ""}
+              value={(widget.config.value as string) || ""}
               onChange={(e) =>
                 onUpdateWidget({
                   config: { ...widget.config, value: e.target.value },
@@ -341,7 +343,7 @@ function WidgetSpecificProperties({
             <Label htmlFor="kpi-unit">Unit</Label>
             <Input
               id="kpi-unit"
-              value={widget.config.unit || ""}
+              value={(widget.config.unit as string) || ""}
               onChange={(e) =>
                 onUpdateWidget({
                   config: { ...widget.config, unit: e.target.value },
@@ -362,7 +364,7 @@ function WidgetSpecificProperties({
           <div>
             <Label htmlFor="chart-type">Chart Type</Label>
             <Select
-              value={widget.config.chartType || "line"}
+              value={(widget.config.chartType as string) || "line"}
               onValueChange={(value) =>
                 onUpdateWidget({
                   config: { ...widget.config, chartType: value },
@@ -389,7 +391,7 @@ function WidgetSpecificProperties({
           <Label htmlFor="text-content">Text Content</Label>
           <Textarea
             id="text-content"
-            value={widget.config.content || ""}
+            value={(widget.config.content as string) || ""}
             onChange={(e) =>
               onUpdateWidget({
                 config: { ...widget.config, content: e.target.value },
@@ -407,7 +409,7 @@ function WidgetSpecificProperties({
           <Label htmlFor="image-url">Image URL</Label>
           <Input
             id="image-url"
-            value={widget.config.imageUrl || ""}
+            value={(widget.config.imageUrl as string) || ""}
             onChange={(e) =>
               onUpdateWidget({
                 config: { ...widget.config, imageUrl: e.target.value },

@@ -3,7 +3,7 @@
  * Common types for API communication
  */
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   message?: string;
@@ -105,7 +105,7 @@ export interface WidgetConfig {
   y: number;
   width: number;
   height: number;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
 }
 
 export interface LayoutConfig {

@@ -3,7 +3,7 @@
  * Hook for managing dashboard list with CRUD operations
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { DashboardService } from "@/services/dashboard.service";
 import { Dashboard } from "@/types/dashboard";
 import { CreateDashboardRequest, UpdateDashboardRequest } from "@/types/api";
@@ -41,6 +41,12 @@ export function useDashboardList(
 ): UseDashboardListReturn {
   const { autoFetch = true, filters } = options;
 
+  // Memoize filters to prevent unnecessary re-renders
+  const memoizedFilters = useMemo(
+    () => filters,
+    [filters, filters?.tenantId, filters?.search, filters?.isPublic]
+  );
+
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +56,7 @@ export function useDashboardList(
       setLoading(true);
       setError(null);
 
-      const response = await DashboardService.getDashboards(filters);
+      const response = await DashboardService.getDashboards(memoizedFilters);
 
       if (response.success && response.data) {
         setDashboards(response.data);
@@ -65,7 +71,7 @@ export function useDashboardList(
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [memoizedFilters]);
 
   const createDashboard = useCallback(
     async (data: CreateDashboardRequest): Promise<Dashboard | null> => {
