@@ -4,11 +4,19 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "dev:env": "dotenv -e .env.development -- turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types"
+    "check-types": "turbo run check-types",
+    "env:setup": "cp .env.development apps/control-plane-api/.env && cp .env.development apps/onprem-agent-api/.env",
+    "env:validate": "node scripts/validate-env.js",
+    "start:all": "concurrently \"cd apps/control-plane-api && npm run dev\" \"cd apps/onprem-agent-api && npm run dev\" \"cd apps/control-plane-ui && npm run dev\" \"cd apps/onprem-viewer-ui && npm run dev\"",
+    "docker:dev": "docker-compose -f docker-compose.dev.yml up --build",
+    "docker:prod": "docker-compose up --build"
   },
   "devDependencies": {
+    "concurrently": "^9.1.0",
+    "dotenv-cli": "^7.4.2",
     "prettier": "^3.6.2",
     "turbo": "^2.5.4",
     "typescript": "5.8.3"
