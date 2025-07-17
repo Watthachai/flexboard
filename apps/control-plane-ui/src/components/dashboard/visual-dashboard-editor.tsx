@@ -89,6 +89,8 @@ export default function VisualDashboardEditor({
     width: 0,
     height: 0,
   });
+  const [canvasScale, setCanvasScale] = useState(1);
+  const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0 });
   const gridRef = useRef<HTMLDivElement>(null);
 
   // Track screen resolution
@@ -104,6 +106,36 @@ export default function VisualDashboardEditor({
     window.addEventListener("resize", updateScreenResolution);
     return () => window.removeEventListener("resize", updateScreenResolution);
   }, []);
+
+  // Handle zoom functionality
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        const newScale = Math.min(Math.max(0.25, canvasScale + delta), 3);
+
+        setCanvasScale(newScale);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "0") {
+        e.preventDefault();
+        setCanvasScale(1);
+        setCanvasViewport({ x: 0, y: 0 });
+      }
+    };
+
+    document.addEventListener("wheel", handleWheel, { passive: false });
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("wheel", handleWheel);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [canvasScale]);
 
   // Load dashboard data from API
   useEffect(() => {
@@ -251,17 +283,27 @@ export default function VisualDashboardEditor({
   // Add widget to dashboard
   const addWidget = useCallback(
     (type: WidgetType, x: number, y: number) => {
+      const widgetDef = WIDGET_LIBRARY.find((w) => w.type === type);
+      const defaultSize = widgetDef?.defaultSize || { width: 2, height: 2 };
+
+      // Calculate proper pixel size based on grid
+      const pixelWidth = defaultSize.width * dashboard.layout_config.gridSize;
+      const pixelHeight = defaultSize.height * dashboard.layout_config.gridSize;
+
       const newWidget: Widget = {
         id: `widget-${Date.now()}`,
         type,
         title: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
         x: Math.round(x / dashboard.layout_config.gridSize),
         y: Math.round(y / dashboard.layout_config.gridSize),
-        width:
-          WIDGET_LIBRARY.find((w) => w.type === type)?.defaultSize.width || 2,
-        height:
-          WIDGET_LIBRARY.find((w) => w.type === type)?.defaultSize.height || 2,
-        config: {},
+        width: defaultSize.width,
+        height: defaultSize.height,
+        config: {
+          dataSource: "api",
+          refreshInterval: 30000,
+          tenantId: tenantId,
+          widgetId: `widget-${Date.now()}`,
+        },
       };
 
       const newDashboard = {
@@ -503,6 +545,46 @@ export default function VisualDashboardEditor({
 
               <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
 
+              {/* Zoom Controls */}
+              <div className="flex items-center space-x-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setCanvasScale(Math.max(0.25, canvasScale - 0.25))
+                  }
+                  disabled={canvasScale <= 0.25}
+                  title="Zoom Out"
+                >
+                  <span className="text-xs">-</span>
+                </Button>
+                <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded">
+                  {Math.round(canvasScale * 100)}%
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setCanvasScale(Math.min(3, canvasScale + 0.25))
+                  }
+                  disabled={canvasScale >= 3}
+                  title="Zoom In"
+                >
+                  <span className="text-xs">+</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setCanvasScale(1);
+                    setCanvasViewport({ x: 0, y: 0 });
+                  }}
+                  title="Reset Zoom (Ctrl+0)"
+                >
+                  <span className="text-xs">100%</span>
+                </Button>
+              </div>
+
               {/* Fullscreen Toggle */}
               <Button
                 variant="outline"
@@ -591,18 +673,26 @@ export default function VisualDashboardEditor({
 
           {/* Dashboard Canvas */}
           <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900">
-            <DashboardCanvas
-              dashboard={dashboard}
-              selectedWidget={selectedWidget}
-              isPreviewMode={isPreviewMode}
-              onSelectWidget={setSelectedWidget}
-              onMoveWidget={moveWidget}
-              onResizeWidget={resizeWidget}
-              onDeleteWidget={deleteWidget}
-              onDuplicateWidget={duplicateWidget}
-              onDropWidget={addWidget}
-              ref={gridRef}
-            />
+            <div
+              style={{
+                transform: `scale(${canvasScale}) translate(${canvasViewport.x}px, ${canvasViewport.y}px)`,
+                transformOrigin: "top left",
+                transition: "transform 0.1s ease-out",
+              }}
+            >
+              <DashboardCanvas
+                dashboard={dashboard}
+                selectedWidget={selectedWidget}
+                isPreviewMode={isPreviewMode}
+                onSelectWidget={setSelectedWidget}
+                onMoveWidget={moveWidget}
+                onResizeWidget={resizeWidget}
+                onDeleteWidget={deleteWidget}
+                onDuplicateWidget={duplicateWidget}
+                onDropWidget={addWidget}
+                ref={gridRef}
+              />
+            </div>
           </div>
 
           {/* Properties Panel */}
@@ -672,7 +762,10 @@ export default function VisualDashboardEditor({
               <span>
                 Screen: {screenResolution.width}×{screenResolution.height}px
               </span>
-              <span>Zoom: 100%</span>
+              <span>Zoom: {Math.round(canvasScale * 100)}%</span>
+              <span className="text-xs text-gray-400">
+                Ctrl+Scroll to zoom, Ctrl+0 to reset
+              </span>
               {isPreviewMode && (
                 <span className="text-green-600 dark:text-green-400">
                   📱 Preview: This is how it looks on {screenResolution.width}×

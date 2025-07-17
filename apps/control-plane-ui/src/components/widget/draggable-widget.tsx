@@ -25,6 +25,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { Widget, WidgetType, ItemTypes } from "@/types/dashboard-editor";
+import { EnhancedWidgetPreview } from "./enhanced-widget-preview";
 
 // Widget icons mapping
 const WIDGET_ICONS: Record<
@@ -185,7 +186,7 @@ export default function DraggableWidget({
 
         {/* Widget Content */}
         <div className="flex-1 flex items-center justify-center">
-          <WidgetPreview widget={widget} />
+          <EnhancedWidgetPreview widget={widget} />
         </div>
 
         {/* Resize Handle */}
