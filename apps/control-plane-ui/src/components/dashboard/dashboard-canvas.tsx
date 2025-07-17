@@ -78,7 +78,7 @@ const DashboardCanvas = forwardRef<HTMLDivElement, DashboardCanvasProps>(
       }
     };
 
-    const { columns, rows, gridSize } = dashboard.layout;
+    const { columns, rows, gridSize } = dashboard.layout_config;
 
     // คำนวณขนาด canvas ให้เต็มพื้นที่ที่มี
     const containerRef = useRef<HTMLDivElement>(null);
