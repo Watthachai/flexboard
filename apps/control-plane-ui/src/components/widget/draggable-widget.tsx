@@ -81,10 +81,9 @@ export default function DraggableWidget({
       if (dropResult && monitor.didDrop()) {
         const clientOffset = monitor.getClientOffset();
         if (clientOffset) {
-          // คำนวณตำแหน่งใหม่
-          const newX = Math.round(clientOffset.x / gridSize) * gridSize;
-          const newY = Math.round(clientOffset.y / gridSize) * gridSize;
-          onMove(widget.id, newX, newY);
+          // ใช้ตำแหน่งปัจจุบันของ widget เป็น grid units แล้ว
+          // ไม่ต้องแปลงอีก
+          console.log("Widget dropped at:", clientOffset);
         }
       }
     },
@@ -92,16 +91,22 @@ export default function DraggableWidget({
 
   // Handle widget movement
   const handleMove = (deltaX: number, deltaY: number) => {
-    const newX = widget.x * gridSize + deltaX;
-    const newY = widget.y * gridSize + deltaY;
-    onMove(widget.id, newX, newY);
+    // แปลงเป็น grid units
+    const gridDeltaX = Math.floor(deltaX / gridSize);
+    const gridDeltaY = Math.floor(deltaY / gridSize);
+    const newX = widget.x + gridDeltaX;
+    const newY = widget.y + gridDeltaY;
+    onMove(widget.id, newX * gridSize, newY * gridSize);
   };
 
   // Handle widget resizing
   const handleResize = (deltaWidth: number, deltaHeight: number) => {
-    const newWidth = widget.width * gridSize + deltaWidth;
-    const newHeight = widget.height * gridSize + deltaHeight;
-    onResize(widget.id, newWidth, newHeight);
+    // แปลงเป็น grid units
+    const gridDeltaW = Math.ceil(deltaWidth / gridSize);
+    const gridDeltaH = Math.ceil(deltaHeight / gridSize);
+    const newWidth = widget.width + gridDeltaW;
+    const newHeight = widget.height + gridDeltaH;
+    onResize(widget.id, newWidth * gridSize, newHeight * gridSize);
   };
 
   const Icon = WIDGET_ICONS[widget.type] || Hash;

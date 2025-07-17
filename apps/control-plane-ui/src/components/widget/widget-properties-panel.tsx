@@ -25,11 +25,13 @@ import { Settings, Palette, Database, Code, X } from "lucide-react";
 interface WidgetPropertiesPanelProps {
   widget?: Widget;
   onUpdateWidget: (updates: Partial<Widget>) => void;
+  onClose?: () => void;
 }
 
 export default function WidgetPropertiesPanel({
   widget,
   onUpdateWidget,
+  onClose,
 }: WidgetPropertiesPanelProps) {
   if (!widget) return null;
 
@@ -40,7 +42,7 @@ export default function WidgetPropertiesPanel({
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Properties
           </h2>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="w-4 h-4" />
           </Button>
         </div>

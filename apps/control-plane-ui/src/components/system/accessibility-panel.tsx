@@ -203,38 +203,38 @@ export default function AccessibilityPanel() {
   const applyAccessibilitySettings = (settings: AccessibilitySettings) => {
     const root = document.documentElement;
 
-    // High contrast
+    // High contrast - ใช้ data attribute
     if (settings.highContrast) {
-      root.classList.add("high-contrast");
+      root.setAttribute("data-accessibility", "high-contrast");
     } else {
-      root.classList.remove("high-contrast");
+      root.removeAttribute("data-accessibility");
     }
 
-    // Large text
+    // Large text - ใช้ data attribute
     if (settings.largeText) {
-      root.classList.add("large-text");
-    } else {
-      root.classList.remove("large-text");
+      root.setAttribute("data-accessibility", "large-text");
     }
 
-    // Reduced motion
+    // Reduced motion - ใช้ body class เพื่อไม่กระทบ root
     if (settings.reduceMotion) {
-      root.classList.add("reduce-motion");
+      document.body.classList.add("accessibility-reduce-motion");
     } else {
-      root.classList.remove("reduce-motion");
+      document.body.classList.remove("accessibility-reduce-motion");
     }
 
-    // Focus visible
+    // Focus visible - ใช้ data attribute
     if (settings.focusVisible) {
-      root.classList.add("focus-visible");
-    } else {
-      root.classList.remove("focus-visible");
+      root.setAttribute("data-accessibility", "focus-visible");
     }
 
-    // Color blind mode
-    root.classList.remove("protanopia", "deuteranopia", "tritanopia");
+    // Color blind mode - ใช้ body class
+    document.body.classList.remove(
+      "accessibility-protanopia",
+      "accessibility-deuteranopia",
+      "accessibility-tritanopia"
+    );
     if (settings.colorBlindMode !== "none") {
-      root.classList.add(settings.colorBlindMode);
+      document.body.classList.add(`accessibility-${settings.colorBlindMode}`);
     }
   };
 
@@ -265,7 +265,7 @@ export default function AccessibilityPanel() {
         variant="outline"
         size="sm"
         onClick={() => setPanelOpen(!panelOpen)}
-        className="fixed bottom-4 right-4 z-50 bg-white shadow-lg"
+        className="fixed bottom-4 right-4 z-50 bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700"
         aria-label="Open accessibility options"
         title="Accessibility Options (Alt+0)"
       >
@@ -275,15 +275,15 @@ export default function AccessibilityPanel() {
       {/* Accessibility Panel */}
       {panelOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-2xl max-h-5/6 overflow-y-auto m-4">
+          <Card className="w-full max-w-2xl max-h-5/6 overflow-y-auto m-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
             <div className="p-6">
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                     Accessibility Options
                   </h2>
-                  <p className="text-gray-600">
+                  <p className="text-gray-600 dark:text-gray-300">
                     Customize your dashboard experience
                   </p>
                 </div>
@@ -298,15 +298,19 @@ export default function AccessibilityPanel() {
 
               {/* Quick Actions */}
               <div className="mb-6">
-                <h3 className="text-lg font-semibold mb-3">Quick Actions</h3>
+                <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">
+                  Quick Actions
+                </h3>
                 <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => toggleSetting("highContrast")}
-                    className={
-                      settings.highContrast ? "bg-blue-50 border-blue-300" : ""
-                    }
+                    className={`${
+                      settings.highContrast
+                        ? "bg-blue-50 dark:bg-blue-900/50 border-blue-300 dark:border-blue-600"
+                        : "dark:border-gray-600 dark:text-gray-300"
+                    }`}
                   >
                     <Contrast className="w-4 h-4 mr-1" />
                     High Contrast
@@ -315,9 +319,11 @@ export default function AccessibilityPanel() {
                     variant="outline"
                     size="sm"
                     onClick={() => toggleSetting("largeText")}
-                    className={
-                      settings.largeText ? "bg-blue-50 border-blue-300" : ""
-                    }
+                    className={`${
+                      settings.largeText
+                        ? "bg-blue-50 dark:bg-blue-900/50 border-blue-300 dark:border-blue-600"
+                        : "dark:border-gray-600 dark:text-gray-300"
+                    }`}
                   >
                     <Type className="w-4 h-4 mr-1" />
                     Large Text
@@ -326,9 +332,11 @@ export default function AccessibilityPanel() {
                     variant="outline"
                     size="sm"
                     onClick={() => toggleSetting("reduceMotion")}
-                    className={
-                      settings.reduceMotion ? "bg-blue-50 border-blue-300" : ""
-                    }
+                    className={`${
+                      settings.reduceMotion
+                        ? "bg-blue-50 dark:bg-blue-900/50 border-blue-300 dark:border-blue-600"
+                        : "dark:border-gray-600 dark:text-gray-300"
+                    }`}
                   >
                     <Eye className="w-4 h-4 mr-1" />
                     Reduce Motion
@@ -338,22 +346,29 @@ export default function AccessibilityPanel() {
 
               {/* Detailed Settings */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Detailed Settings</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Detailed Settings
+                </h3>
 
                 {ACCESSIBILITY_FEATURES.map((feature) => (
                   <div
                     key={feature.id}
-                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                    className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
                   >
                     <div className="flex items-center space-x-3">
-                      <feature.icon className="w-5 h-5 text-gray-600" />
+                      <feature.icon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                       <div>
-                        <div className="font-medium">{feature.name}</div>
-                        <div className="text-sm text-gray-600">
+                        <div className="font-medium text-gray-900 dark:text-white">
+                          {feature.name}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-300">
                           {feature.description}
                         </div>
                         {feature.shortcut && (
-                          <Badge variant="outline" className="text-xs mt-1">
+                          <Badge
+                            variant="outline"
+                            className="text-xs mt-1 dark:border-gray-600 dark:text-gray-300"
+                          >
                             {feature.shortcut}
                           </Badge>
                         )}
@@ -375,12 +390,14 @@ export default function AccessibilityPanel() {
                 ))}
 
                 {/* Color Blind Support */}
-                <div className="p-4 border border-gray-200 rounded-lg">
+                <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800">
                   <div className="flex items-center space-x-3 mb-3">
-                    <Eye className="w-5 h-5 text-gray-600" />
+                    <Eye className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                     <div>
-                      <div className="font-medium">Color Blind Support</div>
-                      <div className="text-sm text-gray-600">
+                      <div className="font-medium text-gray-900 dark:text-white">
+                        Color Blind Support
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-gray-300">
                         Adjust colors for different types of color blindness
                       </div>
                     </div>
@@ -393,7 +410,7 @@ export default function AccessibilityPanel() {
                         colorBlindMode: e.target.value as any,
                       }))
                     }
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     aria-label="Color blind mode"
                   >
                     <option value="none">None</option>
@@ -407,9 +424,11 @@ export default function AccessibilityPanel() {
               </div>
 
               {/* Keyboard Shortcuts Help */}
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-semibold mb-2">Keyboard Shortcuts</h4>
-                <div className="text-sm text-gray-600 space-y-1">
+              <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <h4 className="font-semibold mb-2 text-gray-900 dark:text-white">
+                  Keyboard Shortcuts
+                </h4>
+                <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
                   <div>Alt + 0: Toggle accessibility panel</div>
                   <div>Alt + H: Toggle high contrast</div>
                   <div>Alt + T: Toggle large text</div>
@@ -422,7 +441,11 @@ export default function AccessibilityPanel() {
 
               {/* Reset Button */}
               <div className="mt-6 flex justify-between">
-                <Button variant="outline" onClick={resetSettings}>
+                <Button
+                  variant="outline"
+                  onClick={resetSettings}
+                  className="dark:border-gray-600 dark:text-gray-300"
+                >
                   Reset to Defaults
                 </Button>
                 <Button onClick={() => setPanelOpen(false)}>
@@ -437,7 +460,7 @@ export default function AccessibilityPanel() {
       {/* Screen Reader Announcements */}
       <div
         ref={announcementRef}
-        className="sr-only"
+        className="accessibility-sr-only"
         aria-live="polite"
         aria-atomic="true"
       >
@@ -445,7 +468,7 @@ export default function AccessibilityPanel() {
       </div>
 
       {/* Skip Links */}
-      <div className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-50">
+      <div className="accessibility-sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-50">
         <Button
           variant="default"
           size="sm"
@@ -464,8 +487,8 @@ export default function AccessibilityPanel() {
 
       {/* CSS for accessibility features */}
       <style jsx global>{`
-        /* High Contrast Mode */
-        .high-contrast {
+        /* High Contrast Mode - ใช้ data attributes แทน class overrides */
+        [data-accessibility="high-contrast"] {
           --bg-primary: #000000;
           --bg-secondary: #ffffff;
           --text-primary: #ffffff;
@@ -474,59 +497,56 @@ export default function AccessibilityPanel() {
           --accent-primary: #ffff00;
         }
 
-        .high-contrast * {
+        [data-accessibility="high-contrast"] .accessibility-target {
           background-color: var(--bg-primary) !important;
           color: var(--text-primary) !important;
           border-color: var(--border-primary) !important;
         }
 
-        .high-contrast button,
-        .high-contrast input,
-        .high-contrast select {
+        [data-accessibility="high-contrast"] .accessibility-target button,
+        [data-accessibility="high-contrast"] .accessibility-target input,
+        [data-accessibility="high-contrast"] .accessibility-target select {
           background-color: var(--bg-secondary) !important;
           color: var(--text-secondary) !important;
         }
 
-        /* Large Text Mode */
-        .large-text {
-          font-size: 125% !important;
+        /* Large Text Mode - เฉพาะส่วนที่ต้องการ */
+        [data-accessibility="large-text"] .accessibility-target {
+          font-size: 1.25rem !important;
         }
 
-        .large-text * {
-          font-size: inherit !important;
-        }
-
-        /* Reduced Motion */
-        .reduce-motion *,
-        .reduce-motion *::before,
-        .reduce-motion *::after {
+        /* Reduced Motion - ระบุเป็น utility class */
+        .accessibility-reduce-motion,
+        .accessibility-reduce-motion *,
+        .accessibility-reduce-motion *::before,
+        .accessibility-reduce-motion *::after {
           animation-duration: 0.01ms !important;
           animation-iteration-count: 1 !important;
           transition-duration: 0.01ms !important;
           scroll-behavior: auto !important;
         }
 
-        /* Enhanced Focus Indicators */
-        .focus-visible *:focus {
+        /* Enhanced Focus Indicators - เฉพาะเมื่อเปิดใช้งาน */
+        [data-accessibility="focus-visible"] .accessibility-target *:focus {
           outline: 3px solid #0066cc !important;
           outline-offset: 2px !important;
         }
 
-        /* Color Blind Filters */
-        .protanopia {
+        /* Color Blind Filters - ใช้ class prefix */
+        .accessibility-protanopia {
           filter: url("#protanopia-filter");
         }
 
-        .deuteranopia {
+        .accessibility-deuteranopia {
           filter: url("#deuteranopia-filter");
         }
 
-        .tritanopia {
+        .accessibility-tritanopia {
           filter: url("#tritanopia-filter");
         }
 
-        /* Screen reader only content */
-        .sr-only {
+        /* Screen reader utilities */
+        .accessibility-sr-only {
           position: absolute;
           width: 1px;
           height: 1px;
@@ -538,7 +558,7 @@ export default function AccessibilityPanel() {
           border: 0;
         }
 
-        .sr-only.focus:not(.sr-only) {
+        .accessibility-sr-only:focus {
           position: static;
           width: auto;
           height: auto;

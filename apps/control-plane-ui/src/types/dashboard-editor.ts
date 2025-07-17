@@ -30,15 +30,34 @@ export interface Widget {
   data?: unknown;
 }
 
+// Layout Item for react-grid-layout
+export interface LayoutItem {
+  i: string; // widget id
+  x: number; // position x (grid units)
+  y: number; // position y (grid units)
+  w: number; // width (grid units)
+  h: number; // height (grid units)
+  minW?: number;
+  minH?: number;
+  maxW?: number;
+  maxH?: number;
+  static?: boolean;
+  isDraggable?: boolean;
+  isResizable?: boolean;
+}
+
 // Dashboard Configuration
 export interface DashboardConfig {
   id: string;
   name: string;
   widgets: Widget[];
-  layout: {
+  layout: LayoutItem[]; // เพิ่ม layout array
+  layout_config: {
     columns: number;
     rows: number;
     gridSize: number;
+    breakpoints?: Record<string, number>;
+    cols?: Record<string, number>;
   };
   theme: string;
 }

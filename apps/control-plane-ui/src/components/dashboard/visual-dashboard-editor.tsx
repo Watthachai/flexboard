@@ -61,7 +61,8 @@ export default function VisualDashboardEditor({
     id: dashboardId,
     name: "New Dashboard",
     widgets: [],
-    layout: {
+    layout: [],
+    layout_config: {
       columns: 24, // เพิ่มจาก 12 เป็น 24 columns
       rows: 16, // เพิ่มจาก 8 เป็น 16 rows
       gridSize: 40, // ลดขนาด grid จาก 60 เป็น 40 เพื่อให้พอดีกับจอ
@@ -133,7 +134,8 @@ export default function VisualDashboardEditor({
         id: dashboardId,
         name: dashboardData.data.name,
         widgets: [],
-        layout: {
+        layout: [],
+        layout_config: {
           columns: 24, // เพิ่ม columns เพื่อให้มี resolution สูงขึ้น
           rows: 16, // เพิ่ม rows
           gridSize: 40, // ลดขนาด grid
@@ -253,8 +255,8 @@ export default function VisualDashboardEditor({
         id: `widget-${Date.now()}`,
         type,
         title: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-        x: Math.round(x / dashboard.layout.gridSize),
-        y: Math.round(y / dashboard.layout.gridSize),
+        x: Math.round(x / dashboard.layout_config.gridSize),
+        y: Math.round(y / dashboard.layout_config.gridSize),
         width:
           WIDGET_LIBRARY.find((w) => w.type === type)?.defaultSize.width || 2,
         height:
@@ -283,8 +285,14 @@ export default function VisualDashboardEditor({
           w.id === id
             ? {
                 ...w,
-                x: Math.max(0, Math.round(x / dashboard.layout.gridSize)),
-                y: Math.max(0, Math.round(y / dashboard.layout.gridSize)),
+                x: Math.max(
+                  0,
+                  Math.round(x / dashboard.layout_config.gridSize)
+                ),
+                y: Math.max(
+                  0,
+                  Math.round(y / dashboard.layout_config.gridSize)
+                ),
               }
             : w
         ),
@@ -307,11 +315,11 @@ export default function VisualDashboardEditor({
                 ...w,
                 width: Math.max(
                   1,
-                  Math.round(width / dashboard.layout.gridSize)
+                  Math.round(width / dashboard.layout_config.gridSize)
                 ),
                 height: Math.max(
                   1,
-                  Math.round(height / dashboard.layout.gridSize)
+                  Math.round(height / dashboard.layout_config.gridSize)
                 ),
               }
             : w
@@ -612,6 +620,7 @@ export default function VisualDashboardEditor({
                   setDashboard(newDashboard);
                   saveToHistory(newDashboard);
                 }}
+                onClose={() => setSelectedWidget(null)}
               />
             </div>
           )}
@@ -622,12 +631,18 @@ export default function VisualDashboardEditor({
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
               <span>
-                Grid: {dashboard.layout.columns}×{dashboard.layout.rows} (
-                {dashboard.layout.gridSize}px)
+                Grid: {dashboard.layout_config.columns}×
+                {dashboard.layout_config.rows} (
+                {dashboard.layout_config.gridSize}px)
               </span>
               <span>
-                Canvas: {dashboard.layout.columns * dashboard.layout.gridSize}×
-                {dashboard.layout.rows * dashboard.layout.gridSize}px
+                Canvas:{" "}
+                {dashboard.layout_config.columns *
+                  dashboard.layout_config.gridSize}
+                ×
+                {dashboard.layout_config.rows *
+                  dashboard.layout_config.gridSize}
+                px
               </span>
               <span>Widgets: {dashboard.widgets.length}</span>
               {selectedWidget && (
