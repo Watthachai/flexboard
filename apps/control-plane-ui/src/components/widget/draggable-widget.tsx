@@ -41,6 +41,11 @@ const WIDGET_ICONS: Record<
   text: Type,
   image: Image,
   date: Calendar,
+  gauge: Activity,
+  progress: Activity,
+  iframe: Type,
+  map: Hash,
+  calendar: Calendar,
 };
 
 interface DraggableWidgetProps {

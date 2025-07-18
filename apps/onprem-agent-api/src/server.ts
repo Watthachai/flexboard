@@ -3,6 +3,11 @@ import Fastify from "fastify";
 import { PrismaClient } from "../node_modules/.prisma/client";
 import fs from "fs/promises";
 import path from "path";
+import {
+  multiConnectorEngine,
+  QueryRequest,
+  QueryResult,
+} from "./multi-connector";
 
 const fastify = Fastify({
   logger: true,
@@ -308,6 +313,130 @@ fastify.post("/api/sync", async (request, reply) => {
     };
   }
 });
+
+// ===== NEW: Widget Data Execution API =====
+
+// Execute widget query - หัวใจของการปรับปรุง
+fastify.post("/api/widget/execute", async (request, reply) => {
+  try {
+    const queryRequest = request.body as QueryRequest;
+
+    // Validate request
+    if (!queryRequest.dataSourceType || !queryRequest.query) {
+      reply.status(400);
+      return {
+        success: false,
+        error: "dataSourceType and query are required",
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    fastify.log.info(
+      `🔍 Executing widget query: ${queryRequest.widgetId || "unknown"}`
+    );
+
+    // Execute query using Multi-Connector Engine
+    const result = await multiConnectorEngine.executeQuery(queryRequest);
+
+    if (result.success) {
+      fastify.log.info(
+        `✅ Query executed successfully. Rows: ${result.rowCount}, Time: ${result.executionTime}ms`
+      );
+    } else {
+      fastify.log.error(`❌ Query execution failed: ${result.error}`);
+    }
+
+    return reply.send({
+      ...result,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    fastify.log.error("❌ Widget execution failed:", error);
+    reply.status(500);
+    return {
+      success: false,
+      error: "Widget execution failed",
+      details: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString(),
+    };
+  }
+});
+
+// Test widget query - สำหรับทดสอบ query ก่อน save
+fastify.post("/api/widget/test", async (request, reply) => {
+  try {
+    const queryRequest = request.body as QueryRequest;
+
+    // Validate request
+    if (!queryRequest.dataSourceType || !queryRequest.query) {
+      reply.status(400);
+      return {
+        success: false,
+        error: "dataSourceType and query are required",
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    fastify.log.info(
+      `🧪 Testing widget query: ${queryRequest.query.substring(0, 100)}...`
+    );
+
+    // Execute query using Multi-Connector Engine
+    const result = await multiConnectorEngine.executeQuery(queryRequest);
+
+    // For testing, we might want to limit the result size
+    if (result.success && result.data && result.data.length > 10) {
+      result.data = result.data.slice(0, 10);
+      result.rowCount = 10;
+    }
+
+    if (result.success) {
+      fastify.log.info(
+        `✅ Query test successful. Rows: ${result.rowCount}, Time: ${result.executionTime}ms`
+      );
+    } else {
+      fastify.log.error(`❌ Query test failed: ${result.error}`);
+    }
+
+    return reply.send({
+      ...result,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    fastify.log.error("❌ Widget test failed:", error);
+    reply.status(500);
+    return {
+      success: false,
+      error: "Widget test failed",
+      details: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString(),
+    };
+  }
+});
+
+// Get connector status
+fastify.get("/api/connectors/status", async (request, reply) => {
+  try {
+    const connectionStatus = await multiConnectorEngine.testAllConnections();
+
+    return reply.send({
+      success: true,
+      connectors: connectionStatus,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    fastify.log.error("❌ Connector status check failed:", error);
+    reply.status(500);
+    return {
+      success: false,
+      error: "Connector status check failed",
+      details: error instanceof Error ? error.message : "Unknown error",
+      timestamp: new Date().toISOString(),
+    };
+  }
+});
+
+// ===== END: Widget Data Execution API =====
 
 const start = async () => {
   try {

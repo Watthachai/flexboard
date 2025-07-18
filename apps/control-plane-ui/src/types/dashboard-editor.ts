@@ -15,9 +15,14 @@ export type WidgetType =
   | "date"
   | "bar-chart"
   | "pie-chart"
-  | "line-chart";
+  | "line-chart"
+  | "gauge"
+  | "progress"
+  | "iframe"
+  | "map"
+  | "calendar";
 
-// Widget Configuration Interface
+// **อัปเดต Widget Interface ให้รองรับ Firestore Structure**
 export interface Widget {
   id: string;
   type: WidgetType;
@@ -26,7 +31,32 @@ export interface Widget {
   y: number;
   width: number;
   height: number;
-  config: Record<string, unknown>;
+  // **สำคัญ**: Config ใหม่ที่รองรับ Raw Query
+  config: {
+    // Data Configuration
+    dataSourceType?: "sql" | "postgresql" | "mysql" | "firestore" | "api";
+    query?: string; // Raw Query String
+    params?: string; // JSON string for parameters
+    refreshInterval?: number; // milliseconds
+
+    // Display Configuration
+    chartType?: "bar" | "line" | "pie" | "doughnut" | "area";
+    backgroundColor?: string;
+    textColor?: string;
+    borderRadius?: string;
+    showBorder?: boolean;
+    showTitle?: boolean;
+
+    // Legacy support
+    dataSource?: string;
+    apiEndpoint?: string;
+    sqlQuery?: string;
+    customCss?: string;
+    customJs?: string;
+
+    // Other options
+    [key: string]: unknown;
+  };
   data?: unknown;
 }
 
@@ -69,6 +99,27 @@ export interface WidgetLibraryItem {
   icon: React.ComponentType;
   defaultSize: { width: number; height: number };
   category: string;
+}
+
+// **เพิ่ม Firestore API Response Types**
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  message?: string;
+  timestamp: string;
+}
+
+export interface QueryResult {
+  data: any[];
+  columns: string[];
+  rowCount: number;
+  executionTime: number;
+  metadata?: {
+    dataSource: string;
+    query: string;
+    params?: Record<string, any>;
+  };
 }
 
 // Drag Item Types
