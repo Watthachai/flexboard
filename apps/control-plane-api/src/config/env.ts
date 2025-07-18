@@ -11,8 +11,12 @@ export const envConfig = {
   apiPrefix: process.env.API_PREFIX || "/api",
   apiVersion: process.env.API_VERSION || "v1",
 
-  // Database
-  databaseUrl: process.env.DATABASE_URL!,
+  // Database (Legacy - สำหรับ backward compatibility)
+  databaseUrl: process.env.DATABASE_URL,
+
+  // Firebase configuration
+  firebaseProjectId: process.env.FIREBASE_PROJECT_ID!,
+  firebaseServiceAccountKey: process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
 
   // Security
   jwtSecret: process.env.JWT_SECRET!,
@@ -37,10 +41,13 @@ export const envConfig = {
   isProduction: process.env.NODE_ENV === "production",
 };
 
+// Export as 'config' for backward compatibility
+export const config = envConfig;
+
 // Validate required environment variables
 export function validateEnvConfig() {
   const required = [
-    { key: "DATABASE_URL", value: envConfig.databaseUrl },
+    { key: "FIREBASE_PROJECT_ID", value: envConfig.firebaseProjectId },
     { key: "JWT_SECRET", value: envConfig.jwtSecret },
   ];
 

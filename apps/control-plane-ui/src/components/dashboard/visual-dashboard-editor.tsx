@@ -91,6 +91,9 @@ export default function VisualDashboardEditor({
   });
   const [canvasScale, setCanvasScale] = useState(1);
   const [canvasViewport, setCanvasViewport] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
   // Track screen resolution
@@ -107,16 +110,32 @@ export default function VisualDashboardEditor({
     return () => window.removeEventListener("resize", updateScreenResolution);
   }, []);
 
-  // Handle zoom functionality
+  // Handle zoom functionality with proper coordinate transformation
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
 
+        const container = canvasContainerRef.current;
+        if (!container) return;
+
+        const rect = container.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        // Calculate zoom delta
         const delta = e.deltaY > 0 ? -0.1 : 0.1;
         const newScale = Math.min(Math.max(0.25, canvasScale + delta), 3);
 
+        // Calculate new viewport position to zoom towards mouse
+        const scaleDelta = newScale - canvasScale;
+        const newViewportX =
+          canvasViewport.x - (mouseX * scaleDelta) / canvasScale;
+        const newViewportY =
+          canvasViewport.y - (mouseY * scaleDelta) / canvasScale;
+
         setCanvasScale(newScale);
+        setCanvasViewport({ x: newViewportX, y: newViewportY });
       }
     };
 
@@ -135,7 +154,89 @@ export default function VisualDashboardEditor({
       document.removeEventListener("wheel", handleWheel);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [canvasScale]);
+  }, [canvasScale, canvasViewport]);
+
+  // Handle canvas panning
+  useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 1 || (e.button === 0 && e.altKey)) {
+        // Middle mouse or Alt+Left mouse
+        e.preventDefault();
+        setIsDragging(true);
+        setDragStart({ x: e.clientX, y: e.clientY });
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        e.preventDefault();
+        const deltaX = e.clientX - dragStart.x;
+        const deltaY = e.clientY - dragStart.y;
+
+        setCanvasViewport({
+          x: canvasViewport.x + deltaX,
+          y: canvasViewport.y + deltaY,
+        });
+
+        setDragStart({ x: e.clientX, y: e.clientY });
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, dragStart, canvasViewport]);
+
+  // Add mouse down listener to canvas container
+  useEffect(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 1 || (e.button === 0 && e.altKey)) {
+        // Middle mouse or Alt+Left mouse
+        e.preventDefault();
+        setIsDragging(true);
+        setDragStart({ x: e.clientX, y: e.clientY });
+      }
+    };
+
+    container.addEventListener("mousedown", handleMouseDown);
+
+    return () => {
+      container.removeEventListener("mousedown", handleMouseDown);
+    };
+  }, []);
+
+  // Transform screen coordinates to canvas coordinates
+  const screenToCanvas = useCallback(
+    (screenX: number, screenY: number) => {
+      const canvasX = (screenX - canvasViewport.x) / canvasScale;
+      const canvasY = (screenY - canvasViewport.y) / canvasScale;
+      return { x: canvasX, y: canvasY };
+    },
+    [canvasScale, canvasViewport]
+  );
+
+  // Transform canvas coordinates to screen coordinates
+  const canvasToScreen = useCallback(
+    (canvasX: number, canvasY: number) => {
+      const screenX = canvasX * canvasScale + canvasViewport.x;
+      const screenY = canvasY * canvasScale + canvasViewport.y;
+      return { x: screenX, y: screenY };
+    },
+    [canvasScale, canvasViewport]
+  );
 
   // Load dashboard data from API
   useEffect(() => {
@@ -280,22 +381,21 @@ export default function VisualDashboardEditor({
     [history, historyIndex]
   );
 
-  // Add widget to dashboard
+  // Add widget to dashboard with proper coordinate transformation
   const addWidget = useCallback(
-    (type: WidgetType, x: number, y: number) => {
+    (type: WidgetType, screenX: number, screenY: number) => {
       const widgetDef = WIDGET_LIBRARY.find((w) => w.type === type);
       const defaultSize = widgetDef?.defaultSize || { width: 2, height: 2 };
 
-      // Calculate proper pixel size based on grid
-      const pixelWidth = defaultSize.width * dashboard.layout_config.gridSize;
-      const pixelHeight = defaultSize.height * dashboard.layout_config.gridSize;
+      // Convert screen coordinates to canvas coordinates
+      const canvasPos = screenToCanvas(screenX, screenY);
 
       const newWidget: Widget = {
         id: `widget-${Date.now()}`,
         type,
         title: `New ${type.charAt(0).toUpperCase() + type.slice(1)}`,
-        x: Math.round(x / dashboard.layout_config.gridSize),
-        y: Math.round(y / dashboard.layout_config.gridSize),
+        x: Math.round(canvasPos.x / dashboard.layout_config.gridSize),
+        y: Math.round(canvasPos.y / dashboard.layout_config.gridSize),
         width: defaultSize.width,
         height: defaultSize.height,
         config: {
@@ -315,12 +415,12 @@ export default function VisualDashboardEditor({
       saveToHistory(newDashboard);
       setSelectedWidget(newWidget.id);
     },
-    [dashboard, saveToHistory]
+    [dashboard, saveToHistory, screenToCanvas, tenantId]
   );
 
-  // Move widget
+  // Move widget with coordinate transformation
   const moveWidget = useCallback(
-    (id: string, x: number, y: number) => {
+    (id: string, canvasX: number, canvasY: number) => {
       const newDashboard = {
         ...dashboard,
         widgets: dashboard.widgets.map((w) =>
@@ -329,11 +429,11 @@ export default function VisualDashboardEditor({
                 ...w,
                 x: Math.max(
                   0,
-                  Math.round(x / dashboard.layout_config.gridSize)
+                  Math.round(canvasX / dashboard.layout_config.gridSize)
                 ),
                 y: Math.max(
                   0,
-                  Math.round(y / dashboard.layout_config.gridSize)
+                  Math.round(canvasY / dashboard.layout_config.gridSize)
                 ),
               }
             : w
@@ -690,6 +790,9 @@ export default function VisualDashboardEditor({
                 onDeleteWidget={deleteWidget}
                 onDuplicateWidget={duplicateWidget}
                 onDropWidget={addWidget}
+                canvasScale={canvasScale}
+                canvasViewport={canvasViewport}
+                screenToCanvas={screenToCanvas}
                 ref={gridRef}
               />
             </div>
