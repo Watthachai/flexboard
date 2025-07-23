@@ -15,6 +15,10 @@ import { db, testFirebaseConnection } from "./config/firebase-real";
 import { envConfig, validateEnvConfig } from "./config/env";
 validateEnvConfig();
 
+// Import routes
+import tenantRoutes from "./routes/tenants.firestore";
+import dashboardRoutes from "./routes/dashboards.firestore";
+
 const fastify = Fastify({
   logger: envConfig.isProduction ? true : { level: "info" },
 });
@@ -55,135 +59,9 @@ fastify.get("/api/health", async (request, reply) => {
   }
 });
 
-// Simple tenants endpoint
-fastify.get("/api/tenants", async (request, reply) => {
-  try {
-    const tenantsSnapshot = await db.collection("tenants").get();
-    const tenants = tenantsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    return {
-      success: true,
-      data: tenants,
-      count: tenants.length,
-    };
-  } catch (error) {
-    reply.status(500);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
-});
-
-// Create sample tenant
-fastify.post("/api/tenants", async (request, reply) => {
-  try {
-    const sampleTenant = {
-      name: "Sample Tenant",
-      slug: "sample-tenant",
-      apiKey: "demo-api-key-123",
-      isActive: true,
-      createdAt: new Date(),
-      config: {
-        theme: "light",
-        refreshInterval: 300000,
-      },
-    };
-
-    const docRef = await db.collection("tenants").add(sampleTenant);
-
-    return {
-      success: true,
-      id: docRef.id,
-      data: sampleTenant,
-    };
-  } catch (error) {
-    reply.status(500);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
-});
-
-// Simple dashboards endpoint
-fastify.get("/api/dashboards", async (request, reply) => {
-  try {
-    const dashboardsSnapshot = await db.collection("dashboards").get();
-    const dashboards = dashboardsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    return {
-      success: true,
-      data: dashboards,
-      count: dashboards.length,
-    };
-  } catch (error) {
-    reply.status(500);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
-});
-
-// Create sample dashboard with widgets
-fastify.post("/api/dashboards", async (request, reply) => {
-  try {
-    const sampleDashboard = {
-      name: "Sample Dashboard",
-      slug: "sample-dashboard",
-      tenantId: "sample-tenant-id",
-      isActive: true,
-      createdAt: new Date(),
-      widgets: [
-        {
-          id: "widget-1",
-          type: "kpi",
-          title: "Total Sales",
-          dataSourceType: "sql",
-          query:
-            "SELECT COUNT(*) as total_orders, SUM(TotalDue) as total_revenue FROM Sales.SalesOrderHeader",
-          x: 0,
-          y: 0,
-          width: 4,
-          height: 2,
-        },
-        {
-          id: "widget-2",
-          type: "chart",
-          title: "Sales by Month",
-          dataSourceType: "sql",
-          query:
-            "SELECT FORMAT(OrderDate, 'yyyy-MM') as month, SUM(TotalDue) as sales FROM Sales.SalesOrderHeader GROUP BY FORMAT(OrderDate, 'yyyy-MM')",
-          x: 4,
-          y: 0,
-          width: 8,
-          height: 4,
-        },
-      ],
-    };
-
-    const docRef = await db.collection("dashboards").add(sampleDashboard);
-
-    return {
-      success: true,
-      id: docRef.id,
-      data: sampleDashboard,
-    };
-  } catch (error) {
-    reply.status(500);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
-  }
-});
+// Register routes
+fastify.register(tenantRoutes, { prefix: "/api" });
+fastify.register(dashboardRoutes, { prefix: "/api" });
 
 // Authentication middleware for Agent API
 async function authenticate(request: any, reply: any) {

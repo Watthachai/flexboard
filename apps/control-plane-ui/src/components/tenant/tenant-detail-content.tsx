@@ -259,7 +259,7 @@ export default function TenantDetailContent() {
 
                 <div className="flex items-center space-x-2">
                   <Link
-                    href={`/tenants/${tenantId}/dashboards/${dashboard.slug}`}
+                    href={`/tenants/${tenantId}/dashboards/${tenantId + "-" + dashboard.slug}`}
                     className="flex-1"
                   >
                     <Button variant="outline" size="sm" className="w-full">
@@ -268,7 +268,7 @@ export default function TenantDetailContent() {
                     </Button>
                   </Link>
                   <Link
-                    href={`/tenants/${tenantId}/dashboards/${dashboard.slug}/builder`}
+                    href={`/tenants/${tenantId}/dashboards/${tenantId + "-" + dashboard.slug}/builder`}
                   >
                     <Button size="sm">
                       <span className="mr-2">🎨</span>

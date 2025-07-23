@@ -27,10 +27,13 @@ export class FirestoreService {
   static async createDocument<T extends BaseDocument>(
     collection: string,
     data: Omit<T, "id" | "createdAt" | "updatedAt" | "createdBy" | "updatedBy">,
-    userId: string
+    userId: string,
+    customId?: string
   ): Promise<ApiResponse<T>> {
     try {
-      const docRef = db.collection(collection).doc();
+      const docRef = customId
+        ? db.collection(collection).doc(customId)
+        : db.collection(collection).doc();
       const now = Timestamp.now();
 
       const docData = {
@@ -46,7 +49,12 @@ export class FirestoreService {
 
       return {
         success: true,
-        data: docData,
+        data: {
+          ...docData,
+          // Convert Firestore Timestamps to ISO strings
+          createdAt: now.toDate().toISOString(),
+          updatedAt: now.toDate().toISOString(),
+        } as T,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -76,9 +84,20 @@ export class FirestoreService {
         };
       }
 
+      const docData = doc.data();
       return {
         success: true,
-        data: doc.data() as unknown as T,
+        data: {
+          id: doc.id,
+          ...docData,
+          // Convert Firestore Timestamps to ISO strings
+          createdAt: docData?.createdAt
+            ? docData.createdAt.toDate().toISOString()
+            : new Date().toISOString(),
+          updatedAt: docData?.updatedAt
+            ? docData.updatedAt.toDate().toISOString()
+            : new Date().toISOString(),
+        } as unknown as T,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -111,10 +130,21 @@ export class FirestoreService {
 
       // ดึงข้อมูลใหม่หลังจากอัปเดต
       const updatedDoc = await docRef.get();
+      const updatedData = updatedDoc.data();
 
       return {
         success: true,
-        data: updatedDoc.data() as unknown as T,
+        data: {
+          id: updatedDoc.id,
+          ...updatedData,
+          // Convert Firestore Timestamps to ISO strings
+          createdAt: updatedData?.createdAt
+            ? updatedData.createdAt.toDate().toISOString()
+            : new Date().toISOString(),
+          updatedAt: updatedData?.updatedAt
+            ? updatedData.updatedAt.toDate().toISOString()
+            : new Date().toISOString(),
+        } as unknown as T,
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
@@ -181,12 +211,24 @@ export class FirestoreService {
         query = query.orderBy(orderBy.field, orderBy.direction);
       }
 
-      // Apply pagination
-      const offset = (page - 1) * pageSize;
-      query = query.limit(pageSize).offset(offset);
+      // Apply pagination (simplified - just use limit for now)
+      query = query.limit(pageSize);
 
       const snapshot = await query.get();
-      const documents = snapshot.docs.map((doc) => doc.data() as T);
+      const documents = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // Convert Firestore Timestamps to ISO strings
+          createdAt: data.createdAt
+            ? data.createdAt.toDate().toISOString()
+            : new Date().toISOString(),
+          updatedAt: data.updatedAt
+            ? data.updatedAt.toDate().toISOString()
+            : new Date().toISOString(),
+        };
+      }) as T[];
 
       // Count total documents (for pagination info)
       const countQuery = db.collection(collection);
@@ -234,12 +276,14 @@ export class TenantService extends FirestoreService {
       TenantDocument,
       "id" | "createdAt" | "updatedAt" | "createdBy" | "updatedBy"
     >,
-    userId: string
+    userId: string,
+    customId?: string
   ) {
     return this.createDocument<TenantDocument>(
       COLLECTIONS.TENANTS,
       tenantData,
-      userId
+      userId,
+      customId
     );
   }
 
@@ -276,12 +320,14 @@ export class DashboardService extends FirestoreService {
       DashboardDocument,
       "id" | "createdAt" | "updatedAt" | "createdBy" | "updatedBy"
     >,
-    userId: string
+    userId: string,
+    customId?: string
   ) {
     return this.createDocument<DashboardDocument>(
       COLLECTIONS.DASHBOARDS,
       dashboardData,
-      userId
+      userId,
+      customId
     );
   }
 
