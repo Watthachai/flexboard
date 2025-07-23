@@ -4,7 +4,7 @@
  */
 
 // Tenant hooks
-export * from "./tenant";
+export * from "./useTenants";
 
 // Dashboard hooks
 export * from "./dashboard";

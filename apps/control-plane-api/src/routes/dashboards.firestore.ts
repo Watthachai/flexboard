@@ -3,7 +3,11 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { DashboardService, WidgetService } from "../services/firestore.service";
+import {
+  DashboardService,
+  WidgetService,
+  TenantService,
+} from "../services/firestore.service";
 import {
   DashboardDocument,
   WidgetDocument,
@@ -17,10 +21,13 @@ export default async function dashboardRoutes(fastify: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const { tenantId } = request.params as { tenantId: string };
-        const { page = 1, pageSize = 20 } = request.query as {
-          page?: number;
-          pageSize?: number;
+        const query = request.query as {
+          page?: string;
+          pageSize?: string;
         };
+
+        const page = parseInt(query.page || "1", 10);
+        const pageSize = parseInt(query.pageSize || "20", 10);
 
         const result = await DashboardService.getDashboardsByTenant(tenantId, {
           page,
@@ -49,6 +56,43 @@ export default async function dashboardRoutes(fastify: FastifyInstance) {
           dashboardId: string;
         };
 
+        // Handle "new" route - return empty dashboard template
+        if (dashboardId === "new") {
+          // ดึงข้อมูล tenant สำหรับ "new" route
+          const tenantResult = await TenantService.getTenant(tenantId);
+
+          return reply.code(200).send({
+            success: true,
+            data: {
+              id: "new",
+              name: "New Dashboard",
+              slug: "new-dashboard",
+              tenantId,
+              isActive: true,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              createdBy: "admin",
+              updatedBy: "admin",
+              tenant: tenantResult.success
+                ? {
+                    id: tenantResult.data?.id,
+                    name: tenantResult.data?.name,
+                    slug: tenantResult.data?.slug,
+                  }
+                : null,
+              visualConfig: {
+                layout: {
+                  columns: 24,
+                  rows: 16,
+                  gridSize: 40,
+                },
+                widgets: [],
+              },
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
+
         const result = await DashboardService.getDashboard(dashboardId);
 
         if (!result.success) {
@@ -64,7 +108,25 @@ export default async function dashboardRoutes(fastify: FastifyInstance) {
           });
         }
 
-        return reply.code(200).send(result);
+        // ดึงข้อมูล tenant เพื่อส่งกลับด้วย
+        const tenantResult = await TenantService.getTenant(tenantId);
+
+        // เพิ่ม tenant info ใน response
+        const dashboardWithTenant = {
+          ...result.data,
+          tenant: tenantResult.success
+            ? {
+                id: tenantResult.data?.id,
+                name: tenantResult.data?.name,
+                slug: tenantResult.data?.slug,
+              }
+            : null,
+        };
+
+        return reply.code(200).send({
+          ...result,
+          data: dashboardWithTenant,
+        });
       } catch (error) {
         console.error("Error fetching dashboard:", error);
         return reply.code(500).send({
@@ -95,12 +157,32 @@ export default async function dashboardRoutes(fastify: FastifyInstance) {
         // TODO: รับ userId จาก JWT token
         const userId = "admin"; // Placeholder
 
+        // ดึงข้อมูล tenant เพื่อใช้ชื่อในการสร้าง dashboard ID
+        const tenantResult = await TenantService.getTenant(tenantId);
+        if (!tenantResult.success) {
+          return reply.code(404).send({
+            success: false,
+            error: "Tenant not found",
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        const tenantName = tenantResult.data?.name || "unknown";
+        const dashboardName = dashboardData.name || "New Dashboard";
+
+        // สร้าง custom ID โดยรวม tenant name กับ dashboard name
+        const customId = `${tenantName}-${dashboardName}`
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+
         const result = await DashboardService.createDashboard(
           {
             ...dashboardData,
             tenantId,
           },
-          userId
+          userId,
+          customId // ส่ง custom ID ไปด้วย
         );
 
         if (!result.success) {
@@ -262,6 +344,41 @@ export default async function dashboardRoutes(fastify: FastifyInstance) {
           tenantId: string;
           dashboardId: string;
         };
+
+        // Handle "new" route - return empty metadata template
+        if (dashboardId === "new") {
+          return reply.code(200).send({
+            success: true,
+            data: {
+              id: "new",
+              version: 1,
+              metadata: {
+                dashboard: {
+                  id: "new",
+                  name: "New Dashboard",
+                  slug: "new-dashboard",
+                  tenantId,
+                  isActive: true,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  createdBy: "admin",
+                  updatedBy: "admin",
+                },
+                widgets: [],
+                config: {
+                  layout: {
+                    columns: 24,
+                    rows: 16,
+                    gridSize: 40,
+                  },
+                },
+              },
+              status: "draft",
+              createdAt: new Date().toISOString(),
+            },
+            timestamp: new Date().toISOString(),
+          });
+        }
 
         // ดึงข้อมูล dashboard
         const dashboardResult =

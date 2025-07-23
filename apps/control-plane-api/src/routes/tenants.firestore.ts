@@ -12,10 +12,13 @@ export default async function tenantRoutes(fastify: FastifyInstance) {
     "/tenants",
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const { page = 1, pageSize = 20 } = request.query as {
-          page?: number;
-          pageSize?: number;
+        const query = request.query as {
+          page?: string;
+          pageSize?: string;
         };
+
+        const page = parseInt(query.page || "1", 10);
+        const pageSize = parseInt(query.pageSize || "20", 10);
 
         const result = await TenantService.getAllTenants({ page, pageSize });
 
@@ -69,7 +72,17 @@ export default async function tenantRoutes(fastify: FastifyInstance) {
         // TODO: รับ userId จาก JWT token
         const userId = "admin"; // Placeholder
 
-        const result = await TenantService.createTenant(tenantData, userId);
+        // สร้าง custom ID จากชื่อบริษัท
+        const customId = tenantData.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+
+        const result = await TenantService.createTenant(
+          tenantData,
+          userId,
+          customId
+        );
 
         if (!result.success) {
           return reply.code(400).send(result);

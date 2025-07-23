@@ -52,6 +52,14 @@ export interface DashboardDocument extends BaseDocument {
     };
     widgets: WidgetConfig[];
   };
+  // เพิ่ม Data Source Configuration
+  dataSourceConfig?: {
+    type: "sql" | "firestore" | "mysql" | "postgresql" | "api" | "file";
+    template?: string;
+    uploadedData?: string; // เปลี่ยนเป็น JSON string แทน any
+    connectionString?: string;
+    parameters?: Record<string, any>;
+  };
 }
 
 // ===== Widget Models =====
