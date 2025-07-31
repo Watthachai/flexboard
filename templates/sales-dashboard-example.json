@@ -1,0 +1,83 @@
+{
+  "schemaVersion": "1.0",
+  "dashboardId": "",
+  "dashboardName": "Sales Performance Dashboard",
+  "description": "Monthly sales performance tracking with KPIs and trends",
+  "version": 1,
+  "targetTeams": ["sales", "management"],
+  "layout": {
+    "type": "grid",
+    "columns": 12,
+    "rowHeight": 60
+  },
+  "widgets": [
+    {
+      "id": "total-sales-kpi",
+      "title": "Total Sales This Month",
+      "type": "kpi-card",
+      "position": { "x": 0, "y": 0, "w": 3, "h": 2 },
+      "dataSourceId": "monthly_sales_total",
+      "config": {
+        "color": "blue",
+        "showTrend": true,
+        "format": "currency"
+      }
+    },
+    {
+      "id": "sales-trend-chart",
+      "title": "Sales Trend (Last 6 Months)",
+      "type": "line-chart",
+      "position": { "x": 3, "y": 0, "w": 6, "h": 3 },
+      "dataSourceId": "sales_trend_6months",
+      "config": {
+        "xAxisKey": "month",
+        "yAxisKey": "total_sales",
+        "color": "#3B82F6"
+      }
+    },
+    {
+      "id": "top-products-table",
+      "title": "Top 10 Products",
+      "type": "table",
+      "position": { "x": 0, "y": 3, "w": 12, "h": 4 },
+      "dataSourceId": "top_products",
+      "config": {
+        "columns": ["product_name", "quantity_sold", "revenue"],
+        "sortBy": "revenue",
+        "pageSize": 10
+      }
+    }
+  ],
+  "dataSources": [
+    {
+      "id": "monthly_sales_total",
+      "type": "sql",
+      "connectionId": "main_db",
+      "query": "SELECT SUM(amount) as total_sales FROM sales WHERE MONTH(created_at) = MONTH(GETDATE()) AND YEAR(created_at) = YEAR(GETDATE())",
+      "mappings": {
+        "value": "total_sales"
+      }
+    },
+    {
+      "id": "sales_trend_6months",
+      "type": "sql",
+      "connectionId": "main_db",
+      "query": "SELECT FORMAT(created_at, 'yyyy-MM') as month, SUM(amount) as total_sales FROM sales WHERE created_at >= DATEADD(month, -6, GETDATE()) GROUP BY FORMAT(created_at, 'yyyy-MM') ORDER BY month",
+      "mappings": {
+        "month": "month",
+        "total_sales": "total_sales"
+      }
+    },
+    {
+      "id": "top_products",
+      "type": "sql",
+      "connectionId": "main_db",
+      "query": "SELECT p.name as product_name, SUM(si.quantity) as quantity_sold, SUM(si.quantity * si.price) as revenue FROM sales_items si JOIN products p ON si.product_id = p.id WHERE si.created_at >= DATEADD(month, -1, GETDATE()) GROUP BY p.id, p.name ORDER BY revenue DESC",
+      "mappings": {
+        "product_name": "product_name",
+        "quantity_sold": "quantity_sold",
+        "revenue": "revenue"
+      }
+    }
+  ]
+}

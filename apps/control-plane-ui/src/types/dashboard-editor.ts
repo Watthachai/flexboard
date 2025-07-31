@@ -20,7 +20,14 @@ export type WidgetType =
   | "progress"
   | "iframe"
   | "map"
-  | "calendar";
+  | "calendar"
+  // Analytics Widget Types - PowerBI-style comparison widgets
+  | "period-comparison"
+  | "target-comparison"
+  | "peer-comparison"
+  | "composition-analysis"
+  | "trend-analysis"
+  | "interactive-chart";
 
 // **อัปเดต Widget Interface ให้รองรับ Firestore Structure**
 export interface Widget {

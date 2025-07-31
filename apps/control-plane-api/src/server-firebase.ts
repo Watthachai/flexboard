@@ -18,6 +18,8 @@ validateEnvConfig();
 // Import routes
 import tenantRoutes from "./routes/tenants.firestore";
 import dashboardRoutes from "./routes/dashboards.firestore";
+import dashboardManifestRoutes from "./routes/dashboards.manifest";
+import dashboardColumnsRoutes from "./routes/dashboard-columns.firestore";
 
 const fastify = Fastify({
   logger: envConfig.isProduction ? true : { level: "info" },
@@ -62,6 +64,8 @@ fastify.get("/api/health", async (request, reply) => {
 // Register routes
 fastify.register(tenantRoutes, { prefix: "/api" });
 fastify.register(dashboardRoutes, { prefix: "/api" });
+fastify.register(dashboardManifestRoutes, { prefix: "/api/manifest" });
+fastify.register(dashboardColumnsRoutes, { prefix: "/api" });
 
 // Authentication middleware for Agent API
 async function authenticate(request: any, reply: any) {

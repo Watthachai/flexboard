@@ -1,4 +1,4 @@
-"use client"; // จำเป็นสำหรับ Recharts และการ fetch ข้อมูลฝั่ง Client
+"use client";
 
 import { useEffect, useState } from "react";
 import {
@@ -12,22 +12,57 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-// กำหนด Type ของข้อมูลที่เราคาดว่าจะได้รับ
-interface SalesData {
-  month: string;
-  total_sales: number;
+// Interface for dashboard manifest
+interface Widget {
+  id: string;
+  type: string;
+  title: string;
+  dataSource: string;
+  config: {
+    xAxis?: string;
+    yAxis?: string;
+    tenantId?: string;
+  };
+  layout: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 }
 
-interface ProductData {
-  product_name: string;
-  revenue: number;
+interface DashboardManifest {
+  dashboardId: string;
+  dashboardName: string;
+  description: string;
+  widgets: Widget[];
 }
 
-interface KPIData {
-  total_orders: number;
-  total_revenue: number;
-  avg_order_value: number;
-}
+// Sample dashboard manifest (คุณสามารถแก้ไขตรงนี้)
+const DASHBOARD_MANIFEST: DashboardManifest = {
+  dashboardId: "vpi-co-ltd-v1",
+  dashboardName: "VPI Dashboard",
+  description: "Branch vs Average Cost Analysis",
+  widgets: [
+    {
+      id: "chart-branch-cost",
+      type: "bar-chart",
+      title: "Branch vs Average Cost",
+      dataSource: "uploaded-data",
+      config: {
+        xAxis: "Branch",
+        yAxis: "AverageCost",
+        tenantId: "vpi-co-ltd",
+      },
+      layout: {
+        x: 0,
+        y: 0,
+        width: 12,
+        height: 8,
+      },
+    },
+  ],
+};
 
 // Component สำหรับแสดง KPI Cards
 function KPICard({
@@ -56,68 +91,104 @@ function KPICard({
   );
 }
 
-export default function Home() {
-  const [salesData, setSalesData] = useState<SalesData[]>([]);
-  const [productData, setProductData] = useState<ProductData[]>([]);
-  const [kpiData, setKpiData] = useState<KPIData | null>(null);
+export default function Dashboard() {
+  const [widgetData, setWidgetData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchWidgetData = async () => {
       try {
-        // เรียก API จาก Agent ที่รันอยู่ที่ port 3001
-        const apiUrl =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+        setLoading(true);
+        setError(null);
 
-        // Fetch ข้อมูลพร้อมกันทั้งหมด
-        const [salesRes, productRes, kpiRes] = await Promise.all([
-          fetch(`${apiUrl}/api/data/sales-by-month`),
-          fetch(`${apiUrl}/api/data/top-products`),
-          fetch(`${apiUrl}/api/data/sales-summary`),
-        ]);
+        // Fetch data for each widget based on its config
+        const widgetPromises = DASHBOARD_MANIFEST.widgets.map(
+          async (widget) => {
+            if (
+              widget.dataSource === "uploaded-data" &&
+              widget.config.tenantId
+            ) {
+              try {
+                const apiUrl =
+                  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+                const response = await fetch(
+                  `${apiUrl}/api/tenants/${widget.config.tenantId}/dashboards/${DASHBOARD_MANIFEST.dashboardId}`
+                );
 
-        if (!salesRes.ok || !productRes.ok || !kpiRes.ok) {
-          throw new Error("Failed to fetch data from one or more endpoints");
-        }
+                if (!response.ok) {
+                  throw new Error(
+                    `Failed to fetch data for widget ${widget.id}`
+                  );
+                }
 
-        const [salesResult, productResult, kpiResult] = await Promise.all([
-          salesRes.json(),
-          productRes.json(),
-          kpiRes.json(),
-        ]);
+                const result = await response.json();
 
-        // แปลงข้อมูลเพื่อให้แน่ใจว่าเป็น Type ที่ถูกต้อง
-        setSalesData(
-          salesResult.map((item: any) => ({
-            ...item,
-            total_sales: Number(item.total_sales),
-          }))
+                if (result.success && result.data) {
+                  // Transform data based on widget config
+                  if (
+                    widget.type === "bar-chart" &&
+                    widget.config.xAxis &&
+                    widget.config.yAxis
+                  ) {
+                    const grouped: { [key: string]: number } = {};
+
+                    result.data.forEach((record: any) => {
+                      const category = String(
+                        record[widget.config.xAxis!] || "Unknown"
+                      );
+                      const value =
+                        parseFloat(record[widget.config.yAxis!]) || 0;
+                      grouped[category] = (grouped[category] || 0) + value;
+                    });
+
+                    const chartData = Object.entries(grouped).map(
+                      ([name, value]) => ({
+                        name,
+                        value,
+                      })
+                    );
+
+                    return {
+                      ...widget,
+                      data: chartData,
+                    };
+                  }
+                }
+              } catch (widgetError) {
+                console.error(
+                  `Error fetching data for widget ${widget.id}:`,
+                  widgetError
+                );
+                return {
+                  ...widget,
+                  data: [],
+                  error:
+                    widgetError instanceof Error
+                      ? widgetError.message
+                      : "Unknown error",
+                };
+              }
+            }
+
+            return {
+              ...widget,
+              data: [],
+            };
+          }
         );
 
-        setProductData(
-          productResult.map((item: any) => ({
-            ...item,
-            revenue: Number(item.revenue),
-          }))
-        );
-
-        // KPI data อาจจะมาเป็น array ตัวเดียว
-        const kpi = Array.isArray(kpiResult) ? kpiResult[0] : kpiResult;
-        setKpiData({
-          total_orders: Number(kpi.total_orders),
-          total_revenue: Number(kpi.total_revenue),
-          avg_order_value: Number(kpi.avg_order_value),
-        });
+        const widgetsWithData = await Promise.all(widgetPromises);
+        setWidgetData(widgetsWithData);
       } catch (err: any) {
-        console.error("Error fetching data:", err);
+        console.error("Error fetching widget data:", err);
         setError(err.message);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
+    fetchWidgetData();
   }, []);
 
   if (loading) {
@@ -149,103 +220,107 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-900 text-white p-6">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold mb-8 text-center">
-          🚀 Flexboard - Analytics Dashboard
-        </h1>
-
-        {/* KPI Cards */}
-        {kpiData && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <KPICard title="Total Orders" value={kpiData.total_orders} />
-            <KPICard
-              title="Total Revenue"
-              value={kpiData.total_revenue}
-              suffix="$"
-            />
-            <KPICard
-              title="Avg Order Value"
-              value={kpiData.avg_order_value}
-              suffix="$"
-            />
+    <div className="min-h-screen bg-gray-900 text-white">
+      {/* Header */}
+      <header className="bg-gray-800 p-4 border-b border-gray-700">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl font-bold">FlexBoard Viewer</h1>
+            <p className="text-gray-400 text-sm">Tenant: Demo</p>
           </div>
-        )}
-
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-          {/* Sales by Month Chart */}
-          <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
-            <h2 className="text-xl font-bold mb-4">Sales by Month</h2>
-            <div className="h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={salesData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis dataKey="month" stroke="#888" />
-                  <YAxis stroke="#888" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1f2937",
-                      border: "1px solid #374151",
-                      borderRadius: "6px",
-                    }}
-                  />
-                  <Legend />
-                  <Bar
-                    dataKey="total_sales"
-                    fill="#3b82f6"
-                    name="Total Sales"
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Top Products Chart */}
-          <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
-            <h2 className="text-xl font-bold mb-4">Top Products by Revenue</h2>
-            <div className="h-[400px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={productData}
-                  layout="horizontal"
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis type="number" stroke="#888" />
-                  <YAxis
-                    type="category"
-                    dataKey="product_name"
-                    stroke="#888"
-                    width={150}
-                    tick={{ fontSize: 12 }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#1f2937",
-                      border: "1px solid #374151",
-                      borderRadius: "6px",
-                    }}
-                  />
-                  <Legend />
-                  <Bar dataKey="revenue" fill="#10b981" name="Revenue" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <div className="text-right">
+            <p className="text-sm text-gray-400">
+              {DASHBOARD_MANIFEST.dashboardName}
+            </p>
+            <p className="text-xs text-gray-500">
+              {DASHBOARD_MANIFEST.description}
+            </p>
           </div>
         </div>
+      </header>
 
-        {/* Footer */}
-        <div className="mt-8 text-center text-gray-400">
-          <p>🏗️ Flexboard MVP - Hybrid Analytics Platform</p>
-          <p className="text-sm">
-            Data refreshed automatically from On-Premise Agent
-          </p>
+      {/* Dashboard Content */}
+      <main className="max-w-7xl mx-auto p-6">
+        <div className="grid grid-cols-12 gap-6">
+          {/* Widget Rendering */}
+          {widgetData.map((widget) => (
+            <div
+              key={widget.id}
+              className="bg-gray-800 rounded-lg p-6 border border-gray-700"
+              style={{
+                gridColumn: `span ${widget.layout.width}`,
+                gridRow: `span ${Math.ceil(widget.layout.height / 2)}`,
+              }}
+            >
+              <h3 className="text-lg font-semibold mb-4">{widget.title}</h3>
+
+              {widget.error ? (
+                <div className="flex items-center justify-center h-64 text-red-400">
+                  <div className="text-center">
+                    <p>Error loading widget</p>
+                    <p className="text-sm text-gray-500 mt-2">{widget.error}</p>
+                  </div>
+                </div>
+              ) : widget.data && widget.data.length > 0 ? (
+                widget.type === "bar-chart" ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={widget.data}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis
+                        dataKey="name"
+                        stroke="#9CA3AF"
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                      />
+                      <YAxis stroke="#9CA3AF" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#1F2937",
+                          border: "1px solid #374151",
+                          borderRadius: "8px",
+                        }}
+                      />
+                      <Bar
+                        dataKey="value"
+                        fill="#3B82F6"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-64 text-gray-400">
+                    <p>Widget type "{widget.type}" not implemented</p>
+                  </div>
+                )
+              ) : (
+                <div className="flex items-center justify-center h-64 text-gray-400">
+                  <div className="text-center">
+                    <div className="text-4xl mb-2">📊</div>
+                    <p>No data available</p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      X: {widget.config.xAxis}, Y: {widget.config.yAxis}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
-      </div>
-    </main>
+
+        {/* Debug Info */}
+        <div className="mt-8 bg-gray-800 rounded-lg p-4 border border-gray-700">
+          <h3 className="text-sm font-medium text-gray-400 mb-2">Debug Info</h3>
+          <div className="text-xs text-gray-500 space-y-1">
+            <p>Dashboard ID: {DASHBOARD_MANIFEST.dashboardId}</p>
+            <p>Widgets loaded: {widgetData.length}</p>
+            <p>
+              API URL:{" "}
+              {process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}
+            </p>
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }

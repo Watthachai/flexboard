@@ -262,17 +262,9 @@ export default function TenantDetailContent() {
                     href={`/tenants/${tenantId}/dashboards/${tenantId + "-" + dashboard.slug}`}
                     className="flex-1"
                   >
-                    <Button variant="outline" size="sm" className="w-full">
-                      <span className="mr-2">⚙️</span>
-                      Configure
-                    </Button>
-                  </Link>
-                  <Link
-                    href={`/tenants/${tenantId}/dashboards/${tenantId + "-" + dashboard.slug}/builder`}
-                  >
-                    <Button size="sm">
-                      <span className="mr-2">🎨</span>
-                      Builder
+                    <Button size="sm" className="w-full">
+                      <span className="mr-2">✏️</span>
+                      Edit Dashboard
                     </Button>
                   </Link>
                 </div>

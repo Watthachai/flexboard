@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "1.0",
+  "dashboardId": "vpi-co-ltd-v1",
+  "dashboardName": "VPI Dashboard",
+  "description": "Branch vs Average Cost Analysis",
+  "version": 1,
+  "targetTeams": ["default"],
+  "layout": {
+    "type": "grid",
+    "columns": 12,
+    "rowHeight": 50
+  },
+  "widgets": [
+    {
+      "id": "chart-branch-cost",
+      "type": "bar-chart",
+      "title": "Branch vs Average Cost",
+      "dataSource": "uploaded-data",
+      "config": {
+        "xAxis": "Branch",
+        "yAxis": "AverageCost",
+        "tenantId": "vpi-co-ltd"
+      },
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "width": 12,
+        "height": 8
+      }
+    }
+  ],
+  "dataSources": [
+    {
+      "id": "uploaded-xml-data",
+      "name": "Uploaded XML Data",
+      "type": "xml",
+      "description": "Data from uploaded XML file",
+      "endpoint": "/api/tenants/vpi-co-ltd/data",
+      "refreshInterval": 300000
+    }
+  ]
+}

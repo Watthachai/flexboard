@@ -60,6 +60,8 @@ export interface DashboardDocument extends BaseDocument {
     connectionString?: string;
     parameters?: Record<string, any>;
   };
+  // Dashboard-as-Code Manifest
+  manifestContent?: string;
 }
 
 // ===== Widget Models =====

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ตัวอย่างไฟล์ XML สำหรับการอัปโหลดข้อมูล Inventory
+  ไฟล์นี้จะถูกอัปโหลดโดย Admin ผ่าน Control Plane UI
+  และจะถูกประมวลผลโดย On-Premise Agent เพื่อแสดงผลใน Manager Overview Dashboard
+-->
+<InventoryData>
+  <!-- ข้อมูลสินค้าหลัก -->
+  <Products>
+    <Product ID="P001" Code="ELEC001" Name="Smart TV 55 inch" Category="Electronics" UnitCost="25000" />
+    <Product ID="P002" Code="ELEC002" Name="Wireless Headphones" Category="Electronics" UnitCost="3500" />
+    <Product ID="P003" Code="HOME001" Name="Air Purifier" Category="Home Appliances" UnitCost="8500" />
+    <Product ID="P004" Code="COMP001" Name="Gaming Laptop" Category="Computers" UnitCost="45000" />
+    <Product ID="P005" Code="COMP002" Name="Mechanical Keyboard" Category="Computers" UnitCost="4200" />
+    <Product ID="P006" Code="HOME002" Name="Robot Vacuum" Category="Home Appliances" UnitCost="12000" />
+    <Product ID="P007" Code="ELEC003" Name="Bluetooth Speaker" Category="Electronics" UnitCost="2800" />
+    <Product ID="P008" Code="COMP003" Name="4K Monitor" Category="Computers" UnitCost="18000" />
+  </Products>
+  
+  <!-- ข้อมูลสต็อกปัจจุบัน (รวม lot tracking) -->
+  <StockItems>
+    <!-- Electronics - มีสินค้าที่ใกล้หมดอายุ -->
+    <Item ProductID="P001" Lot="TV-2024-01" ReceivedDate="2024-01-15" ExpiryDate="2024-12-15" Quantity="8" UnitCost="25000" />
+    <Item ProductID="P001" Lot="TV-2024-02" ReceivedDate="2024-06-01" ExpiryDate="2025-05-31" Quantity="15" UnitCost="25000" />
+    <Item ProductID="P002" Lot="HP-2024-01" ReceivedDate="2024-02-10" ExpiryDate="2024-11-10" Quantity="25" UnitCost="3500" />
+    <Item ProductID="P002" Lot="HP-2024-02" ReceivedDate="2024-07-15" ExpiryDate="2025-07-14" Quantity="40" UnitCost="3500" />
+    <Item ProductID="P007" Lot="SPK-2024-01" ReceivedDate="2024-03-20" ExpiryDate="2024-10-20" Quantity="12" UnitCost="2800" />
+    
+    <!-- Home Appliances - สินค้าส่วนใหญ่ยังอยู่ในสภาพดี -->
+    <Item ProductID="P003" Lot="AP-2024-01" ReceivedDate="2024-04-01" ExpiryDate="2025-09-30" Quantity="18" UnitCost="8500" />
+    <Item ProductID="P003" Lot="AP-2024-02" ReceivedDate="2024-08-01" ExpiryDate="2026-01-31" Quantity="22" UnitCost="8500" />
+    <Item ProductID="P006" Lot="RV-2024-01" ReceivedDate="2024-05-15" ExpiryDate="2025-11-15" Quantity="10" UnitCost="12000" />
+    
+    <!-- Computers - มีสินค้าราคาสูงที่ต้องจับตา -->
+    <Item ProductID="P004" Lot="LAP-2024-01" ReceivedDate="2024-02-01" ExpiryDate="2024-12-01" Quantity="5" UnitCost="45000" />
+    <Item ProductID="P004" Lot="LAP-2024-02" ReceivedDate="2024-09-01" ExpiryDate="2025-08-31" Quantity="8" UnitCost="45000" />
+    <Item ProductID="P005" Lot="KB-2024-01" ReceivedDate="2024-03-10" ExpiryDate="2025-03-10" Quantity="30" UnitCost="4200" />
+    <Item ProductID="P008" Lot="MON-2024-01" ReceivedDate="2024-01-20" ExpiryDate="2024-11-20" Quantity="12" UnitCost="18000" />
+    <Item ProductID="P008" Lot="MON-2024-02" ReceivedDate="2024-07-20" ExpiryDate="2025-07-19" Quantity="20" UnitCost="18000" />
+  </StockItems>
+  
+  <!-- ประวัติการใช้สินค้ารายเดือน (12 เดือนย้อนหลัง) -->
+  <ConsumptionHistory>
+    <Monthly Month="2023-08" Consumption="285000" ItemsCount="23" />
+    <Monthly Month="2023-09" Consumption="342000" ItemsCount="28" />
+    <Monthly Month="2023-10" Consumption="398000" ItemsCount="31" />
+    <Monthly Month="2023-11" Consumption="456000" ItemsCount="35" />
+    <Monthly Month="2023-12" Consumption="523000" ItemsCount="42" />
+    <Monthly Month="2024-01" Consumption="478000" ItemsCount="38" />
+    <Monthly Month="2024-02" Consumption="567000" ItemsCount="45" />
+    <Monthly Month="2024-03" Consumption="634000" ItemsCount="51" />
+    <Monthly Month="2024-04" Consumption="589000" ItemsCount="47" />
+    <Monthly Month="2024-05" Consumption="612000" ItemsCount="49" />
+    <Monthly Month="2024-06" Consumption="701000" ItemsCount="56" />
+    <Monthly Month="2024-07" Consumption="658000" ItemsCount="52" />
+  </ConsumptionHistory>
+</InventoryData>
