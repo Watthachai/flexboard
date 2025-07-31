@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SalesData>
+  <Records>
+    <Record ID="R001">
+      <Date>2025-01-15</Date>
+      <CustomerName>ABC Company Ltd.</CustomerName>
+      <CustomerType>Corporate</CustomerType>
+      <SalesAmount>125000</SalesAmount>
+      <ProductsSold>5</ProductsSold>
+      <SalesRep>John Smith</SalesRep>
+      <Region>Bangkok</Region>
+      <Status>Completed</Status>
+    </Record>
+    <Record ID="R002">
+      <Date>2025-01-16</Date>
+      <CustomerName>XYZ Corporation</CustomerName>
+      <CustomerType>Corporate</CustomerType>
+      <SalesAmount>89000</SalesAmount>
+      <ProductsSold>3</ProductsSold>
+      <SalesRep>Jane Doe</SalesRep>
+      <Region>Chiang Mai</Region>
+      <Status>Pending</Status>
+    </Record>
+    <Record ID="R003">
+      <Date>2025-01-17</Date>
+      <CustomerName>Individual Customer</CustomerName>
+      <CustomerType>Individual</CustomerType>
+      <SalesAmount>15000</SalesAmount>
+      <ProductsSold>1</ProductsSold>
+      <SalesRep>Mike Johnson</SalesRep>
+      <Region>Phuket</Region>
+      <Status>Completed</Status>
+    </Record>
+    <Record ID="R004">
+      <Date>2025-01-18</Date>
+      <CustomerName>DEF Industries</CustomerName>
+      <CustomerType>Corporate</CustomerType>
+      <SalesAmount>245000</SalesAmount>
+      <ProductsSold>12</ProductsSold>
+      <SalesRep>Sarah Wilson</SalesRep>
+      <Region>Bangkok</Region>
+      <Status>Processing</Status>
+    </Record>
+    <Record ID="R005">
+      <Date>2025-01-19</Date>
+      <CustomerName>Small Business Co.</CustomerName>
+      <CustomerType>SME</CustomerType>
+      <SalesAmount>65000</SalesAmount>
+      <ProductsSold>4</ProductsSold>
+      <SalesRep>Tom Brown</SalesRep>
+      <Region>Khon Kaen</Region>
+      <Status>Completed</Status>
+    </Record>
+  </Records>
+</SalesData>

@@ -438,6 +438,11 @@ fastify.get("/api/connectors/status", async (request, reply) => {
 
 // ===== END: Widget Data Execution API =====
 
+// ===== Dashboard Data Routes Registration =====
+import { dashboardDataRoutes } from "./routes/dashboard-data";
+fastify.register(dashboardDataRoutes);
+
+// Start the server
 const start = async () => {
   try {
     // Initialize sync with Control Plane first

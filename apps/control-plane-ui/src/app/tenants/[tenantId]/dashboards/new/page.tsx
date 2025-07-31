@@ -172,9 +172,7 @@ export default function NewDashboardPage() {
             dataSourceConfig: {
               type: formData.dataSourceType,
               template: formData.template,
-              uploadedData: uploadedData
-                ? JSON.stringify(uploadedData)
-                : undefined, // Serialize เป็น JSON string
+              uploadedData: uploadedData, // เก็บเป็น object ปกติ ไม่ serialize
             },
           }),
         }
@@ -450,7 +448,39 @@ export default function NewDashboardPage() {
                 <DataImport
                   onDataImport={(data) => {
                     console.log("Data imported:", data);
-                    setUploadedData(data);
+
+                    // แปลงข้อมูลจาก ParsedData format เป็น dataset format
+                    const convertedData = {
+                      dataset: {
+                        record: data.rows.map((row) => {
+                          const record: any = {};
+                          data.columns.forEach((column, index) => {
+                            let value = row[index];
+
+                            // แปลงข้อมูลตามประเภท
+                            if (
+                              column.type === "number" &&
+                              value &&
+                              !isNaN(Number(value))
+                            ) {
+                              value = Number(value);
+                            } else if (column.type === "date" && value) {
+                              value = new Date(value).toISOString();
+                            } else if (column.type === "boolean" && value) {
+                              value = ["true", "1", "yes"].includes(
+                                value.toLowerCase()
+                              );
+                            }
+
+                            record[column.name] = value;
+                          });
+                          return record;
+                        }),
+                      },
+                    };
+
+                    console.log("Converted data:", convertedData);
+                    setUploadedData(convertedData);
                     handleStepTransition("template");
                   }}
                   onCancel={() => handleStepTransition("datasource")}

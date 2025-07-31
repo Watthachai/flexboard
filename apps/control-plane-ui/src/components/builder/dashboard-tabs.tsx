@@ -4,8 +4,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 interface DashboardTabsProps {
-  activeTab: "editor" | "preview";
-  onTabChange: (tab: "editor" | "preview") => void;
+  activeTab: "editor" | "preview" | "data";
+  onTabChange: (tab: "editor" | "preview" | "data") => void;
 }
 
 export default function DashboardTabs({
@@ -23,6 +23,15 @@ export default function DashboardTabs({
         >
           <span className="mr-2">⚙️</span>
           JSON Editor
+        </Button>
+        <Button
+          variant={activeTab === "data" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => onTabChange("data")}
+          className="text-sm"
+        >
+          <span className="mr-2">📊</span>
+          Data
         </Button>
         <Button
           variant={activeTab === "preview" ? "default" : "ghost"}

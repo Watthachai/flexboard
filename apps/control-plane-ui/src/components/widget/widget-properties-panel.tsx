@@ -48,15 +48,12 @@ export default function WidgetPropertiesPanel({
         </div>
 
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="general">
               <Settings className="w-4 h-4" />
             </TabsTrigger>
             <TabsTrigger value="style">
               <Palette className="w-4 h-4" />
-            </TabsTrigger>
-            <TabsTrigger value="data">
-              <Database className="w-4 h-4" />
             </TabsTrigger>
             <TabsTrigger value="code">
               <Code className="w-4 h-4" />
@@ -198,127 +195,6 @@ export default function WidgetPropertiesPanel({
                   <SelectItem value="large">Large</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-          </TabsContent>
-
-          {/* Data Properties */}
-          <TabsContent value="data" className="space-y-4">
-            <div>
-              <Label htmlFor="data-source-type">Data Source Type</Label>
-              <Select
-                value={(widget.config.dataSourceType as string) || "sql"}
-                onValueChange={(value) =>
-                  onUpdateWidget({
-                    config: {
-                      ...widget.config,
-                      dataSourceType: value as
-                        | "sql"
-                        | "postgresql"
-                        | "mysql"
-                        | "api"
-                        | "firestore",
-                    },
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sql">SQL Server</SelectItem>
-                  <SelectItem value="postgresql">PostgreSQL</SelectItem>
-                  <SelectItem value="mysql">MySQL</SelectItem>
-                  <SelectItem value="firestore">Firestore</SelectItem>
-                  <SelectItem value="api">API Endpoint</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Raw Query Input - หัวใจของการปรับปรุง */}
-            <div>
-              <Label htmlFor="raw-query">
-                Raw Query
-                <span className="text-xs text-gray-500 ml-2">
-                  (Copy & paste your query here)
-                </span>
-              </Label>
-              <Textarea
-                id="raw-query"
-                value={(widget.config.query as string) || ""}
-                onChange={(e) =>
-                  onUpdateWidget({
-                    config: { ...widget.config, query: e.target.value },
-                  })
-                }
-                placeholder={
-                  widget.config.dataSourceType === "sql" ||
-                  widget.config.dataSourceType === "postgresql" ||
-                  widget.config.dataSourceType === "mysql"
-                    ? "SELECT column1, column2, SUM(column3) as total\nFROM table_name\nWHERE condition = 'value'\nGROUP BY column1, column2\nORDER BY total DESC"
-                    : widget.config.dataSourceType === "firestore"
-                      ? '// Firestore query structure\n{\n  "collection": "orders",\n  "where": [{"field": "status", "operator": "==", "value": "completed"}],\n  "orderBy": [{"field": "createdAt", "direction": "desc"}]\n}'
-                      : "https://api.example.com/data"
-                }
-                rows={8}
-                className="font-mono text-sm"
-              />
-            </div>
-
-            {/* Query Parameters (Optional) */}
-            <div>
-              <Label htmlFor="query-params">
-                Query Parameters (JSON)
-                <span className="text-xs text-gray-500 ml-2">(Optional)</span>
-              </Label>
-              <Textarea
-                id="query-params"
-                value={(widget.config.params as string) || ""}
-                onChange={(e) =>
-                  onUpdateWidget({
-                    config: { ...widget.config, params: e.target.value },
-                  })
-                }
-                placeholder='{\n  "userId": "123",\n  "startDate": "2024-01-01",\n  "endDate": "2024-12-31"\n}'
-                rows={4}
-                className="font-mono text-sm"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="refresh-interval">
-                Refresh Interval (seconds)
-              </Label>
-              <Input
-                id="refresh-interval"
-                type="number"
-                value={(widget.config.refreshInterval as number) || 30}
-                onChange={(e) =>
-                  onUpdateWidget({
-                    config: {
-                      ...widget.config,
-                      refreshInterval: parseInt(e.target.value) || 30,
-                    },
-                  })
-                }
-              />
-            </div>
-
-            {/* Query Test Button */}
-            <div className="pt-4 border-t">
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => {
-                  // TODO: ใช้ API เพื่อทดสอบ Query
-                  alert("Query testing functionality will be available soon!");
-                }}
-              >
-                Test Query
-              </Button>
-              <p className="text-xs text-gray-500 mt-2">
-                This will send the query to the On-Premise Agent for testing
-              </p>
             </div>
           </TabsContent>
 

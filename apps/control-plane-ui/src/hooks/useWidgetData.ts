@@ -8,7 +8,7 @@ import { widgetDataService, WidgetData } from "@/services/widget-data.service";
 export function useWidgetData(
   widgetId: string,
   widgetType: string,
-  config: any
+  config?: any
 ) {
   const [data, setData] = useState<WidgetData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,18 +23,31 @@ export function useWidgetData(
   }, []);
 
   useEffect(() => {
+    // Skip API call if config is undefined (static data widgets)
+    if (!config) {
+      setLoading(false);
+      return;
+    }
     if (!widgetId || !widgetType) return;
+
+    console.log("useWidgetData called with:", { widgetId, widgetType, config });
 
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
 
+        console.log(
+          "Calling widgetDataService.fetchWidgetData with config:",
+          config
+        );
         const widgetData = await widgetDataService.fetchWidgetData(
           widgetId,
           widgetType,
           config
         );
+
+        console.log("widgetDataService returned:", widgetData);
 
         if (mountedRef.current) {
           setData(widgetData);
@@ -42,6 +55,7 @@ export function useWidgetData(
           setError(widgetData.error || null);
         }
       } catch (err) {
+        console.error("Error in useWidgetData:", err);
         if (mountedRef.current) {
           setError(err instanceof Error ? err.message : "Failed to fetch data");
           setLoading(false);
@@ -52,7 +66,7 @@ export function useWidgetData(
     fetchData();
 
     // Setup auto-refresh if configured
-    if (config.refreshInterval && config.refreshInterval > 0) {
+    if (config && config.refreshInterval && config.refreshInterval > 0) {
       widgetDataService.setupAutoRefresh(
         widgetId,
         widgetType,
@@ -67,7 +81,7 @@ export function useWidgetData(
   }, [widgetId, widgetType, config]);
 
   const refresh = async () => {
-    if (!widgetId || !widgetType) return;
+    if (!widgetId || !widgetType || !config) return;
 
     try {
       setLoading(true);

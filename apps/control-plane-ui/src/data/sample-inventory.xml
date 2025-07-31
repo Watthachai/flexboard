@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<InventoryData>
+  <Products>
+    <Product ID="P001" Code="SKU001" Name="Laptop Dell Inspiron" Category="Electronics" UnitCost="25000" />
+    <Product ID="P002" Code="SKU002" Name="Wireless Mouse" Category="Accessories" UnitCost="500" />
+    <Product ID="P003" Code="SKU003" Name="Mechanical Keyboard" Category="Accessories" UnitCost="1200" />
+    <Product ID="P004" Code="SKU004" Name="Monitor 24 inch" Category="Electronics" UnitCost="8500" />
+    <Product ID="P005" Code="SKU005" Name="Webcam HD" Category="Electronics" UnitCost="2200" />
+  </Products>
+  
+  <StockItems>
+    <Item ProductID="P001" Lot="LOT001" ReceivedDate="2024-01-15" ExpiryDate="2025-01-15" Quantity="100" UnitCost="25000" Location="A01" />
+    <Item ProductID="P001" Lot="LOT002" ReceivedDate="2024-02-01" ExpiryDate="2024-12-31" Quantity="50" UnitCost="25000" Location="A02" />
+    <Item ProductID="P002" Lot="LOT003" ReceivedDate="2024-01-20" ExpiryDate="2025-06-20" Quantity="75" UnitCost="500" Location="B01" />
+    <Item ProductID="P003" Lot="LOT004" ReceivedDate="2024-03-01" ExpiryDate="2024-11-30" Quantity="200" UnitCost="1200" Location="B02" />
+    <Item ProductID="P004" Lot="LOT005" ReceivedDate="2024-01-10" ExpiryDate="2025-12-31" Quantity="45" UnitCost="8500" Location="C01" />
+    <Item ProductID="P005" Lot="LOT006" ReceivedDate="2024-02-15" ExpiryDate="2025-06-15" Quantity="80" UnitCost="2200" Location="C02" />
+  </StockItems>
+  
+  <ConsumptionHistory>
+    <Monthly Month="2024-01" Consumption="125000" ItemsCount="15" AverageDaily="4032" />
+    <Monthly Month="2024-02" Consumption="98000" ItemsCount="12" AverageDaily="3379" />
+    <Monthly Month="2024-03" Consumption="156000" ItemsCount="18" AverageDaily="5032" />
+    <Monthly Month="2024-04" Consumption="134000" ItemsCount="16" AverageDaily="4467" />
+    <Monthly Month="2024-05" Consumption="189000" ItemsCount="22" AverageDaily="6097" />
+    <Monthly Month="2024-06" Consumption="167000" ItemsCount="20" AverageDaily="5567" />
+  </ConsumptionHistory>
+</InventoryData>

@@ -25,6 +25,7 @@ interface DashboardCanvasProps {
   onDeleteWidget: (id: string) => void;
   onDuplicateWidget: (id: string) => void;
   onDropWidget: (type: WidgetType, x: number, y: number) => void;
+  onUpdateWidget?: (id: string, updates: any) => void;
   // New props for coordinate transformation
   canvasScale?: number;
   canvasViewport?: { x: number; y: number };
@@ -32,6 +33,7 @@ interface DashboardCanvasProps {
     screenX: number,
     screenY: number
   ) => { x: number; y: number };
+  uploadedData?: any;
 }
 
 const DashboardCanvas = forwardRef<HTMLDivElement, DashboardCanvasProps>(
@@ -46,9 +48,11 @@ const DashboardCanvas = forwardRef<HTMLDivElement, DashboardCanvasProps>(
       onDeleteWidget,
       onDuplicateWidget,
       onDropWidget,
+      onUpdateWidget,
       canvasScale = 1,
       canvasViewport = { x: 0, y: 0 },
       screenToCanvas,
+      uploadedData,
     },
     ref
   ) => {
@@ -195,6 +199,10 @@ const DashboardCanvas = forwardRef<HTMLDivElement, DashboardCanvasProps>(
               onResize={onResizeWidget}
               onDelete={onDeleteWidget}
               onDuplicate={onDuplicateWidget}
+              onConfigChange={(config) =>
+                onUpdateWidget?.(widget.id, { config })
+              }
+              uploadedData={uploadedData}
             />
           ))}
         </div>

@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
-import {
-  tenantService,
-  Tenant,
-  PaginatedResponse,
-} from "@/lib/services/tenant.service";
+import { TenantService } from "@/services/tenant.service";
+import { Tenant } from "@/types/tenant";
+import { ApiResponse } from "@/types/api";
 
 export function useTenantList() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -23,11 +21,23 @@ export function useTenantList() {
       setLoading(true);
       setError(null);
 
-      const response = await tenantService.getTenants(page, pageSize);
+      const response = await TenantService.getAllTenants({
+        page,
+        limit: pageSize,
+      });
 
       if (response.success) {
-        setTenants(response.data);
-        setPagination(response.pagination);
+        setTenants(response.data || []);
+        // The TenantService may not return pagination info in the same format
+        // Creating a compatible object from available data
+        setPagination({
+          total: response.pagination?.total || 0,
+          page: page,
+          pageSize: pageSize,
+          totalPages: response.pagination?.totalPages || 0,
+          hasNext: response.pagination?.hasNext || false,
+          hasPrev: response.pagination?.hasPrev || false,
+        });
       } else {
         setError("Failed to fetch tenants");
       }
@@ -71,7 +81,7 @@ export function useTenant(id: string) {
         setLoading(true);
         setError(null);
 
-        const response = await tenantService.getTenant(id);
+        const response = await TenantService.getTenantById(id);
 
         if (response.success && response.data) {
           setTenant(response.data);
@@ -95,7 +105,7 @@ export function useTenant(id: string) {
       const fetchTenant = async () => {
         try {
           setLoading(true);
-          const response = await tenantService.getTenant(id);
+          const response = await TenantService.getTenantById(id);
           if (response.success && response.data) {
             setTenant(response.data);
           }

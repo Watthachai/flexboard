@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Users,
   Building2,
@@ -9,7 +11,12 @@ import {
   BarChart3,
   TrendingUp,
   Activity,
+  Code,
+  FileText,
+  TestTube,
+  ArrowRight,
 } from "lucide-react";
+import Link from "next/link";
 
 import { NavSidebar } from "@/components/layout/nav-sidebar";
 import { Header } from "@/components/layout/header";
@@ -57,21 +64,70 @@ export default function AdminDashboard() {
 
   const renderDashboardContent = () => (
     <div className="space-y-8">
+      {/* Dashboard as Code Announcement */}
+      <Card className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center space-x-3 mb-3">
+              <Code className="h-6 w-6 text-blue-600" />
+              <h2 className="text-xl font-bold text-gray-900">
+                Dashboard as Code
+              </h2>
+              <Badge className="bg-green-100 text-green-800">New!</Badge>
+            </div>
+            <p className="text-gray-700 mb-4">
+              🎉 ระบบใหม่ล่าสุด! เปลี่ยนจาก drag-and-drop เป็นการสร้าง dashboard
+              ผ่าน JSON manifest files
+              เพื่อความยืดหยุ่นและการจัดการที่ง่ายขึ้นสำหรับ 40+ ลูกค้า
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/dashboards">
+                <Button className="bg-blue-600 hover:bg-blue-700">
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  View Dashboards
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
+              <Link href="/dashboards/new">
+                <Button variant="outline">
+                  <Code className="w-4 h-4 mr-2" />
+                  Create New
+                </Button>
+              </Link>
+              <Link href="/test-api">
+                <Button variant="outline">
+                  <TestTube className="w-4 h-4 mr-2" />
+                  Test API
+                </Button>
+              </Link>
+            </div>
+          </div>
+          <div className="hidden md:block ml-6">
+            <div className="bg-white rounded-lg p-4 shadow-sm border">
+              <FileText className="h-12 w-12 text-blue-500 mx-auto mb-2" />
+              <p className="text-sm text-gray-600 text-center">JSON Manifest</p>
+            </div>
+          </div>
+        </div>
+      </Card>
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => (
-          <StatsCard key={index} {...stat} index={index} />
+          <StatsCard key={index} index={index} {...stat} />
         ))}
       </div>
 
-      {/* Content Grid */}
+      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <RecentTenants />
-        <RecentActivity />
+        <div className="space-y-6">
+          <RecentTenants />
+          <QuickActions />
+        </div>
+        <div className="space-y-6">
+          <RecentActivity />
+        </div>
       </div>
-
-      {/* Quick Actions */}
-      <QuickActions />
     </div>
   );
 

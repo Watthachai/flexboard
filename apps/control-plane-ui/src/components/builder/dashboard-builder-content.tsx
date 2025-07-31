@@ -11,6 +11,7 @@ import DashboardStatusBar from "./dashboard-status-bar";
 import DashboardTabs from "./dashboard-tabs";
 import JsonEditor from "./json-editor";
 import SampleStructure from "./sample-structure";
+import DataViewer from "./data-viewer";
 
 interface Dashboard {
   id: string;
@@ -47,7 +48,9 @@ export default function DashboardBuilderContent() {
   const [error, setError] = useState<string | null>(null);
 
   // UI state
-  const [activeTab, setActiveTab] = useState<"editor" | "preview">("editor");
+  const [activeTab, setActiveTab] = useState<"editor" | "preview" | "data">(
+    "editor"
+  );
 
   // JSON Editor state
   const [jsonCode, setJsonCode] = useState<string>("{}");
@@ -266,6 +269,9 @@ export default function DashboardBuilderContent() {
           dashboardName={dashboard.name}
         />
       )}
+
+      {/* Data Viewer */}
+      {activeTab === "data" && <DataViewer jsonCode={jsonCode} />}
 
       {/* JSON Editor */}
       {activeTab === "editor" && (
