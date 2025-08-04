@@ -3,7 +3,7 @@ import { FastifyInstance } from "fastify";
 // Environment configuration helper
 export const envConfig = {
   // Server configuration
-  port: parseInt(process.env.PORT || "3000"),
+  port: parseInt(process.env.PORT || "3001"),
   host: process.env.HOST || "localhost",
   nodeEnv: process.env.NODE_ENV || "development",
 
@@ -20,6 +20,7 @@ export const envConfig = {
 
   // Security
   jwtSecret: process.env.JWT_SECRET!,
+  sessionSecret: process.env.SESSION_SECRET || process.env.JWT_SECRET!,
   corsOrigins: process.env.CORS_ORIGINS?.split(",") || [
     "http://localhost:3003",
   ],

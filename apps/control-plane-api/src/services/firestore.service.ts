@@ -311,6 +311,120 @@ export class TenantService extends FirestoreService {
   static async getAllTenants(options?: { page?: number; pageSize?: number }) {
     return this.getDocuments<TenantDocument>(COLLECTIONS.TENANTS, options);
   }
+
+  // License Management Methods
+  static async createLicense(tenantId: string, licenseData: any) {
+    try {
+      const licenseRef = db
+        .collection(COLLECTIONS.TENANTS)
+        .doc(tenantId)
+        .collection("licenses")
+        .doc(licenseData.licenseKey);
+
+      await licenseRef.set(licenseData);
+
+      return {
+        success: true,
+        data: licenseData,
+        message: "License created successfully",
+      };
+    } catch (error) {
+      console.error("Error creating license:", error);
+      return {
+        success: false,
+        message:
+          error instanceof Error ? error.message : "Failed to create license",
+      };
+    }
+  }
+
+  static async getLicenses(tenantId: string) {
+    try {
+      const licensesRef = db
+        .collection(COLLECTIONS.TENANTS)
+        .doc(tenantId)
+        .collection("licenses");
+
+      const snapshot = await licensesRef.get();
+      const licenses = snapshot.docs.map((doc) => doc.data());
+
+      return {
+        success: true,
+        data: licenses,
+        message: "Licenses retrieved successfully",
+      };
+    } catch (error) {
+      console.error("Error getting licenses:", error);
+      return {
+        success: false,
+        message:
+          error instanceof Error ? error.message : "Failed to get licenses",
+      };
+    }
+  }
+
+  static async getLicense(tenantId: string, licenseKey: string) {
+    try {
+      const licenseRef = db
+        .collection(COLLECTIONS.TENANTS)
+        .doc(tenantId)
+        .collection("licenses")
+        .doc(licenseKey);
+
+      const doc = await licenseRef.get();
+
+      if (!doc.exists) {
+        return {
+          success: false,
+          message: "License not found",
+        };
+      }
+
+      return {
+        success: true,
+        data: doc.data(),
+        message: "License retrieved successfully",
+      };
+    } catch (error) {
+      console.error("Error getting license:", error);
+      return {
+        success: false,
+        message:
+          error instanceof Error ? error.message : "Failed to get license",
+      };
+    }
+  }
+
+  static async updateLicense(
+    tenantId: string,
+    licenseKey: string,
+    updates: any
+  ) {
+    try {
+      const licenseRef = db
+        .collection(COLLECTIONS.TENANTS)
+        .doc(tenantId)
+        .collection("licenses")
+        .doc(licenseKey);
+
+      await licenseRef.update({
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      });
+
+      return {
+        success: true,
+        message: "License updated successfully",
+      };
+    } catch (error) {
+      console.error("Error updating license:", error);
+      return {
+        success: false,
+        message:
+          error instanceof Error ? error.message : "Failed to update license",
+      };
+    }
+  }
 }
 
 // Dashboard Service

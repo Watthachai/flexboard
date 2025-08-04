@@ -53,18 +53,24 @@ export function useUserList(
       setLoading(true);
       setError(null);
 
+      console.log("🔄 Hook: Fetching users with filters:", filters);
       const response = await UserService.getUsers(filters);
+      console.log("📥 Hook: Received response:", response);
 
       if (response.success && response.data) {
+        console.log("✅ Hook: Setting users:", response.data.length);
         setUsers(response.data);
       } else {
-        throw new Error(response.error || "Failed to fetch users");
+        console.warn("⚠️ Hook: API returned error:", response.error);
+        setUsers([]); // Set empty array when API returns error
+        setError(response.error || "Failed to fetch users");
       }
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to fetch users";
+      console.error("❌ Hook: Error fetching users:", err);
       setError(errorMessage);
-      console.error("Error fetching users:", err);
+      setUsers([]); // Set empty array on exception
     } finally {
       setLoading(false);
     }
