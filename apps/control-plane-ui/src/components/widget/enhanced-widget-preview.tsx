@@ -12,20 +12,51 @@ import {
   TrendingDown,
   Activity,
   BarChart3,
-  PieChart,
+  PieChart as PieChartIcon,
   Hash,
   Table,
   RefreshCw,
   AlertCircle,
 } from "lucide-react";
 import {
+  // Chart types
+  AreaChart,
+  Area,
   BarChart,
   Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  RadarChart,
+  Radar,
+  RadialBarChart,
+  RadialBar,
+  ScatterChart,
+  Scatter,
+  ComposedChart,
+  FunnelChart,
+  Funnel,
+  Treemap,
+  // Cartesian components
   XAxis,
   YAxis,
+  ZAxis,
   CartesianGrid,
-  Tooltip,
+  // General components
   ResponsiveContainer,
+  Legend,
+  Tooltip,
+  Cell,
+  LabelList,
+  // Polar components
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  // Reference components
+  ReferenceLine,
+  ReferenceDot,
+  ReferenceArea,
 } from "recharts";
 
 interface EnhancedWidgetPreviewProps {
@@ -124,7 +155,7 @@ export function EnhancedWidgetPreview({
     );
   }
 
-  switch (widget.type) {
+  switch (widget.type as any) {
     case "kpi":
       return <KPIWidget data={widgetData} />;
     case "line-chart":
@@ -133,9 +164,29 @@ export function EnhancedWidgetPreview({
     case "bar-chart":
     case "bar":
       return <BarChartWidget data={widgetData} />;
+    case "area-chart":
+    case "area":
+      return <AreaChartWidget data={widgetData} />;
     case "pie-chart":
     case "pie":
       return <PieChartWidget data={widgetData} />;
+    case "radar-chart":
+    case "radar":
+      return <RadarChartWidget data={widgetData} />;
+    case "scatter-chart":
+    case "scatter":
+      return <ScatterChartWidget data={widgetData} />;
+    case "composed-chart":
+    case "composed":
+      return <ComposedChartWidget data={widgetData} />;
+    case "funnel-chart":
+    case "funnel":
+      return <FunnelChartWidget data={widgetData} />;
+    case "treemap":
+      return <TreemapWidget data={widgetData} />;
+    case "radial-bar-chart":
+    case "radial-bar":
+      return <RadialBarChartWidget data={widgetData} />;
     case "chart":
       return (
         <div className="w-full h-full flex items-center justify-center">
@@ -204,6 +255,8 @@ function KPIWidget({ data }: { data: any }) {
 }
 
 function LineChartWidget({ data }: { data: any }) {
+  console.log("LineChartWidget received data:", data);
+
   // Handle different data formats
   let chartData: any[] = [];
 
@@ -218,51 +271,77 @@ function LineChartWidget({ data }: { data: any }) {
     chartData = [data];
   }
 
+  console.log("LineChartWidget processed chartData:", chartData);
+
   if (!chartData || chartData.length === 0) {
     return (
       <div className="w-full h-full bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
-        <Activity className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-        <div className="ml-2 text-xs text-gray-500">No line data</div>
+        <div className="text-center">
+          <Activity className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+          <div className="text-xs text-gray-500">No line chart data</div>
+          <div className="text-xs text-gray-400 mt-1">
+            Check data source configuration
+          </div>
+        </div>
       </div>
     );
   }
 
-  // Ensure data has value property
-  const processedData = chartData.map((d, i) => ({
-    value: d?.value || d?.y || d || 0,
-    label: d?.label || d?.name || d?.x || i,
-  }));
+  // Ensure data has required properties for Recharts
+  const processedData = chartData.map((d, i) => {
+    const item = {
+      name: d?.name || d?.label || d?.Branch || d?.category || `Item ${i + 1}`,
+      value: Number(d?.value || d?.AverageCost || d?.y || d || 0),
+    };
+    console.log(`LineChart processed item ${i}:`, item);
+    return item;
+  });
 
-  // Simple line chart visualization
-  const values = processedData.map((d) => d.value);
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const range = max - min || 1; // Avoid division by zero
+  console.log("Final processedData for LineChart:", processedData);
+
+  // Show summary info
+  const totalValue = processedData.reduce((sum, item) => sum + item.value, 0);
+  const maxValue = Math.max(...processedData.map((item) => item.value));
+  const minValue = Math.min(...processedData.map((item) => item.value));
 
   return (
-    <div className="w-full h-full p-2 bg-gray-50 dark:bg-gray-700 rounded">
-      <div className="w-full h-full relative">
-        <svg width="100%" height="100%" viewBox="0 0 200 100">
-          <polyline
-            points={processedData
-              .map((d, i) => {
-                const x =
-                  (i / Math.max(processedData.length - 1, 1)) * 180 + 10;
-                const y = 90 - ((d.value - min) / range) * 80;
-                return `${x},${y}`;
-              })
-              .join(" ")}
-            fill="none"
-            stroke="#3b82f6"
-            strokeWidth="2"
-          />
-          {processedData.map((d, i) => {
-            const x = (i / Math.max(processedData.length - 1, 1)) * 180 + 10;
-            const y = 90 - ((d.value - min) / range) * 80;
-            return <circle key={i} cx={x} cy={y} r="2" fill="#3b82f6" />;
-          })}
-        </svg>
+    <div className="w-full h-full p-2">
+      {/* Data Summary */}
+      <div className="mb-2 text-xs text-gray-600 dark:text-gray-400">
+        {processedData.length} points • Total: {totalValue.toLocaleString()} •
+        Range: {minValue.toLocaleString()} - {maxValue.toLocaleString()}
       </div>
+
+      <ResponsiveContainer width="100%" height="80%">
+        <LineChart
+          data={processedData}
+          margin={{ top: 5, right: 5, left: 5, bottom: 25 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis
+            dataKey="name"
+            angle={-45}
+            textAnchor="end"
+            height={60}
+            interval={0}
+            fontSize={10}
+          />
+          <YAxis fontSize={10} />
+          <Tooltip
+            formatter={(value, name) => [value?.toLocaleString(), name]}
+            labelFormatter={(label) => `Branch: ${label}`}
+          />
+          <Legend />
+          <Line
+            type="monotone"
+            dataKey="value"
+            stroke="#8884d8"
+            strokeWidth={2}
+            dot={{ fill: "#8884d8", strokeWidth: 2, r: 4 }}
+            name="Average Cost"
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -272,7 +351,18 @@ function ChartWidget({
   type = "bar",
 }: {
   data: any;
-  type?: "bar" | "pie" | "line" | "doughnut" | "area";
+  type?:
+    | "bar"
+    | "pie"
+    | "line"
+    | "area"
+    | "radar"
+    | "scatter"
+    | "composed"
+    | "funnel"
+    | "treemap"
+    | "radial-bar"
+    | "doughnut";
 }) {
   if (!data) return <div className="text-gray-400">No data</div>;
 
@@ -287,8 +377,21 @@ function ChartWidget({
     case "doughnut":
       return <PieChartWidget data={chartData} />;
     case "line":
-    case "area":
       return <LineChartWidget data={chartData} />;
+    case "area":
+      return <AreaChartWidget data={chartData} />;
+    case "radar":
+      return <RadarChartWidget data={chartData} />;
+    case "scatter":
+      return <ScatterChartWidget data={chartData} />;
+    case "composed":
+      return <ComposedChartWidget data={chartData} />;
+    case "funnel":
+      return <FunnelChartWidget data={chartData} />;
+    case "treemap":
+      return <TreemapWidget data={chartData} />;
+    case "radial-bar":
+      return <RadialBarChartWidget data={chartData} />;
     default:
       return <BarChartWidget data={chartData} />;
   }
@@ -378,6 +481,8 @@ function BarChartWidget({ data }: { data: any }) {
 }
 
 function PieChartWidget({ data }: { data: any }) {
+  console.log("PieChartWidget received data:", data);
+
   // Handle different data formats
   let chartData: any[] = [];
 
@@ -395,64 +500,82 @@ function PieChartWidget({ data }: { data: any }) {
   if (!chartData || chartData.length === 0) {
     return (
       <div className="w-full h-full bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
-        <PieChart className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+        <PieChartIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
         <div className="ml-2 text-xs text-gray-500">No chart data</div>
       </div>
     );
   }
 
-  // Ensure data has value property
-  const processedData = chartData.map((d, i) => ({
-    value: d?.value || d?.y || d || 0,
-    label: d?.label || d?.name || d?.x || `Item ${i + 1}`,
-  }));
+  // Ensure data has required properties for Recharts
+  const processedData = chartData.map((d, i) => {
+    const item = {
+      name: d?.name || d?.label || d?.Branch || d?.category || `Item ${i + 1}`,
+      value: Number(d?.value || d?.AverageCost || d?.y || d || 0),
+    };
+    console.log(`PieChart processed item ${i}:`, item);
+    return item;
+  });
 
   const total = processedData.reduce((sum, d) => sum + d.value, 0);
   if (total === 0) {
     return (
       <div className="w-full h-full bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
-        <PieChart className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+        <PieChartIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
         <div className="ml-2 text-xs text-gray-500">No data values</div>
       </div>
     );
   }
 
-  const colors = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6"];
-  let currentAngle = 0;
+  const COLORS = [
+    "#0088FE",
+    "#00C49F",
+    "#FFBB28",
+    "#FF8042",
+    "#8884D8",
+    "#82CA9D",
+  ];
 
   return (
-    <div className="w-full h-full p-2 bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
-      <svg width="60" height="60" viewBox="0 0 60 60">
-        {processedData.map((d, i) => {
-          const angle = (d.value / total) * 360;
-          const startAngle = currentAngle;
-          const endAngle = currentAngle + angle;
+    <div className="w-full h-full p-2">
+      {/* Data Summary */}
+      <div className="mb-2 text-xs text-gray-600 dark:text-gray-400">
+        {processedData.length} segments • Total: {total.toLocaleString()}
+      </div>
 
-          const x1 = 30 + 25 * Math.cos(((startAngle - 90) * Math.PI) / 180);
-          const y1 = 30 + 25 * Math.sin(((startAngle - 90) * Math.PI) / 180);
-          const x2 = 30 + 25 * Math.cos(((endAngle - 90) * Math.PI) / 180);
-          const y2 = 30 + 25 * Math.sin(((endAngle - 90) * Math.PI) / 180);
-
-          const largeArcFlag = angle > 180 ? 1 : 0;
-
-          currentAngle += angle;
-
-          return (
-            <path
-              key={i}
-              d={`M 30 30 L ${x1} ${y1} A 25 25 0 ${largeArcFlag} 1 ${x2} ${y2} Z`}
-              fill={colors[i % colors.length]}
-            >
-              <title>{`${d.label}: ${d.value}`}</title>
-            </path>
-          );
-        })}
-      </svg>
+      <ResponsiveContainer width="100%" height="80%">
+        <PieChart>
+          <Pie
+            data={processedData}
+            cx="50%"
+            cy="50%"
+            outerRadius={60}
+            fill="#8884d8"
+            dataKey="value"
+            label={({ name, percent }) =>
+              `${name} ${((percent || 0) * 100).toFixed(0)}%`
+            }
+            labelLine={false}
+          >
+            {processedData.map((entry, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={COLORS[index % COLORS.length]}
+              />
+            ))}
+          </Pie>
+          <Tooltip
+            formatter={(value, name) => [value?.toLocaleString(), name]}
+          />
+          <Legend />
+        </PieChart>
+      </ResponsiveContainer>
     </div>
   );
 }
 
 function AreaChartWidget({ data }: { data: any }) {
+  console.log("AreaChartWidget received data:", data);
+
   // Handle different data formats
   let chartData: any[] = [];
 
@@ -470,44 +593,69 @@ function AreaChartWidget({ data }: { data: any }) {
   if (!chartData || chartData.length === 0) {
     return (
       <div className="w-full h-full bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
-        <TrendingUp className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-        <div className="ml-2 text-xs text-gray-500">No area data</div>
+        <div className="text-center">
+          <TrendingUp className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+          <div className="text-xs text-gray-500">No area chart data</div>
+          <div className="text-xs text-gray-400 mt-1">
+            Check data source configuration
+          </div>
+        </div>
       </div>
     );
   }
 
-  // Ensure data has value property
-  const processedData = chartData.map((d, i) => ({
-    value: d?.value || d?.y || d || 0,
-    label: d?.label || d?.name || d?.x || i,
-  }));
+  // Ensure data has required properties for Recharts
+  const processedData = chartData.map((d, i) => {
+    const item = {
+      name: d?.name || d?.label || d?.Branch || d?.category || `Item ${i + 1}`,
+      value: Number(d?.value || d?.AverageCost || d?.y || d || 0),
+    };
+    console.log(`AreaChart processed item ${i}:`, item);
+    return item;
+  });
 
-  // Simple area chart visualization
-  const values = processedData.map((d) => d.value);
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const range = max - min || 1; // Avoid division by zero
+  // Show summary info
+  const totalValue = processedData.reduce((sum, item) => sum + item.value, 0);
+  const maxValue = Math.max(...processedData.map((item) => item.value));
+  const minValue = Math.min(...processedData.map((item) => item.value));
 
   return (
-    <div className="w-full h-full p-2 bg-gray-50 dark:bg-gray-700 rounded">
-      <div className="w-full h-full relative">
-        <svg width="100%" height="100%" viewBox="0 0 200 100">
-          <polygon
-            points={`10,90 ${processedData
-              .map((d, i) => {
-                const x =
-                  (i / Math.max(processedData.length - 1, 1)) * 180 + 10;
-                const y = 90 - ((d.value - min) / range) * 80;
-                return `${x},${y}`;
-              })
-              .join(" ")} 190,90`}
-            fill="#3b82f6"
-            fillOpacity="0.3"
-            stroke="#3b82f6"
-            strokeWidth="2"
-          />
-        </svg>
+    <div className="w-full h-full p-2">
+      {/* Data Summary */}
+      <div className="mb-2 text-xs text-gray-600 dark:text-gray-400">
+        {processedData.length} points • Total: {totalValue.toLocaleString()} •
+        Range: {minValue.toLocaleString()} - {maxValue.toLocaleString()}
       </div>
+
+      <ResponsiveContainer width="100%" height="80%">
+        <AreaChart
+          data={processedData}
+          margin={{ top: 5, right: 5, left: 5, bottom: 25 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis
+            dataKey="name"
+            angle={-45}
+            textAnchor="end"
+            height={60}
+            interval={0}
+            fontSize={10}
+          />
+          <YAxis fontSize={10} />
+          <Tooltip
+            formatter={(value, name) => [value?.toLocaleString(), name]}
+            labelFormatter={(label) => `Branch: ${label}`}
+          />
+          <Area
+            type="monotone"
+            dataKey="value"
+            stroke="#8884d8"
+            fill="#8884d8"
+            fillOpacity={0.6}
+            name="Average Cost"
+          />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -590,6 +738,370 @@ function DefaultWidget({ data }: { data: any }) {
           {data ? JSON.stringify(data).slice(0, 20) + "..." : "No data"}
         </div>
       </div>
+    </div>
+  );
+}
+
+// New Advanced Chart Widgets
+
+function RadarChartWidget({ data }: { data: any }) {
+  console.log("RadarChartWidget received data:", data);
+
+  let chartData: any[] = [];
+
+  if (!data) {
+    chartData = [];
+  } else if (Array.isArray(data)) {
+    chartData = data;
+  } else if (data.data && Array.isArray(data.data)) {
+    chartData = data.data;
+  } else if (typeof data === "object" && data.value !== undefined) {
+    chartData = [data];
+  }
+
+  if (!chartData || chartData.length === 0) {
+    return (
+      <div className="w-full h-full bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
+        <div className="text-center">
+          <Activity className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+          <div className="text-xs text-gray-500">No radar chart data</div>
+        </div>
+      </div>
+    );
+  }
+
+  const processedData = chartData.map((d, i) => ({
+    subject: d?.name || d?.label || d?.Branch || d?.category || `Item ${i + 1}`,
+    A: Number(d?.value || d?.AverageCost || d?.y || d || 0),
+    fullMark:
+      Math.max(
+        ...chartData.map((item) =>
+          Number(item?.value || item?.AverageCost || item?.y || item || 0)
+        )
+      ) * 1.2,
+  }));
+
+  return (
+    <div className="w-full h-full p-2">
+      <div className="mb-2 text-xs text-gray-600 dark:text-gray-400">
+        {processedData.length} metrics • Radar Analysis
+      </div>
+
+      <ResponsiveContainer width="100%" height="80%">
+        <RadarChart data={processedData}>
+          <PolarGrid />
+          <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} />
+          <PolarRadiusAxis tick={{ fontSize: 8 }} />
+          <Radar
+            name="Value"
+            dataKey="A"
+            stroke="#8884d8"
+            fill="#8884d8"
+            fillOpacity={0.6}
+          />
+          <Tooltip />
+        </RadarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function ScatterChartWidget({ data }: { data: any }) {
+  console.log("ScatterChartWidget received data:", data);
+
+  let chartData: any[] = [];
+
+  if (!data) {
+    chartData = [];
+  } else if (Array.isArray(data)) {
+    chartData = data;
+  } else if (data.data && Array.isArray(data.data)) {
+    chartData = data.data;
+  } else if (typeof data === "object" && data.value !== undefined) {
+    chartData = [data];
+  }
+
+  if (!chartData || chartData.length === 0) {
+    return (
+      <div className="w-full h-full bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
+        <div className="text-center">
+          <Activity className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+          <div className="text-xs text-gray-500">No scatter plot data</div>
+        </div>
+      </div>
+    );
+  }
+
+  const processedData = chartData.map((d, i) => ({
+    x: Number(d?.value || d?.AverageCost || d?.x || i),
+    y: Number(d?.value || d?.AverageCost || d?.y || Math.random() * 100),
+    z: Number(d?.size || 100),
+  }));
+
+  return (
+    <div className="w-full h-full p-2">
+      <div className="mb-2 text-xs text-gray-600 dark:text-gray-400">
+        {processedData.length} points • Scatter Analysis
+      </div>
+
+      <ResponsiveContainer width="100%" height="80%">
+        <ScatterChart margin={{ top: 5, right: 5, left: 5, bottom: 25 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis type="number" dataKey="x" fontSize={10} />
+          <YAxis type="number" dataKey="y" fontSize={10} />
+          <ZAxis type="number" dataKey="z" range={[60, 400]} />
+          <Tooltip cursor={{ strokeDasharray: "3 3" }} />
+          <Scatter name="Data Points" data={processedData} fill="#8884d8" />
+        </ScatterChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function ComposedChartWidget({ data }: { data: any }) {
+  console.log("ComposedChartWidget received data:", data);
+
+  let chartData: any[] = [];
+
+  if (!data) {
+    chartData = [];
+  } else if (Array.isArray(data)) {
+    chartData = data;
+  } else if (data.data && Array.isArray(data.data)) {
+    chartData = data.data;
+  } else if (typeof data === "object" && data.value !== undefined) {
+    chartData = [data];
+  }
+
+  if (!chartData || chartData.length === 0) {
+    return (
+      <div className="w-full h-full bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
+        <div className="text-center">
+          <BarChart3 className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+          <div className="text-xs text-gray-500">No composed chart data</div>
+        </div>
+      </div>
+    );
+  }
+
+  const processedData = chartData.map((d, i) => ({
+    name: d?.name || d?.label || d?.Branch || d?.category || `Item ${i + 1}`,
+    bar: Number(d?.value || d?.AverageCost || d?.y || d || 0),
+    line: Number(d?.value || d?.AverageCost || d?.y || d || 0) * 0.8,
+    area: Number(d?.value || d?.AverageCost || d?.y || d || 0) * 1.2,
+  }));
+
+  return (
+    <div className="w-full h-full p-2">
+      <div className="mb-2 text-xs text-gray-600 dark:text-gray-400">
+        {processedData.length} records • Multi-Chart View
+      </div>
+
+      <ResponsiveContainer width="100%" height="80%">
+        <ComposedChart
+          data={processedData}
+          margin={{ top: 5, right: 5, left: 5, bottom: 25 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis
+            dataKey="name"
+            angle={-45}
+            textAnchor="end"
+            height={60}
+            fontSize={10}
+          />
+          <YAxis fontSize={10} />
+          <Tooltip />
+          <Legend />
+          <Area
+            dataKey="area"
+            fill="#8884d8"
+            stroke="#8884d8"
+            fillOpacity={0.3}
+          />
+          <Bar dataKey="bar" fill="#413ea0" />
+          <Line
+            type="monotone"
+            dataKey="line"
+            stroke="#ff7300"
+            strokeWidth={2}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function FunnelChartWidget({ data }: { data: any }) {
+  console.log("FunnelChartWidget received data:", data);
+
+  let chartData: any[] = [];
+
+  if (!data) {
+    chartData = [];
+  } else if (Array.isArray(data)) {
+    chartData = data;
+  } else if (data.data && Array.isArray(data.data)) {
+    chartData = data.data;
+  } else if (typeof data === "object" && data.value !== undefined) {
+    chartData = [data];
+  }
+
+  if (!chartData || chartData.length === 0) {
+    return (
+      <div className="w-full h-full bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
+        <div className="text-center">
+          <TrendingDown className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+          <div className="text-xs text-gray-500">No funnel chart data</div>
+        </div>
+      </div>
+    );
+  }
+
+  const processedData = chartData.map((d, i) => ({
+    name: d?.name || d?.label || d?.Branch || d?.category || `Stage ${i + 1}`,
+    value: Number(d?.value || d?.AverageCost || d?.y || d || 0),
+    fill: `hsl(${210 + i * 30}, 70%, 50%)`,
+  }));
+
+  return (
+    <div className="w-full h-full p-2">
+      <div className="mb-2 text-xs text-gray-600 dark:text-gray-400">
+        {processedData.length} stages • Conversion Funnel
+      </div>
+
+      <ResponsiveContainer width="100%" height="80%">
+        <FunnelChart>
+          <Tooltip />
+          <Funnel dataKey="value" data={processedData} isAnimationActive />
+        </FunnelChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function TreemapWidget({ data }: { data: any }) {
+  console.log("TreemapWidget received data:", data);
+
+  let chartData: any[] = [];
+
+  if (!data) {
+    chartData = [];
+  } else if (Array.isArray(data)) {
+    chartData = data;
+  } else if (data.data && Array.isArray(data.data)) {
+    chartData = data.data;
+  } else if (typeof data === "object" && data.value !== undefined) {
+    chartData = [data];
+  }
+
+  if (!chartData || chartData.length === 0) {
+    return (
+      <div className="w-full h-full bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
+        <div className="text-center">
+          <Hash className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+          <div className="text-xs text-gray-500">No treemap data</div>
+        </div>
+      </div>
+    );
+  }
+
+  const COLORS = [
+    "#8889DD",
+    "#9597E4",
+    "#8DC77B",
+    "#A5D297",
+    "#E2CF45",
+    "#F8C12D",
+  ];
+
+  const processedData = chartData.map((d, i) => ({
+    name: d?.name || d?.label || d?.Branch || d?.category || `Item ${i + 1}`,
+    size: Number(d?.value || d?.AverageCost || d?.y || d || 0),
+    fill: COLORS[i % COLORS.length],
+  }));
+
+  return (
+    <div className="w-full h-full p-2">
+      <div className="mb-2 text-xs text-gray-600 dark:text-gray-400">
+        {processedData.length} items • Hierarchical View
+      </div>
+
+      <ResponsiveContainer width="100%" height="80%">
+        <Treemap
+          data={processedData}
+          dataKey="size"
+          aspectRatio={4 / 3}
+          stroke="#fff"
+          fill="#8884d8"
+        />
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function RadialBarChartWidget({ data }: { data: any }) {
+  console.log("RadialBarChartWidget received data:", data);
+
+  let chartData: any[] = [];
+
+  if (!data) {
+    chartData = [];
+  } else if (Array.isArray(data)) {
+    chartData = data;
+  } else if (data.data && Array.isArray(data.data)) {
+    chartData = data.data;
+  } else if (typeof data === "object" && data.value !== undefined) {
+    chartData = [data];
+  }
+
+  if (!chartData || chartData.length === 0) {
+    return (
+      <div className="w-full h-full bg-gray-50 dark:bg-gray-700 rounded flex items-center justify-center">
+        <div className="text-center">
+          <PieChartIcon className="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+          <div className="text-xs text-gray-500">No radial bar data</div>
+        </div>
+      </div>
+    );
+  }
+
+  const maxValue = Math.max(
+    ...chartData.map((d) =>
+      Number(d?.value || d?.AverageCost || d?.y || d || 0)
+    )
+  );
+
+  const processedData = chartData.map((d, i) => ({
+    name: d?.name || d?.label || d?.Branch || d?.category || `Item ${i + 1}`,
+    uv: Number(d?.value || d?.AverageCost || d?.y || d || 0),
+    fill: `hsl(${210 + i * 45}, 70%, 50%)`,
+  }));
+
+  return (
+    <div className="w-full h-full p-2">
+      <div className="mb-2 text-xs text-gray-600 dark:text-gray-400">
+        {processedData.length} items • Radial Progress
+      </div>
+
+      <ResponsiveContainer width="100%" height="80%">
+        <RadialBarChart
+          cx="50%"
+          cy="50%"
+          innerRadius="10%"
+          outerRadius="80%"
+          data={processedData}
+        >
+          <RadialBar dataKey="uv" fill="#8884d8" />
+          <Legend
+            iconSize={10}
+            layout="vertical"
+            verticalAlign="middle"
+            wrapperStyle={{ fontSize: "10px" }}
+          />
+          <Tooltip />
+        </RadialBarChart>
+      </ResponsiveContainer>
     </div>
   );
 }

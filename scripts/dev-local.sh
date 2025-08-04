@@ -13,9 +13,8 @@ echo "3️⃣ Starting all development servers..."
 echo "
 📋 Services that will start:
 - Control Plane API (localhost:3000)
-- On-Premise Agent API (localhost:3001) 
-- On-Premise Viewer UI (localhost:3002)
-- Control Plane UI (localhost:3003)
+- Control Plane UI (localhost:3001)
+- OnPrem Viewer UI (localhost:3002)
 
 Press Ctrl+C to stop all services
 "

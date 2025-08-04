@@ -7,7 +7,6 @@
     "dev": "PORT=3000 tsx watch src/server-firebase.ts",
     "build": "tsc",
     "start": "node dist/server-firebase.js",
-    "postinstall": "echo 'Using Firebase - no Prisma generation needed'",
     "check-types": "tsc --noEmit"
   },
   "keywords": [
@@ -20,6 +19,7 @@
   "license": "ISC",
   "packageManager": "pnpm@10.12.4",
   "dependencies": {
+    "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.0.1",
     "bcryptjs": "^2.4.3",
     "dotenv": "^17.2.0",

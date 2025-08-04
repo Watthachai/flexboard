@@ -276,7 +276,16 @@ export default function DashboardManifestEditor({
   };
 
   const insertChartTemplate = (
-    chartType: "bar" | "line" | "pie" | "table" = "bar"
+    chartType:
+      | "bar"
+      | "line"
+      | "pie"
+      | "area"
+      | "radar"
+      | "scatter"
+      | "composed"
+      | "treemap"
+      | "table" = "bar"
   ) => {
     try {
       const parsed = JSON.parse(editorContent);
@@ -421,7 +430,7 @@ export default function DashboardManifestEditor({
                 onClick={() => insertChartTemplate("bar")}
                 className="text-xs"
               >
-                + Bar Chart
+                📊 Bar
               </Button>
               <Button
                 variant="outline"
@@ -429,7 +438,55 @@ export default function DashboardManifestEditor({
                 onClick={() => insertChartTemplate("line")}
                 className="text-xs"
               >
-                + Line Chart
+                📈 Line
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => insertChartTemplate("area")}
+                className="text-xs"
+              >
+                🏔️ Area
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => insertChartTemplate("pie")}
+                className="text-xs"
+              >
+                🥧 Pie
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => insertChartTemplate("radar")}
+                className="text-xs"
+              >
+                🕸️ Radar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => insertChartTemplate("scatter")}
+                className="text-xs"
+              >
+                🔸 Scatter
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => insertChartTemplate("composed")}
+                className="text-xs"
+              >
+                🎯 Composed
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => insertChartTemplate("treemap")}
+                className="text-xs"
+              >
+                🗂️ Treemap
               </Button>
               <Button
                 variant="outline"
@@ -437,7 +494,7 @@ export default function DashboardManifestEditor({
                 onClick={() => insertChartTemplate("table")}
                 className="text-xs"
               >
-                + Table
+                📋 Table
               </Button>
             </div>
           </div>

@@ -1,6 +1,6 @@
 // Environment configuration for Control Plane UI
 export const envConfig = {
-  // API Configuration
+  // API Configuration - ชี้ไปที่ Control Plane API (port 3000)
   apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000",
   apiPrefix: process.env.NEXT_PUBLIC_API_PREFIX || "/api",
   apiVersion: process.env.NEXT_PUBLIC_API_VERSION || "v1",
