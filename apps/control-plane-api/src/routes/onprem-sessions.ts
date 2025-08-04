@@ -57,8 +57,8 @@ export async function createSession(
       sessionData.sessionId,
       {
         ...sessionData,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
       }
     );
 
@@ -110,10 +110,15 @@ export async function getSession(
 
       if (now.getTime() - lastActivity.getTime() > sessionTimeout) {
         // Session expired, mark as inactive
-        await TenantService.updateDocument("onprem-sessions", sessionId, {
-          isActive: false,
-          updatedAt: new Date().toISOString(),
-        } as any);
+        await TenantService.updateDocument(
+          "onprem-sessions",
+          sessionId,
+          {
+            isActive: false,
+            updatedAt: Timestamp.now(),
+          } as any,
+          session.userEmail
+        );
 
         return reply.status(401).send({
           success: false,
@@ -148,16 +153,17 @@ export async function updateSessionActivity(
   reply: FastifyReply
 ) {
   try {
-    const { sessionId } = request.params;
-    const { lastActivity } = request.body;
+    const { sessionId } = request.params as any;
+    const { lastActivity } = request.body as any;
 
     const result = await TenantService.updateDocument(
       "onprem-sessions",
       sessionId,
       {
         lastActivity,
-        updatedAt: new Date().toISOString(),
-      }
+        updatedAt: Timestamp.now(),
+      } as any,
+      "system"
     );
 
     if (result.success) {
@@ -188,16 +194,18 @@ export async function getActiveSessionsCount(
   reply: FastifyReply
 ) {
   try {
-    const { licenseKey } = request.query;
+    const { licenseKey } = request.query as any;
 
-    // Query active sessions for this license
-    const result = await TenantService.queryDocuments("onprem-sessions", [
-      { field: "licenseKey", operator: "==", value: licenseKey },
-      { field: "isActive", operator: "==", value: true },
-    ]);
+    // Get all sessions from Firestore
+    const result = await TenantService.getDocuments("onprem-sessions");
 
     if (result.success) {
-      const activeSessions = (result.data as SessionData[]) || [];
+      const allSessions = (result.data as unknown as SessionData[]) || [];
+
+      // Filter sessions by license key and active status
+      const activeSessions = allSessions.filter(
+        (session) => session.licenseKey === licenseKey && session.isActive
+      );
 
       // Filter out expired sessions
       const now = new Date();
@@ -242,8 +250,7 @@ export async function deleteSession(
   reply: FastifyReply
 ) {
   try {
-    const { sessionId } = request.params;
-
+    const { sessionId } = request.params as any;
     // Mark session as inactive instead of deleting
     const result = await TenantService.updateDocument(
       "onprem-sessions",
@@ -251,8 +258,9 @@ export async function deleteSession(
       {
         isActive: false,
         logoutTime: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
+        updatedAt: Timestamp.now(),
+      } as any,
+      "system"
     );
 
     if (result.success) {
@@ -286,12 +294,14 @@ export async function cleanupExpiredSessions(
 ) {
   try {
     // Get all active sessions
-    const result = await TenantService.queryDocuments("onprem-sessions", [
-      { field: "isActive", operator: "==", value: true },
-    ]);
+    const result = await TenantService.getDocuments("onprem-sessions");
 
     if (result.success) {
-      const activeSessions = (result.data as SessionData[]) || [];
+      const allSessions = (result.data as unknown as SessionData[]) || [];
+
+      // Filter only active sessions
+      const activeSessions = allSessions.filter((session) => session.isActive);
+
       const now = new Date();
       const sessionTimeout = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -307,13 +317,13 @@ export async function cleanupExpiredSessions(
             {
               isActive: false,
               expiredAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            }
+              updatedAt: Timestamp.now(),
+            } as any,
+            "system"
           );
           cleanedUp++;
         }
       }
-
       console.log(`🧹 Cleaned up ${cleanedUp} expired sessions`);
 
       return reply.send({

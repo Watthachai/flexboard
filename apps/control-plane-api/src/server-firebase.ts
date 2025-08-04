@@ -26,7 +26,6 @@ import {
   getLicensePermissions,
   updateLicenseSessions,
 } from "./routes/onprem-licenses";
-import { firebaseAuthRoutes } from "./routes/firebase-auth.routes";
 import { userManagementRoutes } from "./routes/user-management.routes";
 
 const fastify = Fastify({
@@ -82,7 +81,7 @@ fastify.register(dashboardManifestRoutes, { prefix: "/api/manifest" });
 fastify.register(dashboardColumnsRoutes, { prefix: "/api" });
 
 // Firebase Authentication routes
-fastify.register(firebaseAuthRoutes, { prefix: "/api/auth" });
+// fastify.register(firebaseAuthRoutes, { prefix: "/api/auth" }); // Deprecated, use Next Auth Service
 
 // User Management routes
 fastify.register(userManagementRoutes, { prefix: "/api" });
