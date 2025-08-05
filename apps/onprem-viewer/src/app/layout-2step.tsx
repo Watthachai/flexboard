@@ -49,20 +49,26 @@ export default function RootLayout({
   const checkSession = async () => {
     try {
       // Check Firebase session using HTTP-only cookies
-      const response = await fetch("http://localhost:3001/api/auth/validate", {
+      const response = await fetch("/api/auth/validate", {
         credentials: "include", // Include HTTP-only cookies
       });
 
       if (response.ok) {
         const result = await response.json();
-        if (result.success && result.user && result.license) {
-          setSession({
-            email: result.user.email,
-            tenantId: result.license.tenantId,
-            companyName: result.license.companyName,
-            features: result.license.features,
-            expiryDate: result.license.expiryDate,
-          });
+        if (result.success && result.user) {
+          // Check if we have license information
+          if (result.license) {
+            setSession({
+              email: result.user.email,
+              tenantId: result.license.tenantId,
+              companyName: result.license.companyName,
+              features: result.license.features,
+              expiryDate: result.license.expiryDate,
+            });
+          } else {
+            // User is authenticated but no license yet
+            setSession(null);
+          }
         } else {
           setSession(null);
         }
@@ -85,9 +91,9 @@ export default function RootLayout({
   const handleLogout = async () => {
     try {
       // Call Firebase logout endpoint
-      await fetch("http://localhost:3001/api/auth/logout", {
+      await fetch("/api/auth/logout", {
         method: "POST",
-        credentials: "include", // Include HTTP-only cookies
+        credentials: "include",
       });
     } catch (error) {
       console.error("Logout error:", error);
@@ -185,7 +191,8 @@ export default function RootLayout({
                   <span>⚡ Features: {session.features.join(", ")}</span>
                 </div>
                 <div>
-                  📅 License expires: {new Date(session.expiryDate).toLocaleDateString()}
+                  📅 License expires:{" "}
+                  {new Date(session.expiryDate).toLocaleDateString()}
                 </div>
               </div>
             </div>
@@ -204,7 +211,7 @@ interface LoginScreenProps {
 }
 
 function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
-  const [step, setStep] = useState<'login' | 'license'>('login');
+  const [step, setStep] = useState<"login" | "license">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [licenseKey, setLicenseKey] = useState("");
@@ -220,7 +227,7 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
 
     try {
       // Firebase Email/Password authentication
-      const response = await fetch("http://localhost:3001/api/auth/email-login", {
+      const response = await fetch("/api/auth/email-login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -239,8 +246,8 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
       if (response.ok && result.success) {
         // Email login successful, store user info and move to license step
         setUserInfo(result.user);
-        setStep('license');
-        setError('');
+        setStep("license");
+        setError("");
       } else {
         setError(result.message || "Login failed");
       }
@@ -260,7 +267,7 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
 
     try {
       // Validate license key with current user
-      const response = await fetch("http://localhost:3001/api/auth/license-validate", {
+      const response = await fetch("/api/auth/license-validate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -294,7 +301,7 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
     }
   };
 
-  if (step === 'license') {
+  if (step === "license") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">
@@ -319,7 +326,10 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
             <div className="space-y-4">
               {/* License Key */}
               <div>
-                <label htmlFor="licenseKey" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label
+                  htmlFor="licenseKey"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                >
                   License Key
                 </label>
                 <input
@@ -361,10 +371,10 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
             <button
               type="button"
               onClick={() => {
-                setStep('login');
+                setStep("login");
                 setUserInfo(null);
-                setLicenseKey('');
-                setError('');
+                setLicenseKey("");
+                setError("");
               }}
               className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             >
@@ -410,7 +420,10 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
           <div className="space-y-4">
             {/* Email */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+              >
                 Email Address
               </label>
               <input
@@ -426,7 +439,10 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+              >
                 Password
               </label>
               <input
@@ -471,7 +487,9 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
             <span>🔒</span>
             <span>Secure OnPremise Deployment</span>
           </div>
-          <div>Firebase Authentication • License verification • Session based</div>
+          <div>
+            Firebase Authentication • License verification • Session based
+          </div>
         </div>
 
         {/* Dark Mode Toggle */}

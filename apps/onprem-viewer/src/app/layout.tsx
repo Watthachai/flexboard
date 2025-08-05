@@ -1,5 +1,7 @@
 /**
- * OnPrem Viewer App Layout with Firebase Authentication
+ * OnPrem Viewer App Layout with Firebase Authentication (2-Step Process)
+ * Step 1: Email/Password login with Firebase
+ * Step 2: License key validation
  */
 "use client";
 
@@ -47,13 +49,13 @@ export default function RootLayout({
   const checkSession = async () => {
     try {
       // Check Firebase session using HTTP-only cookies
-      const response = await fetch("http://localhost:3001/api/auth/validate", {
+      const response = await fetch("/api/auth/validate", {
         credentials: "include", // Include HTTP-only cookies
       });
 
       if (response.ok) {
         const result = await response.json();
-        if (result.success && result.user) {
+        if (result.success && result.user && result.license) {
           setSession({
             email: result.user.email,
             tenantId: result.license.tenantId,
@@ -83,7 +85,7 @@ export default function RootLayout({
   const handleLogout = async () => {
     try {
       // Call Firebase logout endpoint
-      await fetch("http://localhost:3001/api/auth/logout", {
+      await fetch("/api/auth/logout", {
         method: "POST",
         credentials: "include", // Include HTTP-only cookies
       });
@@ -195,7 +197,7 @@ export default function RootLayout({
   );
 }
 
-// Login Screen Component
+// Login Screen Component with 2-Step Process
 interface LoginScreenProps {
   onLogin: (session: UserSession) => void;
   darkMode: boolean;
@@ -203,27 +205,31 @@ interface LoginScreenProps {
 }
 
 function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
-  const [licenseKey, setLicenseKey] = useState("");
+  const [step, setStep] = useState<"login" | "license">("login");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [licenseKey, setLicenseKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [userInfo, setUserInfo] = useState<any>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Step 1: Firebase Email/Password Login
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
-      // Use Firebase Authentication login
-      const response = await fetch("http://localhost:3001/api/auth/login", {
+      // Firebase Email/Password authentication
+      const response = await fetch("/api/auth/email-login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         credentials: "include", // Include HTTP-only cookies
         body: JSON.stringify({
-          licenseKey,
           email,
+          password,
           userAgent: navigator.userAgent,
           ipAddress: "client-side", // Will be overridden by server
         }),
@@ -232,14 +238,10 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // Login successful
-        onLogin({
-          email: result.user.email,
-          tenantId: result.license.tenantId,
-          companyName: result.license.companyName,
-          features: result.license.features,
-          expiryDate: result.license.expiryDate,
-        });
+        // Email login successful, store user info and move to license step
+        setUserInfo(result.user);
+        setStep("license");
+        setError("");
       } else {
         setError(result.message || "Login failed");
       }
@@ -250,6 +252,143 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
       setLoading(false);
     }
   };
+
+  // Step 2: License Key Validation
+  const handleLicenseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      // Validate license key with current user
+      const response = await fetch("/api/auth/license-validate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include", // Include HTTP-only cookies
+        body: JSON.stringify({
+          licenseKey,
+          email: userInfo.email,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        // License validation successful
+        onLogin({
+          email: userInfo.email,
+          tenantId: result.license.tenantId,
+          companyName: result.license.companyName,
+          features: result.license.features,
+          expiryDate: result.license.expiryDate,
+        });
+      } else {
+        setError(result.message || "License validation failed");
+      }
+    } catch (error) {
+      console.error("License validation error:", error);
+      setError("Network error. Please check your connection.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (step === "license") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-8">
+          {/* Header */}
+          <div className="text-center">
+            <div className="flex justify-center items-center space-x-2 mb-4">
+              <span className="text-4xl">🔑</span>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                License Validation
+              </h1>
+            </div>
+            <h2 className="text-xl text-gray-600 dark:text-gray-300">
+              Welcome, {userInfo?.email}
+            </h2>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              Please enter your company license key to access dashboards
+            </p>
+          </div>
+
+          {/* License Form */}
+          <form onSubmit={handleLicenseSubmit} className="mt-8 space-y-6">
+            <div className="space-y-4">
+              {/* License Key */}
+              <div>
+                <label
+                  htmlFor="licenseKey"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                >
+                  License Key
+                </label>
+                <input
+                  id="licenseKey"
+                  type="text"
+                  required
+                  value={licenseKey}
+                  onChange={(e) => setLicenseKey(e.target.value)}
+                  className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                  placeholder="FLX-XXX-XXX-XXX-XXXXXX-XXXXXX"
+                />
+              </div>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded">
+                {error}
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <div className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Validating License...
+                </div>
+              ) : (
+                "Access Dashboard"
+              )}
+            </button>
+
+            {/* Back to login */}
+            <button
+              type="button"
+              onClick={() => {
+                setStep("login");
+                setUserInfo(null);
+                setLicenseKey("");
+                setError("");
+              }}
+              className="w-full text-center text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            >
+              ← Back to login
+            </button>
+          </form>
+
+          {/* Dark Mode Toggle */}
+          <div className="flex justify-center">
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
@@ -266,40 +405,20 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
             Dashboard Viewer
           </h2>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Enter your license key and authorized email to access your
-            dashboards
+            Sign in to your account to access dashboards
           </p>
         </div>
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+        <form onSubmit={handleEmailLogin} className="mt-8 space-y-6">
           <div className="space-y-4">
-            {/* License Key */}
-            <div>
-              <label
-                htmlFor="licenseKey"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-              >
-                License Key
-              </label>
-              <input
-                id="licenseKey"
-                type="text"
-                required
-                value={licenseKey}
-                onChange={(e) => setLicenseKey(e.target.value)}
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="FLX-XXX-XXX-XXX-XXXXXX-XXXXXX"
-              />
-            </div>
-
-            {/* Authorized Email */}
+            {/* Email */}
             <div>
               <label
                 htmlFor="email"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
               >
-                Authorized Email
+                Email Address
               </label>
               <input
                 id="email"
@@ -309,6 +428,25 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
                 onChange={(e) => setEmail(e.target.value)}
                 className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="your@email.com"
+              />
+            </div>
+
+            {/* Password */}
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+              >
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Your password"
               />
             </div>
           </div>
@@ -329,10 +467,10 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
             {loading ? (
               <div className="flex items-center">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Validating License...
+                Signing in...
               </div>
             ) : (
-              "Access Dashboard"
+              "Sign In"
             )}
           </button>
         </form>
@@ -343,7 +481,9 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
             <span>🔒</span>
             <span>Secure OnPremise Deployment</span>
           </div>
-          <div>License required • Email authorization • Session based</div>
+          <div>
+            Firebase Authentication • License verification • Session based
+          </div>
         </div>
 
         {/* Dark Mode Toggle */}

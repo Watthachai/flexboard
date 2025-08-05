@@ -32,8 +32,21 @@ interface Widget {
   id: string;
   type: "chart" | "metric" | "table";
   title: string;
-  data: any[];
-  config: Record<string, any>;
+  data?: any[];
+  config?: Record<string, any>;
+  // Additional properties for metric widgets
+  value?: string;
+  change?: string;
+  trend?: string;
+  // Additional properties for table widgets
+  columns?: string[];
+  // Position properties for layout
+  position?: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  };
 }
 
 // Sample data ที่จะแสดงเมื่อไม่สามารถเชื่อมต่อ API ได้
@@ -119,13 +132,10 @@ export default function OnPremViewer() {
       setLoading(true);
       setError(null);
 
-      // Get dashboard data from Control Plane API
-      const response = await fetch(
-        "http://localhost:3000/api/secure/dashboards/data",
-        {
-          credentials: "include", // Include HTTP-only cookies for Firebase auth
-        }
-      );
+      // Get dashboard data from OnPrem Viewer API
+      const response = await fetch("/api/dashboards/data", {
+        credentials: "include", // Include HTTP-only cookies
+      });
 
       if (response.ok) {
         const result = await response.json();
@@ -134,6 +144,15 @@ export default function OnPremViewer() {
           if (result.dashboards.length > 0) {
             setSelectedDashboard(result.dashboards[0].dashboardId);
           }
+
+          // Show message about data source
+          if (result.source !== "api") {
+            console.log(
+              `Dashboard data loaded from: ${result.source}`,
+              result.message
+            );
+          }
+
           return; // Success, exit early
         }
       } else if (response.status === 401) {
@@ -255,17 +274,23 @@ export default function OnPremViewer() {
                   </h3>
 
                   {/* Widget Content */}
-                  {widget.type === "chart" && (
+                  {widget.type === "chart" && widget.data && (
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
-                        {widget.config.chartType === "bar" ? (
+                        {widget.config?.chartType === "bar" ? (
                           <BarChart data={widget.data}>
                             <CartesianGrid
                               strokeDasharray="3 3"
                               className="stroke-gray-300 dark:stroke-gray-600"
                             />
                             <XAxis
-                              dataKey="name"
+                              dataKey={
+                                widget.data[0]?.month
+                                  ? "month"
+                                  : widget.data[0]?.category
+                                    ? "category"
+                                    : "name"
+                              }
                               className="text-gray-600 dark:text-gray-300"
                             />
                             <YAxis className="text-gray-600 dark:text-gray-300" />
@@ -276,7 +301,7 @@ export default function OnPremViewer() {
                                 borderRadius: "4px",
                               }}
                             />
-                            <Bar dataKey="views" fill="#3B82F6" />
+                            <Bar dataKey="value" fill="#3B82F6" />
                           </BarChart>
                         ) : (
                           <LineChart data={widget.data}>
@@ -285,7 +310,13 @@ export default function OnPremViewer() {
                               className="stroke-gray-300 dark:stroke-gray-600"
                             />
                             <XAxis
-                              dataKey="name"
+                              dataKey={
+                                widget.data[0]?.month
+                                  ? "month"
+                                  : widget.data[0]?.category
+                                    ? "category"
+                                    : "name"
+                              }
                               className="text-gray-600 dark:text-gray-300"
                             />
                             <YAxis className="text-gray-600 dark:text-gray-300" />
@@ -299,10 +330,10 @@ export default function OnPremViewer() {
                             <Legend />
                             <Line
                               type="monotone"
-                              dataKey="sales"
+                              dataKey="value"
                               stroke="#3B82F6"
                               strokeWidth={2}
-                              name="Sales"
+                              name="Value"
                             />
                             {widget.data[0]?.target && (
                               <Line
@@ -323,38 +354,58 @@ export default function OnPremViewer() {
                   {widget.type === "metric" && (
                     <div className="text-center">
                       <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">
-                        {widget.data[0]?.currency}{" "}
-                        {widget.data[0]?.value?.toLocaleString()}
+                        {widget.value || "N/A"}
                       </div>
-                      {widget.data[0]?.growth && (
+                      {widget.change && (
                         <div
                           className={`text-sm ${
-                            widget.data[0].growth > 0
+                            widget.change.includes("+")
                               ? "text-green-600 dark:text-green-400"
                               : "text-red-600 dark:text-red-400"
                           }`}
                         >
-                          {widget.data[0].growth > 0 ? "↗️" : "↘️"}{" "}
-                          {Math.abs(widget.data[0].growth)}% vs last month
+                          {widget.change.includes("+") ? "↗️" : "↘️"}{" "}
+                          {widget.change}
                         </div>
                       )}
                     </div>
                   )}
 
-                  {widget.type === "table" && (
+                  {widget.type === "table" && widget.columns && widget.data && (
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-700">
+                          <tr>
+                            {widget.columns.map((column, index) => (
+                              <th
+                                key={index}
+                                className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                              >
+                                {column}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
                         <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                          {widget.data.map((row, index) => (
-                            <tr key={index}>
-                              {Object.entries(row).map(([key, value]) => (
-                                <td
-                                  key={key}
-                                  className="px-4 py-2 text-sm text-gray-900 dark:text-gray-300"
-                                >
-                                  {String(value)}
-                                </td>
-                              ))}
+                          {widget.data.map((row, rowIndex) => (
+                            <tr key={rowIndex}>
+                              {Array.isArray(row)
+                                ? row.map((cell, cellIndex) => (
+                                    <td
+                                      key={cellIndex}
+                                      className="px-4 py-2 text-sm text-gray-900 dark:text-gray-300"
+                                    >
+                                      {String(cell)}
+                                    </td>
+                                  ))
+                                : Object.values(row).map((value, cellIndex) => (
+                                    <td
+                                      key={cellIndex}
+                                      className="px-4 py-2 text-sm text-gray-900 dark:text-gray-300"
+                                    >
+                                      {String(value)}
+                                    </td>
+                                  ))}
                             </tr>
                           ))}
                         </tbody>
