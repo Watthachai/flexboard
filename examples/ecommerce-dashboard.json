@@ -1,0 +1,160 @@
+{
+  "name": "E-commerce Dashboard",
+  "slug": "ecommerce-dashboard",
+  "description": "Complete e-commerce performance tracking dashboard",
+  "visualConfig": {
+    "layout": {
+      "columns": 24,
+      "rows": 16,
+      "gridSize": 40
+    },
+    "widgets": [
+      {
+        "id": "total-orders",
+        "type": "metric",
+        "title": "Total Orders Today",
+        "value": "342",
+        "change": "+8.2%",
+        "trend": "up",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "w": 6,
+          "h": 4
+        }
+      },
+      {
+        "id": "revenue-today",
+        "type": "metric",
+        "title": "Revenue Today",
+        "value": "$45,821",
+        "change": "+12.5%",
+        "trend": "up",
+        "position": {
+          "x": 6,
+          "y": 0,
+          "w": 6,
+          "h": 4
+        }
+      },
+      {
+        "id": "conversion-rate",
+        "type": "metric",
+        "title": "Conversion Rate",
+        "value": "3.47%",
+        "change": "+0.3%",
+        "trend": "up",
+        "position": {
+          "x": 12,
+          "y": 0,
+          "w": 6,
+          "h": 4
+        }
+      },
+      {
+        "id": "avg-order-value",
+        "type": "metric",
+        "title": "Avg Order Value",
+        "value": "$134.05",
+        "change": "+4.1%",
+        "trend": "up",
+        "position": {
+          "x": 18,
+          "y": 0,
+          "w": 6,
+          "h": 4
+        }
+      },
+      {
+        "id": "sales-trend",
+        "type": "chart",
+        "title": "Sales Trend (Last 7 Days)",
+        "chartType": "line",
+        "data": [
+          { "day": "Mon", "value": 38500 },
+          { "day": "Tue", "value": 42300 },
+          { "day": "Wed", "value": 35800 },
+          { "day": "Thu", "value": 48200 },
+          { "day": "Fri", "value": 52100 },
+          { "day": "Sat", "value": 45900 },
+          { "day": "Sun", "value": 41200 }
+        ],
+        "position": {
+          "x": 0,
+          "y": 4,
+          "w": 12,
+          "h": 8
+        }
+      },
+      {
+        "id": "top-products",
+        "type": "table",
+        "title": "Top Selling Products",
+        "columns": ["Product", "Sales", "Revenue", "Growth"],
+        "data": [
+          ["iPhone 15 Pro", "145", "$145,000", "+15.2%"],
+          ["MacBook Air M3", "89", "$89,000", "+12.8%"],
+          ["iPad Pro", "134", "$67,000", "+8.9%"],
+          ["Apple Watch", "256", "$64,000", "+22.1%"],
+          ["AirPods Pro", "189", "$47,250", "+7.3%"]
+        ],
+        "position": {
+          "x": 12,
+          "y": 4,
+          "w": 12,
+          "h": 8
+        }
+      },
+      {
+        "id": "traffic-sources",
+        "type": "chart",
+        "title": "Traffic Sources",
+        "chartType": "pie",
+        "data": [
+          { "name": "Direct", "value": 35 },
+          { "name": "Google Ads", "value": 28 },
+          { "name": "Social Media", "value": 22 },
+          { "name": "Email", "value": 15 }
+        ],
+        "position": {
+          "x": 0,
+          "y": 12,
+          "w": 8,
+          "h": 4
+        }
+      },
+      {
+        "id": "order-status",
+        "type": "chart",
+        "title": "Order Status Distribution",
+        "chartType": "bar",
+        "data": [
+          { "status": "Completed", "value": 285 },
+          { "status": "Processing", "value": 42 },
+          { "status": "Shipped", "value": 15 },
+          { "status": "Cancelled", "value": 8 }
+        ],
+        "position": {
+          "x": 8,
+          "y": 12,
+          "w": 8,
+          "h": 4
+        }
+      },
+      {
+        "id": "customer-satisfaction",
+        "type": "metric",
+        "title": "Customer Satisfaction",
+        "value": "4.8/5.0",
+        "change": "+0.2",
+        "trend": "up",
+        "position": {
+          "x": 16,
+          "y": 12,
+          "w": 8,
+          "h": 4
+        }
+      }
+    ]
+  }
+}

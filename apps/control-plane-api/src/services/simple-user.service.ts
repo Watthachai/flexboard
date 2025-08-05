@@ -75,7 +75,7 @@ export class SimpleUserService {
         isActive: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        tenantId: userData.tenantId,
+        ...(userData.tenantId && { tenantId: userData.tenantId }),
         userType: userData.userType || "control-plane",
         passwordHash,
         profile: {
@@ -96,6 +96,27 @@ export class SimpleUserService {
       throw new Error(
         `Failed to create user: ${error instanceof Error ? error.message : "Unknown error"}`
       );
+    }
+  }
+
+  /**
+   * ตรวจสอบ Password
+   */
+  async verifyPassword(
+    plainPassword: string,
+    hashedPassword: string
+  ): Promise<boolean> {
+    try {
+      const crypto = require("crypto");
+      const hash = crypto
+        .createHash("sha256")
+        .update(plainPassword)
+        .digest("hex");
+
+      return hash === hashedPassword;
+    } catch (error) {
+      console.error("Error verifying password:", error);
+      return false;
     }
   }
 
@@ -127,6 +148,38 @@ export class SimpleUserService {
       console.error("Error listing users:", error);
       throw new Error(
         `Failed to list users: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
+  }
+
+  /**
+   * ดึงรายการ Users พร้อม passwordHash (สำหรับ authentication)
+   */
+  async listUsersWithHash(): Promise<
+    (SimpleUser & { passwordHash: string })[]
+  > {
+    try {
+      const snapshot = await db
+        .collection(COLLECTIONS.USERS)
+        .where("userType", "==", "control-plane")
+        .get();
+
+      const users: (SimpleUser & { passwordHash: string })[] = [];
+
+      for (const doc of snapshot.docs) {
+        const userData = doc.data() as SimpleUser & { passwordHash: string };
+        users.push(userData);
+      }
+
+      // Sort ใน memory
+      return users.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+    } catch (error) {
+      console.error("Error listing users with hash:", error);
+      throw new Error(
+        `Failed to list users with hash: ${error instanceof Error ? error.message : "Unknown error"}`
       );
     }
   }

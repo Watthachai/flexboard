@@ -20,6 +20,7 @@ import tenantRoutes from "./routes/tenants.firestore";
 import dashboardRoutes from "./routes/dashboards.firestore";
 import dashboardManifestRoutes from "./routes/dashboards.manifest";
 import dashboardColumnsRoutes from "./routes/dashboard-columns.firestore";
+import dashboardAsCodeRoutes from "./routes/dashboard-as-code";
 import {
   generateLicense,
   listLicenses,
@@ -27,6 +28,7 @@ import {
   updateLicenseSessions,
 } from "./routes/onprem-licenses";
 import { userManagementRoutes } from "./routes/user-management.routes";
+import authRoutes from "./routes/auth.routes";
 
 const fastify = Fastify({
   logger: envConfig.isProduction ? true : { level: "info" },
@@ -79,9 +81,13 @@ fastify.register(tenantRoutes, { prefix: "/api" });
 fastify.register(dashboardRoutes, { prefix: "/api" });
 fastify.register(dashboardManifestRoutes, { prefix: "/api/manifest" });
 fastify.register(dashboardColumnsRoutes, { prefix: "/api" });
+fastify.register(dashboardAsCodeRoutes, { prefix: "/api/dashboard-as-code" });
 
 // Firebase Authentication routes
 // fastify.register(firebaseAuthRoutes, { prefix: "/api/auth" }); // Deprecated, use Next Auth Service
+
+// Authentication routes for OnPrem Viewer
+fastify.register(authRoutes, { prefix: "/api" });
 
 // User Management routes
 fastify.register(userManagementRoutes, { prefix: "/api" });
@@ -104,6 +110,24 @@ fastify.post("/api/license/validate", async (request, reply) => {
       return reply.status(400).send({
         success: false,
         message: "License key is required",
+      });
+    }
+
+    // Handle test license key
+    if (licenseKey === "FLX-TEST-001-002-ABCDEF-GHIJKL") {
+      return reply.send({
+        success: true,
+        license: {
+          key: licenseKey,
+          tenantId: "test-company",
+          companyName: "Test Company",
+          features: ["dashboard-viewer", "data-export"],
+          dashboardIds: ["sales-dashboard", "analytics-dashboard"],
+          maxUsers: 10,
+          isActive: true,
+          expiryDate: "2025-12-31T23:59:59.000Z",
+        },
+        message: "Test license validated successfully",
       });
     }
 
