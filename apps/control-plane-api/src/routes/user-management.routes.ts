@@ -5,11 +5,11 @@
 
 import { FastifyRequest, FastifyReply, FastifyInstance } from "fastify";
 import {
-  SimpleUserService,
-  SimpleCreateUserRequest,
-  SimpleUpdateUserRequest,
-  SimpleLoginData,
-} from "../services/simple-user.service";
+  UserService,
+  CreateUserRequest,
+  UpdateUserRequest,
+  LoginHistory,
+} from "../services/user.service";
 
 // Request Types
 interface ChangePasswordRequest {
@@ -18,7 +18,7 @@ interface ChangePasswordRequest {
 }
 
 export async function userManagementRoutes(fastify: FastifyInstance) {
-  const userService = new SimpleUserService();
+  const userService = new UserService();
 
   /**
    * GET /api/users - List all users (Control Plane เท่านั้น)
@@ -107,15 +107,13 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
   );
 
   /**
-   * POST /api/users - สร้าง User ใหม่ (Control Plane เท่านั้น)
+   * POST /api/users - Create new user (Control Plane เท่านั้น)
    */
-  fastify.post<{ Body: SimpleCreateUserRequest }>(
+  fastify.post<{ Body: CreateUserRequest }>(
     "/users",
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const userData = request.body as SimpleCreateUserRequest;
-
-        // Validation
+        const userData = request.body as CreateUserRequest; // Validation
         if (!userData.email || !userData.name || !userData.password) {
           reply.status(400);
           return {
@@ -158,14 +156,14 @@ export async function userManagementRoutes(fastify: FastifyInstance) {
   );
 
   /**
-   * PUT /api/users/:id - อัปเดต User (Control Plane เท่านั้น)
+   * PUT /api/users/:id - Update user
    */
-  fastify.put<{ Params: { id: string }; Body: SimpleUpdateUserRequest }>(
+  fastify.put<{ Params: { id: string }; Body: UpdateUserRequest }>(
     "/users/:id",
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    async (request, reply) => {
       try {
-        const { id } = request.params as { id: string };
-        const updateData = request.body as SimpleUpdateUserRequest;
+        const { id } = request.params;
+        const updateData = request.body as UpdateUserRequest;
 
         const updatedUser = await userService.updateUser(id, updateData);
 

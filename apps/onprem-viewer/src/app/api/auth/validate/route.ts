@@ -35,10 +35,15 @@ export async function GET(request: NextRequest) {
     const controlPlaneResponse = await fetch(
       "http://localhost:3000/api/auth/validate",
       {
-        method: "GET",
+        method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${sessionToken}`,
         },
+        body: JSON.stringify({
+          sessionToken,
+          userId,
+        }),
       }
     );
 

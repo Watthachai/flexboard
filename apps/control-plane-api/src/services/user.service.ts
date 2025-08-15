@@ -3,9 +3,9 @@
  * จัดการ Users ใน Firestore พร้อมแยก logic สำหรับ on-premise vs control-plane
  */
 
-import { db, auth, COLLECTIONS } from "../config/firebase-real";
-import { FieldValue } from "firebase-admin/firestore";
-import { UserRecord } from "firebase-admin/auth";
+import { db, COLLECTIONS } from "../config/firebase-real";
+import * as admin from "firebase-admin";
+import bcrypt from "bcryptjs";
 
 // Types
 export interface User {
@@ -58,24 +58,25 @@ export interface UpdateUserRequest {
   tenantId?: string;
 }
 
+export interface UserWithHash extends User {
+  passwordHash?: string;
+}
+
 export class UserService {
   /**
    * สร้าง User ใหม่ (Control Plane เท่านั้น)
    */
   async createUser(userData: CreateUserRequest): Promise<User> {
     try {
-      // สร้าง Firebase Auth User ก่อน
-      const firebaseUser = await auth.createUser({
-        email: userData.email,
-        password: userData.password,
-        displayName: userData.name,
-        emailVerified: false,
-        disabled: false,
-      });
+      // Hash password ก่อนบันทึก
+      const hashedPassword = await bcrypt.hash(userData.password, 10);
+
+      // Generate unique user ID (skip Firebase Auth due to config issues)
+      const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2)}`;
 
       // เตรียมข้อมูลสำหรับ Firestore
       const user: User = {
-        id: firebaseUser.uid,
+        id: userId,
         email: userData.email,
         name: userData.name,
         role: userData.role,
@@ -98,15 +99,18 @@ export class UserService {
         status: "active",
       };
 
-      // บันทึกลง Firestore
-      await db.collection(COLLECTIONS.USERS).doc(firebaseUser.uid).set(user);
+      // บันทึกลง Firestore พร้อม password hash (skip Firebase Auth)
+      await db
+        .collection(COLLECTIONS.USERS)
+        .doc(userId)
+        .set({
+          ...user,
+          passwordHash: hashedPassword, // เพิ่ม password hash
+        });
 
-      // Set custom claims สำหรับ Firebase Auth
-      await auth.setCustomUserClaims(firebaseUser.uid, {
-        role: userData.role,
-        tenantId: userData.tenantId,
-        userType: user.userType,
-      });
+      console.log(
+        `✅ User created successfully: ${userData.email} (${userId})`
+      );
 
       return user;
     } catch (error) {
@@ -134,30 +138,19 @@ export class UserService {
       for (const doc of snapshot.docs) {
         const userData = doc.data() as User;
 
-        try {
-          // Sync กับ Firebase Auth เพื่อดูสถานะล่าสุด
-          const firebaseUser = await auth.getUser(doc.id);
-
-          users.push({
-            ...userData,
-            isActive: !firebaseUser.disabled,
-            emailVerified: firebaseUser.emailVerified,
-            auth: {
-              loginCount: userData.auth?.loginCount || 0,
-              mfaEnabled: userData.auth?.mfaEnabled || false,
-              passwordChangedAt: userData.auth?.passwordChangedAt,
-              loginHistory: userData.auth?.loginHistory || [],
-              lastLoginAt: firebaseUser.metadata.lastSignInTime,
-            },
-          });
-        } catch (authError) {
-          // ถ้า Firebase Auth user ไม่อยู่แล้ว ให้ mark เป็น inactive
-          users.push({
-            ...userData,
-            isActive: false,
-            status: "inactive",
-          });
-        }
+        // ใช้ข้อมูลจาก Firestore เท่านั้น (ข้าม Firebase Auth sync)
+        users.push({
+          ...userData,
+          isActive: userData.isActive ?? true,
+          emailVerified: userData.emailVerified ?? false,
+          auth: {
+            loginCount: userData.auth?.loginCount || 0,
+            mfaEnabled: userData.auth?.mfaEnabled || false,
+            passwordChangedAt: userData.auth?.passwordChangedAt,
+            loginHistory: userData.auth?.loginHistory || [],
+            lastLoginAt: userData.auth?.lastLoginAt,
+          },
+        });
       }
 
       // Sort ใน memory แทนที่จะใช้ Firestore orderBy
@@ -186,30 +179,19 @@ export class UserService {
 
       const userData = doc.data() as User;
 
-      try {
-        // Sync กับ Firebase Auth
-        const firebaseUser = await auth.getUser(userId);
-
-        return {
-          ...userData,
-          isActive: !firebaseUser.disabled,
-          emailVerified: firebaseUser.emailVerified,
-          auth: {
-            ...userData.auth,
-            lastLoginAt: firebaseUser.metadata.lastSignInTime,
-            loginCount: userData.auth?.loginCount || 0,
-            mfaEnabled: userData.auth?.mfaEnabled || false,
-            loginHistory: userData.auth?.loginHistory || [],
-          },
-        };
-      } catch (authError) {
-        // Firebase Auth user ไม่อยู่
-        return {
-          ...userData,
-          isActive: false,
-          status: "inactive",
-        };
-      }
+      // ใช้ข้อมูลจาก Firestore เท่านั้น (ข้าม Firebase Auth sync)
+      return {
+        ...userData,
+        isActive: userData.isActive ?? true,
+        emailVerified: userData.emailVerified ?? false,
+        auth: {
+          ...userData.auth,
+          lastLoginAt: userData.auth?.lastLoginAt,
+          loginCount: userData.auth?.loginCount || 0,
+          mfaEnabled: userData.auth?.mfaEnabled || false,
+          loginHistory: userData.auth?.loginHistory || [],
+        },
+      };
     } catch (error) {
       console.error("Error getting user:", error);
       throw new Error(
@@ -231,26 +213,7 @@ export class UserService {
         throw new Error("User not found");
       }
 
-      // อัปเดต Firebase Auth ถ้าจำเป็น
-      if (updateData.email || updateData.isActive !== undefined) {
-        const authUpdate: any = {};
-        if (updateData.email) authUpdate.email = updateData.email;
-        if (updateData.isActive !== undefined)
-          authUpdate.disabled = !updateData.isActive;
-
-        await auth.updateUser(userId, authUpdate);
-      }
-
-      // อัปเดต Custom Claims
-      if (updateData.role || updateData.tenantId !== undefined) {
-        await auth.setCustomUserClaims(userId, {
-          role: updateData.role || currentUser.role,
-          tenantId: updateData.tenantId,
-          userType: currentUser.userType,
-        });
-      }
-
-      // อัปเดต Firestore
+      // อัปเดต Firestore เท่านั้น (skip Firebase Auth)
       const firestoreUpdate = {
         ...updateData,
         updatedAt: new Date().toISOString(),
@@ -267,6 +230,10 @@ export class UserService {
         throw new Error("Failed to retrieve updated user");
       }
 
+      console.log(
+        `✅ User updated successfully: ${updateData.email || currentUser.email}`
+      );
+
       return updatedUser;
     } catch (error) {
       console.error("Error updating user:", error);
@@ -281,11 +248,10 @@ export class UserService {
    */
   async deleteUser(userId: string): Promise<void> {
     try {
-      // ลบจาก Firebase Auth
-      await auth.deleteUser(userId);
-
-      // ลบจาก Firestore
+      // ลบจาก Firestore เท่านั้น (skip Firebase Auth)
       await db.collection(COLLECTIONS.USERS).doc(userId).delete();
+
+      console.log(`✅ User deleted successfully: ${userId}`);
     } catch (error) {
       console.error("Error deleting user:", error);
       throw new Error(
@@ -299,10 +265,7 @@ export class UserService {
    */
   async toggleUserStatus(userId: string, isActive: boolean): Promise<User> {
     try {
-      // อัปเดต Firebase Auth
-      await auth.updateUser(userId, { disabled: !isActive });
-
-      // อัปเดต Firestore
+      // อัปเดต Firestore (ข้าม Firebase Auth เนื่องจากปัญหา configuration)
       await db
         .collection(COLLECTIONS.USERS)
         .doc(userId)
@@ -317,6 +280,9 @@ export class UserService {
         throw new Error("Failed to retrieve updated user");
       }
 
+      console.log(
+        `Successfully toggled user status for user: ${userId} to ${isActive ? "active" : "inactive"}`
+      );
       return updatedUser;
     } catch (error) {
       console.error("Error toggling user status:", error);
@@ -331,14 +297,17 @@ export class UserService {
    */
   async changePassword(userId: string, newPassword: string): Promise<void> {
     try {
-      // อัปเดตรหัสผ่านใน Firebase Auth
-      await auth.updateUser(userId, { password: newPassword });
+      // Hash password ใหม่
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-      // อัปเดต timestamp ใน Firestore
+      // อัปเดต timestamp และ hash ใน Firestore (ข้าม Firebase Auth)
       await db.collection(COLLECTIONS.USERS).doc(userId).update({
         "auth.passwordChangedAt": new Date().toISOString(),
+        passwordHash: hashedPassword,
         updatedAt: new Date().toISOString(),
       });
+
+      console.log(`Successfully changed password for user: ${userId}`);
     } catch (error) {
       console.error("Error changing password:", error);
       throw new Error(
@@ -359,7 +328,7 @@ export class UserService {
         .orderBy("createdAt", "desc")
         .get();
 
-      return snapshot.docs.map((doc) => ({
+      return snapshot.docs.map((doc: any) => ({
         ...(doc.data() as User),
         role: "viewer", // On-premise users เป็น viewer เท่านั้น
       }));
@@ -389,13 +358,55 @@ export class UserService {
         .collection(COLLECTIONS.USERS)
         .doc(userId)
         .update({
-          "auth.loginCount": FieldValue.increment(1),
-          "auth.loginHistory": FieldValue.arrayUnion(loginRecord),
+          "auth.loginCount": admin.firestore.FieldValue.increment(1),
+          "auth.loginHistory":
+            admin.firestore.FieldValue.arrayUnion(loginRecord),
           updatedAt: new Date().toISOString(),
         });
     } catch (error) {
       console.error("Error recording login:", error);
       // ไม่ throw error เพราะการบันทึก login history ไม่ควรขัดขวางการ login
+    }
+  }
+
+  /**
+   * ดึงรายการ Users พร้อม password hash (สำหรับ authentication)
+   */
+  async listUsersWithHash(): Promise<UserWithHash[]> {
+    try {
+      const snapshot = await db.collection(COLLECTIONS.USERS).get();
+
+      const users: UserWithHash[] = [];
+
+      for (const doc of snapshot.docs) {
+        const userData = doc.data() as UserWithHash;
+        users.push({
+          ...userData,
+          id: doc.id,
+        });
+      }
+
+      return users;
+    } catch (error) {
+      console.error("Error listing users with hash:", error);
+      throw new Error(
+        `Failed to list users with hash: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    }
+  }
+
+  /**
+   * ตรวจสอบรหัสผ่าน
+   */
+  async verifyPassword(
+    plainPassword: string,
+    hashedPassword: string
+  ): Promise<boolean> {
+    try {
+      return await bcrypt.compare(plainPassword, hashedPassword);
+    } catch (error) {
+      console.error("Error verifying password:", error);
+      return false;
     }
   }
 }

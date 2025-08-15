@@ -6,11 +6,28 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { db } from "../config/firebase-real.js";
 
-interface CreateDashboardRequest {
-  name: string;
-  slug?: string;
-  description?: string;
-  visualConfig: {
+interface DashboardAsCodeRequest {
+  apiVersion: string;
+  kind: string;
+  metadata: {
+    name: string;
+    slug?: string;
+    description?: string;
+    template?: string;
+    dataSource?: {
+      type: string;
+      mysql?: {
+        host: string;
+        port: number;
+        database: string;
+        username: string;
+        password: string;
+        table: string;
+      };
+      sampleData?: any;
+    };
+  };
+  spec: {
     layout: {
       columns: number;
       rows: number;
@@ -26,38 +43,105 @@ interface CreateDashboardRequest {
         w: number;
         h: number;
       };
-      // Widget-specific properties
-      value?: string;
-      change?: string;
-      trend?: string;
-      chartType?: string;
-      data?: any[];
-      columns?: string[];
+      config?: any;
+    }>;
+    dataSources?: Array<{
+      id: string;
+      type: string;
+      config: any;
+      queries?: any;
     }>;
   };
 }
 
 export default async function dashboardAsCodeRoutes(fastify: FastifyInstance) {
-  // POST /api/dashboard-as-code/tenants/:tenantId/dashboards - Create dashboard as code
+  // POST /api/tenants/:tenantId/dashboard-as-code - Create dashboard as code (Frontend compatible)
+  fastify.post(
+    "/api/tenants/:tenantId/dashboard-as-code",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const { tenantId } = request.params as { tenantId: string };
+        const dashboardConfig = request.body as DashboardAsCodeRequest;
+
+        // Validate required fields
+        if (!dashboardConfig.metadata?.name || !dashboardConfig.spec) {
+          return reply.status(400).send({
+            success: false,
+            message: "Dashboard metadata.name and spec are required",
+          });
+        }
+
+        // Generate dashboard ID
+        const dashboardId =
+          dashboardConfig.metadata.slug ||
+          dashboardConfig.metadata.name
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-");
+
+        // Prepare dashboard document
+        const dashboardData = {
+          id: dashboardId,
+          tenantId,
+          name: dashboardConfig.metadata.name,
+          description: dashboardConfig.metadata.description || "",
+          template: dashboardConfig.metadata.template || "blank",
+          dashboardAsCode: JSON.stringify(dashboardConfig),
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          createdBy: "system",
+          updatedBy: "system",
+        };
+
+        // Save to Firestore
+        await db
+          .collection("tenants")
+          .doc(tenantId)
+          .collection("dashboards")
+          .doc(dashboardId)
+          .set(dashboardData);
+
+        return reply.send({
+          success: true,
+          message: "Dashboard as code created successfully",
+          data: {
+            id: dashboardId,
+            tenantId,
+            name: dashboardConfig.metadata.name,
+            template: dashboardConfig.metadata.template,
+          },
+        });
+      } catch (error) {
+        console.error("Error creating dashboard as code:", error);
+        return reply.status(500).send({
+          success: false,
+          message: "Internal server error",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+  );
+
+  // POST /api/dashboard-as-code/tenants/:tenantId/dashboards - Create dashboard as code (Original route)
   fastify.post(
     "/tenants/:tenantId/dashboards",
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const { tenantId } = request.params as { tenantId: string };
-        const dashboardConfig = request.body as CreateDashboardRequest;
+        const dashboardConfig = request.body as DashboardAsCodeRequest;
 
         // Validate required fields
-        if (!dashboardConfig.name || !dashboardConfig.visualConfig) {
+        if (!dashboardConfig.metadata?.name || !dashboardConfig.spec) {
           return reply.status(400).send({
             success: false,
-            message: "Dashboard name and visualConfig are required",
+            message: "Dashboard metadata.name and spec are required",
           });
         }
 
         // Generate slug if not provided
         const slug =
-          dashboardConfig.slug ||
-          dashboardConfig.name
+          dashboardConfig.metadata.slug ||
+          dashboardConfig.metadata.name
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, "-")
             .replace(/^-+|-+$/g, "");
@@ -68,17 +152,16 @@ export default async function dashboardAsCodeRoutes(fastify: FastifyInstance) {
         // Prepare dashboard data
         const dashboardData = {
           id: dashboardId,
-          name: dashboardConfig.name,
-          slug,
-          description: dashboardConfig.description || "",
           tenantId,
-          isActive: true,
-          createdBy: "dashboard-as-code",
-          updatedBy: "dashboard-as-code",
-          // Store visualConfig as JSON string to avoid Firestore nested object issues
-          visualConfig: JSON.stringify(dashboardConfig.visualConfig),
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          name: dashboardConfig.metadata.name,
+          slug,
+          description: dashboardConfig.metadata.description || "",
+          status: "active",
+          isPublic: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          // Store the complete dashboard-as-code config
+          dashboardAsCode: JSON.stringify(dashboardConfig),
         };
 
         // Save to Firestore subcollection
@@ -90,12 +173,12 @@ export default async function dashboardAsCodeRoutes(fastify: FastifyInstance) {
 
         await dashboardRef.set(dashboardData);
 
-        // Return success response with parsed visualConfig
+        // Return success response with parsed dashboard-as-code config
         return reply.send({
           success: true,
           data: {
             ...dashboardData,
-            visualConfig: dashboardConfig.visualConfig, // Return as object
+            dashboardAsCode: dashboardConfig, // Return as object
           },
           message: "Dashboard created successfully",
         });
@@ -105,6 +188,48 @@ export default async function dashboardAsCodeRoutes(fastify: FastifyInstance) {
           success: false,
           message: "Internal server error",
           error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    }
+  );
+
+  // GET /api/dashboard-as-code/tenants/:tenantId/dashboards - List all dashboards for tenant
+  fastify.get(
+    "/tenants/:tenantId/dashboards",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const { tenantId } = request.params as { tenantId: string };
+
+        const dashboardsRef = db
+          .collection("tenants")
+          .doc(tenantId)
+          .collection("dashboards");
+
+        const snapshot = await dashboardsRef.get();
+
+        if (snapshot.empty) {
+          return reply.send({
+            success: true,
+            data: [],
+            message: "No dashboards found for tenant",
+          });
+        }
+
+        const dashboards = snapshot.docs.map((doc: any) => ({
+          dashboardId: doc.id,
+          ...doc.data(),
+        }));
+
+        return reply.send({
+          success: true,
+          data: dashboards,
+          count: dashboards.length,
+        });
+      } catch (error) {
+        console.error("Error listing dashboards:", error);
+        return reply.status(500).send({
+          success: false,
+          error: "Failed to list dashboards",
         });
       }
     }
@@ -141,13 +266,13 @@ export default async function dashboardAsCodeRoutes(fastify: FastifyInstance) {
           data: {
             id: doc.id,
             ...data,
-            // Parse visualConfig if it's a string
-            visualConfig:
-              typeof data?.visualConfig === "string"
-                ? JSON.parse(data.visualConfig)
-                : data?.visualConfig,
-            createdAt: data?.createdAt?.toDate().toISOString(),
-            updatedAt: data?.updatedAt?.toDate().toISOString(),
+            // Parse dashboardAsCode if it's a string
+            dashboardAsCode:
+              typeof data?.dashboardAsCode === "string"
+                ? JSON.parse(data.dashboardAsCode)
+                : data?.dashboardAsCode,
+            createdAt: data?.createdAt,
+            updatedAt: data?.updatedAt,
           },
         });
       } catch (error) {
@@ -169,7 +294,7 @@ export default async function dashboardAsCodeRoutes(fastify: FastifyInstance) {
           tenantId: string;
           dashboardId: string;
         };
-        const updates = request.body as Partial<CreateDashboardRequest>;
+        const updates = request.body as Partial<DashboardAsCodeRequest>;
 
         const dashboardRef = db
           .collection("tenants")
@@ -188,15 +313,14 @@ export default async function dashboardAsCodeRoutes(fastify: FastifyInstance) {
 
         // Prepare update data
         const updateData: any = {
-          updatedAt: new Date(),
-          updatedBy: "dashboard-as-code",
+          updatedAt: new Date().toISOString(),
         };
 
-        if (updates.name) updateData.name = updates.name;
-        if (updates.description !== undefined)
-          updateData.description = updates.description;
-        if (updates.visualConfig) {
-          updateData.visualConfig = JSON.stringify(updates.visualConfig);
+        if (updates.metadata?.name) updateData.name = updates.metadata.name;
+        if (updates.metadata?.description !== undefined)
+          updateData.description = updates.metadata.description;
+        if (updates.spec) {
+          updateData.dashboardAsCode = JSON.stringify(updates);
         }
 
         // Update in Firestore

@@ -122,27 +122,22 @@ export default async function dashboardManifestRoutes(
           });
         }
 
-        const response = await DashboardService.getDashboard(dashboardId);
+        const response = await DashboardService.getDashboardManifestConfig(
+          tenantId,
+          dashboardId
+        );
 
         if (!response.success || !response.data) {
           return reply.code(404).send({
             success: false,
-            error: "Dashboard not found",
-          });
-        }
-
-        // Verify the dashboard belongs to the correct tenant
-        if (response.data.tenantId !== tenantId) {
-          return reply.code(404).send({
-            success: false,
-            error: "Dashboard not found",
+            error: "Dashboard manifest not found",
           });
         }
 
         return reply.code(200).send({
           success: true,
           data: {
-            manifestContent: response.data.manifestContent || "{}",
+            manifestContent: JSON.stringify(response.data, null, 2),
           },
         });
       } catch (error) {
@@ -243,6 +238,87 @@ export default async function dashboardManifestRoutes(
   });
 
   /**
+   * PUT /api/manifest/tenants/:tenantId/dashboards/:dashboardId/manifest
+   * Update dashboard manifest config
+   */
+  fastify.put<{
+    Params: DashboardManifestParams;
+    Body: { manifestContent: string };
+  }>(
+    "/tenants/:tenantId/dashboards/:dashboardId/manifest",
+    async (request, reply) => {
+      try {
+        const { tenantId, dashboardId } = request.params;
+        const { manifestContent } = request.body;
+
+        if (!dashboardId) {
+          return reply.code(400).send({
+            success: false,
+            error: "Dashboard ID is required",
+          });
+        }
+
+        if (!manifestContent) {
+          return reply.code(400).send({
+            success: false,
+            error: "Manifest content is required",
+          });
+        }
+
+        // Validate JSON format
+        let parsedManifest;
+        try {
+          parsedManifest = JSON.parse(manifestContent);
+        } catch (error) {
+          return reply.code(400).send({
+            success: false,
+            error: "Invalid JSON format in manifestContent",
+          });
+        }
+
+        // Check if dashboard exists
+        const dashboardResponse = await DashboardService.getDashboard(
+          dashboardId,
+          tenantId
+        );
+
+        if (!dashboardResponse.success || !dashboardResponse.data) {
+          return reply.code(404).send({
+            success: false,
+            error: "Dashboard not found",
+          });
+        }
+
+        // Update manifest config
+        const response = await DashboardService.updateDashboardManifestConfig(
+          tenantId,
+          dashboardId,
+          parsedManifest,
+          "system"
+        );
+
+        if (!response.success) {
+          return reply.code(500).send({
+            success: false,
+            error: "Failed to update manifest config",
+          });
+        }
+
+        return reply.code(200).send({
+          success: true,
+          data: response.data,
+        });
+      } catch (error) {
+        console.error("Error updating dashboard manifest:", error);
+        return reply.code(500).send({
+          success: false,
+          error: "Failed to update dashboard manifest",
+        });
+      }
+    }
+  );
+
+  /**
    * PUT /api/manifest/tenants/:tenantId/dashboards/:dashboardId
    * Update dashboard manifest
    */
@@ -262,7 +338,10 @@ export default async function dashboardManifestRoutes(
       }
 
       // Check if dashboard exists and belongs to tenant
-      const existingResponse = await DashboardService.getDashboard(dashboardId);
+      const existingResponse = await DashboardService.getDashboard(
+        dashboardId,
+        tenantId
+      );
 
       if (!existingResponse.success || !existingResponse.data) {
         return reply.code(404).send({
@@ -344,7 +423,10 @@ export default async function dashboardManifestRoutes(
       }
 
       // Check if dashboard exists and belongs to tenant
-      const existingResponse = await DashboardService.getDashboard(dashboardId);
+      const existingResponse = await DashboardService.getDashboard(
+        dashboardId,
+        tenantId
+      );
 
       if (!existingResponse.success || !existingResponse.data) {
         return reply.code(404).send({
@@ -413,8 +495,10 @@ export default async function dashboardManifestRoutes(
         }
 
         // Check if dashboard exists and belongs to tenant
-        const existingResponse =
-          await DashboardService.getDashboard(dashboardId);
+        const existingResponse = await DashboardService.getDashboard(
+          dashboardId,
+          tenantId
+        );
 
         if (!existingResponse.success || !existingResponse.data) {
           return reply.code(404).send({
@@ -455,6 +539,121 @@ export default async function dashboardManifestRoutes(
         return reply.code(500).send({
           success: false,
           error: "Failed to toggle dashboard status",
+        });
+      }
+    }
+  );
+
+  /**
+   * GET /api/manifest/tenants/:tenantId/dashboards/:dashboardId/columns
+   * Get dashboard columns metadata
+   */
+  fastify.get<{
+    Params: DashboardManifestParams;
+  }>(
+    "/tenants/:tenantId/dashboards/:dashboardId/columns",
+    async (request, reply) => {
+      try {
+        const { tenantId, dashboardId } = request.params;
+
+        if (!dashboardId) {
+          return reply.code(400).send({
+            success: false,
+            error: "Dashboard ID is required",
+          });
+        }
+
+        const response = await DashboardService.getDashboardColumns(
+          tenantId,
+          dashboardId
+        );
+
+        if (!response.success) {
+          return reply.code(500).send({
+            success: false,
+            error: "Failed to fetch columns",
+          });
+        }
+
+        return reply.code(200).send({
+          success: true,
+          data: response.data,
+        });
+      } catch (error) {
+        console.error("Error fetching dashboard columns:", error);
+        return reply.code(500).send({
+          success: false,
+          error: "Failed to fetch dashboard columns",
+        });
+      }
+    }
+  );
+
+  /**
+   * PUT /api/manifest/tenants/:tenantId/dashboards/:dashboardId/columns
+   * Update dashboard columns metadata
+   */
+  fastify.put<{
+    Params: DashboardManifestParams;
+    Body: { columns: any[] };
+  }>(
+    "/tenants/:tenantId/dashboards/:dashboardId/columns",
+    async (request, reply) => {
+      try {
+        const { tenantId, dashboardId } = request.params;
+        const { columns } = request.body;
+
+        if (!dashboardId) {
+          return reply.code(400).send({
+            success: false,
+            error: "Dashboard ID is required",
+          });
+        }
+
+        if (!Array.isArray(columns)) {
+          return reply.code(400).send({
+            success: false,
+            error: "Columns must be an array",
+          });
+        }
+
+        // Check if dashboard exists
+        const dashboardResponse = await DashboardService.getDashboard(
+          dashboardId,
+          tenantId
+        );
+
+        if (!dashboardResponse.success || !dashboardResponse.data) {
+          return reply.code(404).send({
+            success: false,
+            error: "Dashboard not found",
+          });
+        }
+
+        // Update columns
+        const response = await DashboardService.updateDashboardColumns(
+          tenantId,
+          dashboardId,
+          columns,
+          "system"
+        );
+
+        if (!response.success) {
+          return reply.code(500).send({
+            success: false,
+            error: "Failed to update columns",
+          });
+        }
+
+        return reply.code(200).send({
+          success: true,
+          data: response.data,
+        });
+      } catch (error) {
+        console.error("Error updating dashboard columns:", error);
+        return reply.code(500).send({
+          success: false,
+          error: "Failed to update dashboard columns",
         });
       }
     }

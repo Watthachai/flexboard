@@ -1,194 +1,210 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
-import AppLayout from "@/components/layout/app-layout";
-import { Card } from "@/components/ui/card";
+import { useState, use } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import DataImport from "@/components/data/data-import";
+import { Card } from "@/components/ui/card";
+import AppLayout from "@/components/layout/app-layout";
 
 interface DashboardSetupData {
   name: string;
-  description?: string;
-  dataSourceType: "upload" | "database" | "api" | "mock";
-  template?: string;
-}
-
-interface DataSource {
-  id: string;
-  name: string;
   description: string;
-  icon: string;
-  available: boolean;
+  template: string;
 }
 
-const DATA_SOURCES: DataSource[] = [
-  {
-    id: "upload",
-    name: "Upload File",
-    description: "CSV, Excel, or XML files",
-    icon: "📁",
-    available: true,
-  },
-  {
-    id: "mock",
-    name: "Sample Data",
-    description: "Use demo data to get started",
-    icon: "🎯",
-    available: true,
-  },
-  {
-    id: "database",
-    name: "Database",
-    description: "MySQL, PostgreSQL, MongoDB",
-    icon: "🗄️",
-    available: false, // Phase 2
-  },
-  {
-    id: "api",
-    name: "API Endpoint",
-    description: "REST API or GraphQL",
-    icon: "🔗",
-    available: false, // Phase 2
-  },
-];
+type Step = "setup" | "template";
 
-const SAMPLE_TEMPLATES = [
-  {
-    id: "sales",
-    name: "Sales Dashboard",
-    description: "Revenue, sales trends, top products",
-    preview: "📊",
-  },
-  {
-    id: "analytics",
-    name: "Website Analytics",
-    description: "Page views, users, conversion rates",
-    preview: "📈",
-  },
-  {
-    id: "financial",
-    name: "Financial Overview",
-    description: "Income, expenses, profit margins",
-    preview: "💰",
-  },
+const DASHBOARD_TEMPLATES = [
   {
     id: "blank",
     name: "Blank Dashboard",
-    description: "Start from scratch",
-    preview: "📋",
+    description: "Start with a clean slate",
+    icon: "📄",
+  },
+  {
+    id: "sales",
+    name: "Sales Dashboard",
+    description: "Track sales metrics and KPIs",
+    icon: "📈",
+  },
+  {
+    id: "analytics",
+    name: "Analytics Dashboard",
+    description: "Monitor website and app analytics",
+    icon: "📊",
+  },
+  {
+    id: "operations",
+    name: "Operations Dashboard",
+    description: "Track operational metrics",
+    icon: "⚙️",
   },
 ];
 
-export default function NewDashboardPage() {
-  const params = useParams();
+export default function NewDashboardPage({
+  params,
+}: {
+  params: Promise<{ tenantId: string }>;
+}) {
+  const { tenantId } = use(params);
   const router = useRouter();
-  const tenantId = params.tenantId as string;
-
-  const [step, setStep] = useState<
-    "setup" | "datasource" | "upload" | "template"
-  >("setup");
-  const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<Step>("setup");
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<DashboardSetupData>({
     name: "",
     description: "",
-    dataSourceType: "mock",
     template: "blank",
   });
-  const [uploadedData, setUploadedData] = useState<any>(null);
-
-  // Animated step transition
-  const handleStepTransition = (newStep: typeof step) => {
-    setIsTransitioning(true);
-    setTimeout(() => {
-      setStep(newStep);
-      setIsTransitioning(false);
-    }, 150);
-  };
 
   const handleNext = () => {
     if (step === "setup") {
-      handleStepTransition("datasource");
-    } else if (step === "datasource") {
-      // ถ้าเลือก upload file ให้ไปหน้า upload
-      if (formData.dataSourceType === "upload") {
-        handleStepTransition("upload");
-      } else {
-        handleStepTransition("template");
-      }
-    } else if (step === "upload") {
-      handleStepTransition("template");
+      setIsTransitioning(true);
+      setTimeout(() => {
+        setStep("template");
+        setIsTransitioning(false);
+      }, 150);
     }
   };
 
   const handleBack = () => {
-    if (step === "datasource") {
-      handleStepTransition("setup");
-    } else if (step === "upload") {
-      handleStepTransition("datasource");
-    } else if (step === "template") {
-      // ถ้ามาจาก upload ให้กลับไป upload, ถ้าไม่ใช่ให้กลับไป datasource
-      if (formData.dataSourceType === "upload") {
-        handleStepTransition("upload");
-      } else {
-        handleStepTransition("datasource");
-      }
+    if (step === "template") {
+      setIsTransitioning(true);
+      setTimeout(() => {
+        setStep("setup");
+        setIsTransitioning(false);
+      }, 150);
     }
   };
 
   const handleCreate = async () => {
-    try {
-      setLoading(true);
+    if (!formData.name) return;
 
-      // 1. สร้าง Dashboard
-      const dashboardResponse = await fetch(
-        `/api/tenants/${tenantId}/dashboards`,
+    setLoading(true);
+
+    try {
+      const dashboardConfig = {
+        apiVersion: "flexboard/v1",
+        kind: "Dashboard",
+        metadata: {
+          name: formData.name,
+          slug: formData.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          description: formData.description || "",
+          template: formData.template || "blank",
+        },
+        spec: {
+          layout: {
+            type: "grid",
+            breakpoints: { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 },
+            cols: { lg: 24, md: 20, sm: 16, xs: 12, xxs: 6 },
+            rowHeight: 30,
+          },
+          widgets: [
+            ...(formData.template === "sales"
+              ? [
+                  {
+                    id: "sales-metric",
+                    type: "metric",
+                    title: "Total Sales",
+                    position: { x: 0, y: 0, w: 6, h: 4 },
+                    config: {
+                      value: "${data.totalSales}",
+                      format: "currency",
+                      change: "${data.salesChange}",
+                      trend: "up",
+                    },
+                  },
+                  {
+                    id: "sales-chart",
+                    type: "chart",
+                    title: "Sales Trends",
+                    position: { x: 6, y: 0, w: 12, h: 8 },
+                    config: {
+                      chartType: "line",
+                      dataSource: "${data.salesTrends}",
+                      xAxis: "date",
+                      yAxis: "amount",
+                    },
+                  },
+                ]
+              : formData.template === "analytics"
+                ? [
+                    {
+                      id: "pageviews-metric",
+                      type: "metric",
+                      title: "Page Views",
+                      position: { x: 0, y: 0, w: 6, h: 4 },
+                      config: {
+                        value: "${data.pageviews}",
+                        format: "number",
+                        change: "${data.pageviewsChange}",
+                        trend: "up",
+                      },
+                    },
+                  ]
+                : []),
+          ],
+          dataSources: [],
+        },
+      };
+
+      console.log("📊 Dashboard config:", dashboardConfig);
+
+      // ส่งไปยัง dashboard-as-code API
+      const response = await fetch(
+        `/api/tenants/${tenantId}/dashboard-as-code`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            name: formData.name,
-            description: formData.description,
-            slug: formData.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-            isPublic: false,
-            settings: {
-              refreshInterval: 30000, // 30 seconds
-              theme: "light",
-              autoRefresh: true,
-            },
-            status: "draft",
-            tags: [],
-            visualConfig: {
-              layout: {
-                columns: 24,
-                rows: 16,
-                gridSize: 40,
-              },
-              widgets: [],
-            },
-            dataSourceConfig: {
-              type: formData.dataSourceType,
-              template: formData.template,
-              uploadedData: uploadedData, // เก็บเป็น object ปกติ ไม่ serialize
-            },
-          }),
+          body: JSON.stringify(dashboardConfig),
         }
       );
 
-      const result = await dashboardResponse.json();
+      console.log("🌐 API Response status:", response.status);
 
-      if (!result.success) {
-        throw new Error(result.error || "Failed to create dashboard");
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ API Error:", errorText);
+        throw new Error(`API Error: ${response.status} - ${errorText}`);
       }
 
-      // 2. Redirect ไปยัง Builder
-      router.push(`/tenants/${tenantId}/dashboards/${result.data.id}/builder`);
+      const result = await response.json();
+      console.log("✅ Dashboard created:", result);
+
+      if (!result.success) {
+        throw new Error(
+          result.error || result.message || "Failed to create dashboard"
+        );
+      }
+
+      // ตรวจสอบ structure ของ result
+      console.log("📊 Result structure:", {
+        hasData: !!result.data,
+        dataKeys: result.data ? Object.keys(result.data) : [],
+        dataId: result.data?.id,
+        fullResult: result,
+      });
+
+      const dashboardId = result.data?.id;
+
+      if (!dashboardId) {
+        console.error("❌ No dashboard ID found in response:", result);
+        throw new Error("Dashboard was created but no ID was returned");
+      }
+
+      console.log("📝 Dashboard ID:", dashboardId);
+
+      // Redirect ไปยัง dashboard-as-code editor
+      router.push(
+        `/tenants/${tenantId}/dashboards/${dashboardId}/dashboard-as-code`
+      );
     } catch (error) {
-      console.error("Error creating dashboard:", error);
-      alert("Failed to create dashboard. Please try again.");
+      console.error("💥 Error creating dashboard:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      alert(`Failed to create dashboard: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -206,6 +222,7 @@ export default function NewDashboardPage() {
             Set up your dashboard in simple steps
           </p>
         </div>
+
         {/* Progress Steps */}
         <div className="mb-6 sm:mb-8">
           <div className="flex items-center justify-center space-x-2 sm:space-x-4 lg:space-x-8 overflow-x-auto pb-4 px-4">
@@ -235,78 +252,12 @@ export default function NewDashboardPage() {
             <div className="w-8 sm:w-12 lg:w-16 xl:w-20 h-1 bg-gray-200 dark:bg-gray-700 rounded transition-all duration-300">
               <div
                 className={`h-full bg-blue-600 dark:bg-blue-400 rounded transition-all duration-500 ${
-                  step !== "setup" ? "w-full" : "w-0"
-                }`}
-              />
-            </div>
-
-            {/* Step 2 */}
-            <div
-              className={`flex items-center transition-all duration-300 min-w-max ${
-                step === "datasource"
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-gray-400 dark:text-gray-500"
-              }`}
-            >
-              <div
-                className={`w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center text-sm lg:text-base font-medium transition-all duration-300 ${
-                  step === "datasource"
-                    ? "bg-blue-600 text-white shadow-lg scale-110"
-                    : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
-                }`}
-              >
-                2
-              </div>
-              <span className="ml-2 font-medium text-xs sm:text-sm lg:text-base whitespace-nowrap">
-                Data Source
-              </span>
-            </div>
-
-            {/* Upload Step (conditional) */}
-            {formData.dataSourceType === "upload" && (
-              <>
-                <div className="w-8 sm:w-12 lg:w-16 xl:w-20 h-1 bg-gray-200 dark:bg-gray-700 rounded transition-all duration-300">
-                  <div
-                    className={`h-full bg-blue-600 dark:bg-blue-400 rounded transition-all duration-500 ${
-                      step === "upload" || step === "template"
-                        ? "w-full"
-                        : "w-0"
-                    }`}
-                  />
-                </div>
-                <div
-                  className={`flex items-center transition-all duration-300 min-w-max ${
-                    step === "upload"
-                      ? "text-blue-600 dark:text-blue-400"
-                      : "text-gray-400 dark:text-gray-500"
-                  }`}
-                >
-                  <div
-                    className={`w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center text-xs lg:text-sm font-medium transition-all duration-300 ${
-                      step === "upload"
-                        ? "bg-blue-600 text-white shadow-lg scale-110"
-                        : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
-                    }`}
-                  >
-                    📁
-                  </div>
-                  <span className="ml-2 font-medium text-xs sm:text-sm lg:text-base whitespace-nowrap">
-                    Upload
-                  </span>
-                </div>
-              </>
-            )}
-
-            {/* Final Connector */}
-            <div className="w-8 sm:w-12 lg:w-16 xl:w-20 h-1 bg-gray-200 dark:bg-gray-700 rounded transition-all duration-300">
-              <div
-                className={`h-full bg-blue-600 dark:bg-blue-400 rounded transition-all duration-500 ${
                   step === "template" ? "w-full" : "w-0"
                 }`}
               />
             </div>
 
-            {/* Step 3/4 */}
+            {/* Step 2 */}
             <div
               className={`flex items-center transition-all duration-300 min-w-max ${
                 step === "template"
@@ -321,14 +272,15 @@ export default function NewDashboardPage() {
                     : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
                 }`}
               >
-                {formData.dataSourceType === "upload" ? "4" : "3"}
+                2
               </div>
               <span className="ml-2 font-medium text-xs sm:text-sm lg:text-base whitespace-nowrap">
                 Template
               </span>
             </div>
           </div>
-        </div>{" "}
+        </div>
+
         {/* Step Content with Slide Animation */}
         <div className="relative overflow-hidden w-full">
           <Card
@@ -348,13 +300,14 @@ export default function NewDashboardPage() {
                   <div>
                     <label
                       htmlFor="name"
-                      className="block text-sm sm:text-base font-medium mb-2 lg:mb-3 text-gray-700 dark:text-gray-300"
+                      className="block text-sm sm:text-base font-medium text-gray-700 dark:text-gray-300 mb-2 lg:mb-3"
                     >
                       Dashboard Name *
                     </label>
                     <input
-                      type="text"
                       id="name"
+                      name="name"
+                      type="text"
                       required
                       value={formData.name}
                       onChange={(e) =>
@@ -371,12 +324,13 @@ export default function NewDashboardPage() {
                   <div>
                     <label
                       htmlFor="description"
-                      className="block text-sm sm:text-base font-medium mb-2 lg:mb-3 text-gray-700 dark:text-gray-300"
+                      className="block text-sm sm:text-base font-medium text-gray-700 dark:text-gray-300 mb-2 lg:mb-3"
                     >
                       Description (Optional)
                     </label>
                     <textarea
                       id="description"
+                      name="description"
                       value={formData.description}
                       onChange={(e) =>
                         setFormData((prev) => ({
@@ -393,125 +347,30 @@ export default function NewDashboardPage() {
               </div>
             )}
 
-            {step === "datasource" && (
-              <div className="animate-fade-in w-full">
-                <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-4 sm:mb-6 lg:mb-8 text-gray-900 dark:text-gray-100">
-                  Choose Data Source
-                </h2>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 xl:gap-8">
-                  {DATA_SOURCES.map((source) => (
-                    <div
-                      key={source.id}
-                      className={`relative p-4 sm:p-6 lg:p-8 border-2 rounded-lg lg:rounded-xl cursor-pointer transition-all duration-200 hover:shadow-xl ${
-                        formData.dataSourceType === source.id
-                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400 shadow-xl scale-105"
-                          : source.available
-                            ? "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-800 hover:scale-102"
-                            : "border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 cursor-not-allowed opacity-50"
-                      }`}
-                      onClick={() => {
-                        if (source.available) {
-                          setFormData((prev) => ({
-                            ...prev,
-                            dataSourceType: source.id as any,
-                          }));
-                        }
-                      }}
-                    >
-                      {!source.available && (
-                        <div className="absolute top-2 right-2 bg-gray-500 text-white text-xs px-2 py-1 rounded">
-                          Coming Soon
-                        </div>
-                      )}
-
-                      <div className="text-2xl sm:text-3xl lg:text-4xl mb-3 lg:mb-4">
-                        {source.icon}
-                      </div>
-                      <h3 className="font-bold text-base sm:text-lg lg:text-xl mb-2 lg:mb-3 text-gray-900 dark:text-gray-100">
-                        {source.name}
-                      </h3>
-                      <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base">
-                        {source.description}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {step === "upload" && (
-              <div className="animate-fade-in w-full">
-                <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-4 sm:mb-6 lg:mb-8 text-gray-900 dark:text-gray-100">
-                  Upload Your Data
-                </h2>
-                <DataImport
-                  onDataImport={(data) => {
-                    console.log("Data imported:", data);
-
-                    // แปลงข้อมูลจาก ParsedData format เป็น dataset format
-                    const convertedData = {
-                      dataset: {
-                        record: data.rows.map((row) => {
-                          const record: any = {};
-                          data.columns.forEach((column, index) => {
-                            let value = row[index];
-
-                            // แปลงข้อมูลตามประเภท
-                            if (
-                              column.type === "number" &&
-                              value &&
-                              !isNaN(Number(value))
-                            ) {
-                              value = Number(value);
-                            } else if (column.type === "date" && value) {
-                              value = new Date(value).toISOString();
-                            } else if (column.type === "boolean" && value) {
-                              value = ["true", "1", "yes"].includes(
-                                value.toLowerCase()
-                              );
-                            }
-
-                            record[column.name] = value;
-                          });
-                          return record;
-                        }),
-                      },
-                    };
-
-                    console.log("Converted data:", convertedData);
-                    setUploadedData(convertedData);
-                    handleStepTransition("template");
-                  }}
-                  onCancel={() => handleStepTransition("datasource")}
-                />
-              </div>
-            )}
-
             {step === "template" && (
               <div className="animate-fade-in w-full">
                 <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-4 sm:mb-6 lg:mb-8 text-gray-900 dark:text-gray-100">
-                  Select Template
+                  Choose Template
                 </h2>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 xl:gap-8">
-                  {SAMPLE_TEMPLATES.map((template) => (
+                  {DASHBOARD_TEMPLATES.map((template) => (
                     <div
                       key={template.id}
-                      className={`p-4 sm:p-6 lg:p-8 border-2 rounded-lg lg:rounded-xl cursor-pointer transition-all duration-200 hover:shadow-xl ${
+                      className={`relative p-4 sm:p-6 lg:p-8 border-2 rounded-lg lg:rounded-xl cursor-pointer transition-all duration-200 hover:shadow-xl ${
                         formData.template === template.id
                           ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400 shadow-xl scale-105"
                           : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-800 hover:scale-102"
                       }`}
-                      onClick={() =>
+                      onClick={() => {
                         setFormData((prev) => ({
                           ...prev,
                           template: template.id,
-                        }))
-                      }
+                        }));
+                      }}
                     >
                       <div className="text-2xl sm:text-3xl lg:text-4xl mb-3 lg:mb-4">
-                        {template.preview}
+                        {template.icon}
                       </div>
                       <h3 className="font-bold text-base sm:text-lg lg:text-xl mb-2 lg:mb-3 text-gray-900 dark:text-gray-100">
                         {template.name}
@@ -526,6 +385,7 @@ export default function NewDashboardPage() {
             )}
           </Card>
         </div>
+
         {/* Navigation */}
         <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mt-6 sm:mt-8 lg:mt-12 gap-4 w-full">
           <Button

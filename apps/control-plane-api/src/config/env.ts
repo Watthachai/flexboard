@@ -22,7 +22,8 @@ export const envConfig = {
   jwtSecret: process.env.JWT_SECRET!,
   sessionSecret: process.env.SESSION_SECRET || process.env.JWT_SECRET!,
   corsOrigins: process.env.CORS_ORIGINS?.split(",") || [
-    "http://localhost:3003",
+    "http://localhost:3001", // control-plane-ui
+    "http://localhost:3002", // onprem-viewer
   ],
 
   // Rate limiting

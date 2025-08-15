@@ -4,7 +4,7 @@
  */
 
 import { auth, db, COLLECTIONS } from "../config/firebase-real";
-import { UserRecord } from "firebase-admin/auth";
+import * as admin from "firebase-admin";
 import crypto from "crypto";
 
 export interface LicenseData {
@@ -42,12 +42,12 @@ export class FirebaseAuthService {
     password: string
   ): Promise<{
     success: boolean;
-    user?: UserRecord;
+    user?: admin.auth.UserRecord;
     message?: string;
   }> {
     try {
       // ลองหา User ที่มีอยู่แล้ว
-      let user: UserRecord;
+      let user: admin.auth.UserRecord;
 
       try {
         user = await auth.getUserByEmail(email);
@@ -330,7 +330,7 @@ export class FirebaseAuthService {
 
       // Filter out expired sessions (older than 24 hours)
       const now = new Date();
-      const validSessions = activeSessionsSnapshot.docs.filter((doc) => {
+      const validSessions = activeSessionsSnapshot.docs.filter((doc: any) => {
         const session = doc.data() as UserSession;
         const lastActivity = new Date(session.lastActivity);
         const hoursDiff =
@@ -487,7 +487,7 @@ export class FirebaseAuthService {
       let cleaned = 0;
       const batch = db.batch();
 
-      expiredSessionsSnapshot.docs.forEach((doc) => {
+      expiredSessionsSnapshot.docs.forEach((doc: any) => {
         batch.update(doc.ref, {
           isActive: false,
           expiredAt: new Date().toISOString(),
