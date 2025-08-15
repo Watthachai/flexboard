@@ -3,14 +3,14 @@
  * เป็นตัวกลางในการจัดการข้อมูลใน Firestore
  */
 
-import {
-  CollectionReference,
-  DocumentReference,
-  QuerySnapshot,
-  Timestamp,
-  FieldValue,
-  Query,
-} from "firebase-admin/firestore";
+import * as admin from "firebase-admin";
+
+type CollectionReference = admin.firestore.CollectionReference;
+type DocumentReference = admin.firestore.DocumentReference;
+type QuerySnapshot = admin.firestore.QuerySnapshot;
+type Timestamp = admin.firestore.Timestamp;
+type FieldValue = admin.firestore.FieldValue;
+type Query = admin.firestore.Query;
 import { db, COLLECTIONS } from "../config/firebase-real";
 import {
   BaseDocument,
@@ -34,7 +34,7 @@ export class FirestoreService {
       const docRef = customId
         ? db.collection(collection).doc(customId)
         : db.collection(collection).doc();
-      const now = Timestamp.now();
+      const now = admin.firestore.Timestamp.now();
 
       const docData = {
         ...data,
@@ -122,7 +122,7 @@ export class FirestoreService {
 
       const updateData = {
         ...updates,
-        updatedAt: Timestamp.now(),
+        updatedAt: admin.firestore.Timestamp.now(),
         updatedBy: userId,
       };
 
@@ -193,7 +193,7 @@ export class FirestoreService {
     try {
       const { page = 1, pageSize = 20, orderBy, where } = options;
 
-      let query: Query<any, any> = db.collection(collection);
+      let query: admin.firestore.Query<any, any> = db.collection(collection);
 
       // Apply where conditions
       if (where && where.length > 0) {
@@ -215,7 +215,7 @@ export class FirestoreService {
       query = query.limit(pageSize);
 
       const snapshot = await query.get();
-      const documents = snapshot.docs.map((doc) => {
+      const documents = snapshot.docs.map((doc: any) => {
         const data = doc.data();
         return {
           id: doc.id,
@@ -346,7 +346,7 @@ export class TenantService extends FirestoreService {
         .collection("licenses");
 
       const snapshot = await licensesRef.get();
-      const licenses = snapshot.docs.map((doc) => doc.data());
+      const licenses = snapshot.docs.map((doc: any) => doc.data());
 
       return {
         success: true,
@@ -445,7 +445,45 @@ export class DashboardService extends FirestoreService {
     );
   }
 
-  static async getDashboard(dashboardId: string) {
+  static async getDashboard(dashboardId: string, tenantId?: string) {
+    // If tenantId is provided, look in tenant subcollection first
+    if (tenantId) {
+      try {
+        const docRef = db
+          .collection("tenants")
+          .doc(tenantId)
+          .collection("dashboards")
+          .doc(dashboardId);
+
+        const doc = await docRef.get();
+
+        if (doc.exists) {
+          const docData = doc.data();
+          return {
+            success: true,
+            data: {
+              id: doc.id,
+              ...docData,
+              // Convert Firestore Timestamps to ISO strings
+              createdAt: docData?.createdAt
+                ? docData.createdAt.toDate().toISOString()
+                : new Date().toISOString(),
+              updatedAt: docData?.updatedAt
+                ? docData.updatedAt.toDate().toISOString()
+                : new Date().toISOString(),
+            } as unknown as DashboardDocument,
+            timestamp: new Date().toISOString(),
+          };
+        }
+      } catch (error) {
+        console.error(
+          `Error getting dashboard from tenant subcollection:`,
+          error
+        );
+      }
+    }
+
+    // Fallback to top-level collection
     return this.getDocument<DashboardDocument>(
       COLLECTIONS.DASHBOARDS,
       dashboardId
@@ -469,6 +507,203 @@ export class DashboardService extends FirestoreService {
     return this.deleteDocument(COLLECTIONS.DASHBOARDS, dashboardId);
   }
 
+  // Dashboard Metadata Management
+  static async getDashboardManifestConfig(
+    tenantId: string,
+    dashboardId: string
+  ) {
+    try {
+      const configRef = db
+        .collection("tenants")
+        .doc(tenantId)
+        .collection("dashboards")
+        .doc(dashboardId)
+        .collection("metadata")
+        .doc("config");
+
+      const doc = await configRef.get();
+
+      if (!doc.exists) {
+        return {
+          success: false,
+          error: "Manifest config not found",
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const docData = doc.data();
+      return {
+        success: true,
+        data: {
+          id: doc.id,
+          ...docData,
+          createdAt: docData?.createdAt
+            ? docData.createdAt.toDate().toISOString()
+            : new Date().toISOString(),
+          updatedAt: docData?.updatedAt
+            ? docData.updatedAt.toDate().toISOString()
+            : new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error("Error getting dashboard manifest config:", error);
+      return {
+        success: false,
+        error: "Failed to fetch manifest config",
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  static async updateDashboardManifestConfig(
+    tenantId: string,
+    dashboardId: string,
+    manifestConfig: any,
+    userId: string
+  ) {
+    try {
+      const configRef = db
+        .collection("tenants")
+        .doc(tenantId)
+        .collection("dashboards")
+        .doc(dashboardId)
+        .collection("metadata")
+        .doc("config");
+
+      const updateData = {
+        ...manifestConfig,
+        updatedAt: new Date(),
+        updatedBy: userId,
+      };
+
+      // Check if config document exists
+      const doc = await configRef.get();
+      if (!doc.exists) {
+        // Create new config
+        updateData.createdAt = new Date();
+        updateData.createdBy = userId;
+      }
+
+      await configRef.set(updateData, { merge: true });
+
+      return {
+        success: true,
+        data: {
+          id: "config",
+          ...updateData,
+          createdAt: updateData.createdAt.toISOString(),
+          updatedAt: updateData.updatedAt.toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error("Error updating dashboard manifest config:", error);
+      return {
+        success: false,
+        error: "Failed to update manifest config",
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  static async getDashboardColumns(tenantId: string, dashboardId: string) {
+    try {
+      const columnsRef = db
+        .collection("tenants")
+        .doc(tenantId)
+        .collection("dashboards")
+        .doc(dashboardId)
+        .collection("metadata")
+        .doc("columns");
+
+      const doc = await columnsRef.get();
+
+      if (!doc.exists) {
+        return {
+          success: true,
+          data: { columns: [] }, // Return empty columns if not found
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const docData = doc.data();
+      return {
+        success: true,
+        data: {
+          id: doc.id,
+          ...docData,
+          createdAt: docData?.createdAt
+            ? docData.createdAt.toDate().toISOString()
+            : new Date().toISOString(),
+          updatedAt: docData?.updatedAt
+            ? docData.updatedAt.toDate().toISOString()
+            : new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error("Error getting dashboard columns:", error);
+      return {
+        success: false,
+        error: "Failed to fetch dashboard columns",
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  static async updateDashboardColumns(
+    tenantId: string,
+    dashboardId: string,
+    columns: any[],
+    userId: string
+  ) {
+    try {
+      const columnsRef = db
+        .collection("tenants")
+        .doc(tenantId)
+        .collection("dashboards")
+        .doc(dashboardId)
+        .collection("metadata")
+        .doc("columns");
+
+      let updateData: any = {
+        columns,
+        updatedAt: new Date(),
+        updatedBy: userId,
+      };
+
+      // Check if columns document exists
+      const doc = await columnsRef.get();
+      if (!doc.exists) {
+        // Create new columns
+        updateData.createdAt = new Date();
+        updateData.createdBy = userId;
+      }
+
+      await columnsRef.set(updateData, { merge: true });
+
+      return {
+        success: true,
+        data: {
+          id: "columns",
+          ...updateData,
+          createdAt:
+            updateData.createdAt?.toISOString() || new Date().toISOString(),
+          updatedAt: updateData.updatedAt.toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error("Error updating dashboard columns:", error);
+      return {
+        success: false,
+        error: "Failed to update dashboard columns",
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
   static async getDashboardsByTenant(
     tenantId: string,
     options?: { page?: number; pageSize?: number }
@@ -486,7 +721,7 @@ export class DashboardService extends FirestoreService {
 
         if (!snapshot.empty) {
           // Return real data from Firestore subcollection
-          const dashboards = snapshot.docs.map((doc) => {
+          const dashboards = snapshot.docs.map((doc: any) => {
             const data = doc.data();
             return {
               id: doc.id,
@@ -645,7 +880,7 @@ export class DashboardService extends FirestoreService {
         .collection("dashboards");
 
       const snapshot = await dashboardsRef.get();
-      const dashboards = snapshot.docs.map((doc) => {
+      const dashboards = snapshot.docs.map((doc: any) => {
         const data = doc.data();
         return {
           id: doc.id,

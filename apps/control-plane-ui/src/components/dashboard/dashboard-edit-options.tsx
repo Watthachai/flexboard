@@ -226,7 +226,7 @@ export default function DashboardEditOptions({
 
           <div className="space-y-2">
             <Link
-              href={`/tenants/${tenantId}/dashboards/${dashboardId}/edit`}
+              href={`/tenants/${tenantId}/dashboards/${dashboardId}/dashboard-as-code`}
               className="block"
             >
               <Button className="w-full">

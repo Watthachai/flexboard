@@ -29,10 +29,12 @@ export default function RootLayout({
 
   useEffect(() => {
     checkSession();
-    // Load dark mode preference
-    const savedDarkMode = localStorage.getItem("darkMode");
-    if (savedDarkMode !== null) {
-      setDarkMode(JSON.parse(savedDarkMode));
+    // Load dark mode preference (only in browser)
+    if (typeof window !== "undefined" && window.localStorage) {
+      const savedDarkMode = localStorage.getItem("darkMode");
+      if (savedDarkMode !== null) {
+        setDarkMode(JSON.parse(savedDarkMode));
+      }
     }
   }, []);
 
@@ -43,7 +45,11 @@ export default function RootLayout({
     } else {
       document.documentElement.classList.remove("dark");
     }
-    localStorage.setItem("darkMode", JSON.stringify(darkMode));
+
+    // Save dark mode preference (only in browser)
+    if (typeof window !== "undefined" && window.localStorage) {
+      localStorage.setItem("darkMode", JSON.stringify(darkMode));
+    }
   }, [darkMode]);
 
   const checkSession = async () => {

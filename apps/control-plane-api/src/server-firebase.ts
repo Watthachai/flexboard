@@ -21,6 +21,7 @@ import dashboardRoutes from "./routes/dashboards.firestore";
 import dashboardManifestRoutes from "./routes/dashboards.manifest";
 import dashboardColumnsRoutes from "./routes/dashboard-columns.firestore";
 import dashboardAsCodeRoutes from "./routes/dashboard-as-code";
+import dataColumnsRoutes from "./routes/data-columns";
 import {
   generateLicense,
   listLicenses,
@@ -81,7 +82,8 @@ fastify.register(tenantRoutes, { prefix: "/api" });
 fastify.register(dashboardRoutes, { prefix: "/api" });
 fastify.register(dashboardManifestRoutes, { prefix: "/api/manifest" });
 fastify.register(dashboardColumnsRoutes, { prefix: "/api" });
-fastify.register(dashboardAsCodeRoutes, { prefix: "/api/dashboard-as-code" });
+fastify.register(dashboardAsCodeRoutes); // No prefix needed since routes include absolute paths
+fastify.register(dataColumnsRoutes);
 
 // Firebase Authentication routes
 // fastify.register(firebaseAuthRoutes, { prefix: "/api/auth" }); // Deprecated, use Next Auth Service

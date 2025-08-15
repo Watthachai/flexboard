@@ -259,7 +259,7 @@ export default function TenantDetailContent() {
 
                 <div className="flex items-center space-x-2">
                   <Link
-                    href={`/tenants/${tenantId}/dashboards/${tenantId + "-" + dashboard.slug}`}
+                    href={`/tenants/${tenantId}/dashboards/${dashboard.id}`}
                     className="flex-1"
                   >
                     <Button size="sm" className="w-full">
