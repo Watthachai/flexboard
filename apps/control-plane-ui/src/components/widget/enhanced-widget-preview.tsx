@@ -121,6 +121,7 @@ export function EnhancedWidgetPreview({
     contextData !== null &&
     (dataSourceType === "uploadedData" || dataSourceType === "uploaded-data");
 
+  // Skip data fetching if in preview mode
   const { data, loading, error, refresh, lastUpdated } = useWidgetData(
     widget.id,
     widget.type,
@@ -129,9 +130,10 @@ export function EnhancedWidgetPreview({
 
   console.log("useWidgetData result:", { data, loading, error });
 
-  // Use data in priority: API data for uploaded-data widgets
+  // Use data from API
   const widgetData = data;
 
+  // Skip error and loading states in preview mode
   if (error) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center text-red-500 dark:text-red-400">

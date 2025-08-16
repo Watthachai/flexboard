@@ -126,8 +126,7 @@ export class FirestoreService {
         updatedBy: userId,
       };
 
-      // Use set with merge instead of update to handle non-existent documents
-      await docRef.set(updateData, { merge: true });
+      await docRef.update(updateData);
 
       // ดึงข้อมูลใหม่หลังจากอัปเดต
       const updatedDoc = await docRef.get();
@@ -508,25 +507,7 @@ export class DashboardService extends FirestoreService {
     return this.deleteDocument(COLLECTIONS.DASHBOARDS, dashboardId);
   }
 
-  // Dashboard Metadata Management
-  static generateDefaultManifest(dashboardId: string, dashboardName?: string) {
-    return {
-      schemaVersion: "1.0",
-      dashboardId: dashboardId,
-      dashboardName: dashboardName || "New Dashboard",
-      description: "Dashboard description",
-      version: 1,
-      targetTeams: ["default"],
-      layout: {
-        type: "grid",
-        columns: 12,
-        rowHeight: 50,
-      },
-      widgets: [],
-      dataSources: [],
-    };
-  }
-
+    // Dashboard Metadata Management
   static async getDashboardManifestConfig(
     tenantId: string,
     dashboardId: string
@@ -543,39 +524,14 @@ export class DashboardService extends FirestoreService {
       const doc = await configRef.get();
 
       if (!doc.exists) {
-        // Get dashboard info for default manifest
-        const dashboardDoc = await db
-          .collection("tenants")
-          .doc(tenantId)
-          .collection("dashboards")
-          .doc(dashboardId)
-          .get();
-
-        const dashboardData = dashboardDoc.data();
-        const defaultManifest = this.generateDefaultManifest(
-          dashboardId,
-          dashboardData?.name || "New Dashboard"
-        );
-
-        // Save default manifest to database
-        const manifestData = {
-          data: defaultManifest,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          createdBy: "system",
-          updatedBy: "system",
-        };
-
-        await configRef.set(manifestData);
-
-        // Return the saved manifest
+        // Return default empty config instead of error
         return {
           success: true,
           data: {
             id: "manifest",
-            ...manifestData,
-            createdAt: manifestData.createdAt.toISOString(),
-            updatedAt: manifestData.updatedAt.toISOString(),
+            data: {},
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           },
           timestamp: new Date().toISOString(),
         };
@@ -621,11 +577,8 @@ export class DashboardService extends FirestoreService {
         .collection("config")
         .doc("manifest");
 
-      let updateData: any = {
-        data:
-          typeof manifestConfig === "string"
-            ? JSON.parse(manifestConfig)
-            : manifestConfig,
+      const updateData = {
+        data: manifestConfig,
         updatedAt: new Date(),
         updatedBy: userId,
       };
@@ -645,8 +598,7 @@ export class DashboardService extends FirestoreService {
         data: {
           id: "manifest",
           ...updateData,
-          createdAt:
-            updateData.createdAt?.toISOString() || new Date().toISOString(),
+          createdAt: updateData.createdAt?.toISOString() || new Date().toISOString(),
           updatedAt: updateData.updatedAt.toISOString(),
         },
         timestamp: new Date().toISOString(),
@@ -719,6 +671,153 @@ export class DashboardService extends FirestoreService {
         .collection("dashboards")
         .doc(dashboardId)
         .collection("config")
+        .doc("columns");
+
+      let updateData: any = {
+        columns,
+        updatedAt: new Date(),
+        updatedBy: userId,
+      };
+
+      // Check if columns document exists
+      const doc = await columnsRef.get();
+      if (!doc.exists) {
+        // Create new columns
+        updateData.createdAt = new Date();
+        updateData.createdBy = userId;
+      }
+
+      await columnsRef.set(updateData, { merge: true });
+
+      return {
+        success: true,
+        data: {
+          id: "columns",
+          ...updateData,
+          createdAt: updateData.createdAt?.toISOString() || new Date().toISOString(),
+          updatedAt: updateData.updatedAt.toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error("Error updating dashboard columns:", error);
+      return {
+        success: false,
+        error: "Failed to update dashboard columns",
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  static async updateDashboardManifestConfig(
+    tenantId: string,
+    dashboardId: string,
+    manifestConfig: any,
+    userId: string
+  ) {
+    try {
+      const configRef = db
+        .collection("tenants")
+        .doc(tenantId)
+        .collection("dashboards")
+        .doc(dashboardId)
+        .collection("metadata")
+        .doc("config");
+
+      const updateData = {
+        ...manifestConfig,
+        updatedAt: new Date(),
+        updatedBy: userId,
+      };
+
+      // Check if config document exists
+      const doc = await configRef.get();
+      if (!doc.exists) {
+        // Create new config
+        updateData.createdAt = new Date();
+        updateData.createdBy = userId;
+      }
+
+      await configRef.set(updateData, { merge: true });
+
+      return {
+        success: true,
+        data: {
+          id: "config",
+          ...updateData,
+          createdAt: updateData.createdAt.toISOString(),
+          updatedAt: updateData.updatedAt.toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error("Error updating dashboard manifest config:", error);
+      return {
+        success: false,
+        error: "Failed to update manifest config",
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  static async getDashboardColumns(tenantId: string, dashboardId: string) {
+    try {
+      const columnsRef = db
+        .collection("tenants")
+        .doc(tenantId)
+        .collection("dashboards")
+        .doc(dashboardId)
+        .collection("metadata")
+        .doc("columns");
+
+      const doc = await columnsRef.get();
+
+      if (!doc.exists) {
+        return {
+          success: true,
+          data: { columns: [] }, // Return empty columns if not found
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const docData = doc.data();
+      return {
+        success: true,
+        data: {
+          id: doc.id,
+          ...docData,
+          createdAt: docData?.createdAt
+            ? docData.createdAt.toDate().toISOString()
+            : new Date().toISOString(),
+          updatedAt: docData?.updatedAt
+            ? docData.updatedAt.toDate().toISOString()
+            : new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      };
+    } catch (error) {
+      console.error("Error getting dashboard columns:", error);
+      return {
+        success: false,
+        error: "Failed to fetch dashboard columns",
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+
+  static async updateDashboardColumns(
+    tenantId: string,
+    dashboardId: string,
+    columns: any[],
+    userId: string
+  ) {
+    try {
+      const columnsRef = db
+        .collection("tenants")
+        .doc(tenantId)
+        .collection("dashboards")
+        .doc(dashboardId)
+        .collection("metadata")
         .doc("columns");
 
       let updateData: any = {
