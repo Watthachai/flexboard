@@ -135,6 +135,7 @@ export default function DashboardManifestEditor({
 
   const validateContent = (content: string) => {
     if (!content.trim()) {
+      console.log("Validation failed: Content is empty");
       setValidationResult({ isValid: false, errors: ["Content is empty"] });
       return;
     }
@@ -169,13 +170,16 @@ export default function DashboardManifestEditor({
       }
 
       if (errors.length > 0) {
+        console.log("Validation failed with errors:", errors);
         setValidationResult({ isValid: false, errors });
       } else {
+        console.log("Validation passed successfully");
         setValidationResult({ isValid: true, errors: [] });
       }
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Invalid JSON";
+      console.log("JSON parsing failed:", errorMessage);
       setValidationResult({
         isValid: false,
         errors: [`JSON Syntax Error: ${errorMessage}`],
@@ -199,15 +203,23 @@ export default function DashboardManifestEditor({
   };
 
   const handleSave = async () => {
+    console.log("handleSave called");
+    console.log("editorContent.trim():", !!editorContent.trim());
+    console.log("validationResult?.isValid:", validationResult?.isValid);
+    console.log("validationResult:", validationResult);
+
     if (!editorContent.trim() || !validationResult?.isValid) {
+      console.log("Save blocked - validation failed or empty content");
       return;
     }
 
     try {
       setSaving(true);
+      console.log("Starting save...");
       await saveManifest(editorContent);
       setIsModified(false);
       onSave?.();
+      console.log("Save completed successfully");
     } catch (error) {
       console.error("Failed to save manifest:", error);
     } finally {
@@ -567,7 +579,7 @@ export default function DashboardManifestEditor({
           </Card>
         </TabsContent>
 
-        <TabsContent value="preview">
+        <TabsContent value="preview" key={editorContent}>
           <Card className="p-4 sm:p-6">
             {validationResult?.isValid ? (
               <div className="space-y-6">
@@ -807,8 +819,13 @@ export default function DashboardManifestEditor({
                                                   tenantId: tenantId,
                                                   dataSource: widget.dataSource,
                                                 },
+                                                // Force refresh when config changes by using a key
+                                                key: JSON.stringify(
+                                                  widget.config
+                                                ),
                                               } as any
                                             }
+                                            key={`${widget.id}-${JSON.stringify(widget.config)}`}
                                           />
                                         </div>
 

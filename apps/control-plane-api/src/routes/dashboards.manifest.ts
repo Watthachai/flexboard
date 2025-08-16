@@ -127,17 +127,24 @@ export default async function dashboardManifestRoutes(
           dashboardId
         );
 
-        if (!response.success || !response.data) {
-          return reply.code(404).send({
+        if (!response.success) {
+          return reply.code(500).send({
             success: false,
-            error: "Dashboard manifest not found",
+            error: "Failed to fetch manifest",
           });
         }
+
+        // Return manifest content - handle nested data structure
+        const responseData = response.data as any;
+        const manifestContent = responseData?.data || responseData || {};
 
         return reply.code(200).send({
           success: true,
           data: {
-            manifestContent: JSON.stringify(response.data, null, 2),
+            manifestContent:
+              typeof manifestContent === "string"
+                ? manifestContent
+                : JSON.stringify(manifestContent, null, 2),
           },
         });
       } catch (error) {
@@ -343,58 +350,153 @@ export default async function dashboardManifestRoutes(
         tenantId
       );
 
+      let dashboardData;
+
       if (!existingResponse.success || !existingResponse.data) {
-        return reply.code(404).send({
-          success: false,
-          error: "Dashboard not found",
-        });
-      }
+        // Dashboard doesn't exist, create it
+        const defaultDashboard = {
+          name: name || "New Dashboard",
+          slug: (name || "new-dashboard")
+            .toLowerCase()
+            .replace(/\s+/g, "-")
+            .replace(/[^\w-]/g, ""),
+          description: description || "",
+          tenantId: tenantId,
+          isPublic: false,
+          settings: {
+            refreshInterval: 300000, // 5 minutes
+            theme: "light" as const,
+            autoRefresh: true,
+          },
+          status: "draft" as const,
+          tags: targetTeams || ["default"],
+          manifestContent:
+            manifestContent ||
+            JSON.stringify(
+              DashboardService.generateDefaultManifest(dashboardId, name),
+              null,
+              2
+            ),
+        };
 
-      if (existingResponse.data.tenantId !== tenantId) {
-        return reply.code(404).send({
-          success: false,
-          error: "Dashboard not found",
-        });
-      }
+        const createResponse = await DashboardService.createDashboard(
+          defaultDashboard,
+          "system",
+          dashboardId
+        );
 
-      const updateData: any = {};
-
-      if (name) updateData.name = name;
-      if (description !== undefined) updateData.description = description;
-      if (targetTeams) updateData.tags = targetTeams;
-
-      if (manifestContent) {
-        // Validate JSON format
-        try {
-          const parsedManifest = JSON.parse(manifestContent);
-          // Ensure dashboardId is set
-          parsedManifest.dashboardId = dashboardId;
-          updateData.manifestContent = JSON.stringify(parsedManifest, null, 2);
-        } catch (error) {
-          return reply.code(400).send({
+        if (!createResponse.success) {
+          return reply.code(500).send({
             success: false,
-            error: "Invalid JSON format in manifestContent",
+            error: "Failed to create dashboard",
           });
         }
+
+        dashboardData = createResponse.data;
+
+        // Save manifest config to the new structure
+        if (manifestContent) {
+          try {
+            const manifestConfigResponse =
+              await DashboardService.updateDashboardManifestConfig(
+                tenantId,
+                dashboardId,
+                manifestContent,
+                "system"
+              );
+
+            if (!manifestConfigResponse.success) {
+              console.error(
+                "Failed to save manifest config after creation:",
+                manifestConfigResponse.error
+              );
+            }
+          } catch (manifestError) {
+            console.error(
+              "Error saving manifest config after creation:",
+              manifestError
+            );
+          }
+        }
+      } else {
+        // Dashboard exists, check tenant ownership
+        if (existingResponse.data.tenantId !== tenantId) {
+          return reply.code(404).send({
+            success: false,
+            error: "Dashboard not found",
+          });
+        }
+
+        // Update existing dashboard
+        const updateData: any = {};
+
+        if (name) updateData.name = name;
+        if (description !== undefined) updateData.description = description;
+        if (targetTeams) updateData.tags = targetTeams;
+
+        if (manifestContent) {
+          // Validate JSON format
+          try {
+            const parsedManifest = JSON.parse(manifestContent);
+            // Ensure dashboardId is set
+            parsedManifest.dashboardId = dashboardId;
+            updateData.manifestContent = JSON.stringify(
+              parsedManifest,
+              null,
+              2
+            );
+          } catch (error) {
+            return reply.code(400).send({
+              success: false,
+              error: "Invalid JSON format in manifestContent",
+            });
+          }
+        }
+
+        // Update using DashboardService
+        const updateResponse = await DashboardService.updateDashboard(
+          dashboardId,
+          updateData,
+          "system"
+        );
+
+        if (!updateResponse.success) {
+          return reply.code(500).send({
+            success: false,
+            error: "Failed to update dashboard",
+          });
+        }
+
+        dashboardData = updateResponse.data;
       }
 
-      // Update using DashboardService
-      const updateResponse = await DashboardService.updateDashboard(
-        dashboardId,
-        updateData,
-        "system"
-      );
+      // Save manifest config to the new structure if manifestContent is provided
+      if (manifestContent) {
+        try {
+          const manifestConfigResponse =
+            await DashboardService.updateDashboardManifestConfig(
+              tenantId,
+              dashboardId,
+              manifestContent,
+              "system" // userId
+            );
 
-      if (!updateResponse.success) {
-        return reply.code(500).send({
-          success: false,
-          error: "Failed to update dashboard",
-        });
+          if (!manifestConfigResponse.success) {
+            console.error(
+              "Failed to save manifest config:",
+              manifestConfigResponse.error
+            );
+            // Don't fail the whole request, just log the error
+          }
+        } catch (manifestError) {
+          console.error("Error saving manifest config:", manifestError);
+          // Don't fail the whole request, just log the error
+        }
       }
 
       return reply.code(200).send({
         success: true,
-        data: updateResponse.data,
+        data: dashboardData,
       });
     } catch (error) {
       console.error("Error updating dashboard:", error);
