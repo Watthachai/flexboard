@@ -140,63 +140,8 @@ export default function RootLayout({
     <html lang="en" className={darkMode ? "dark" : ""}>
       <body className="bg-gray-50 dark:bg-gray-900">
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-          {/* Top navigation bar */}
-          <nav className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="flex justify-between items-center h-16">
-                <div className="flex items-center space-x-4">
-                  <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    📊 FlexBoard OnPrem
-                  </h1>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    {session.companyName}
-                  </span>
-                </div>
-
-                <div className="flex items-center space-x-4">
-                  {/* Session info */}
-                  <div className="text-sm text-gray-600 dark:text-gray-300">
-                    👤 {session.email}
-                  </div>
-
-                  {/* Dark mode toggle */}
-                  <button
-                    onClick={() => setDarkMode(!darkMode)}
-                    className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  >
-                    {darkMode ? "☀️" : "🌙"}
-                  </button>
-
-                  {/* Logout button */}
-                  <button
-                    onClick={handleLogout}
-                    className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
-                  >
-                    🚪 Logout
-                  </button>
-                </div>
-              </div>
-            </div>
-          </nav>
-
           {/* Main content */}
-          <main>{children}</main>
-
-          {/* License info footer */}
-          <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-              <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
-                <div className="flex items-center space-x-4">
-                  <span>🏢 Tenant: {session.tenantId}</span>
-                  <span>⚡ Features: {session.features.join(", ")}</span>
-                </div>
-                <div>
-                  📅 License expires:{" "}
-                  {new Date(session.expiryDate).toLocaleDateString()}
-                </div>
-              </div>
-            </div>
-          </footer>
+          <main className="h-screen">{children}</main>
         </div>
       </body>
     </html>
