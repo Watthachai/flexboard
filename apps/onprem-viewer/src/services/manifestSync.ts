@@ -136,6 +136,7 @@ class ManifestSyncService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
+      // Use the correct API endpoint to get all dashboards for the tenant
       const response = await fetch(
         `${config.controlPlaneUrl}/api/dashboard-as-code/tenants/${config.tenantId}/dashboards`,
         {
@@ -158,24 +159,24 @@ class ManifestSyncService {
 
       const result = await response.json();
 
-      if (result.success && result.data) {
+      if (result.success && result.data && Array.isArray(result.data)) {
         // Convert API response to manifest format
         const manifests: DashboardManifest[] = result.data.map(
           (dashboard: any) => ({
             schemaVersion: "1.0",
             dashboardId: dashboard.dashboardId,
-            dashboardName: dashboard.name,
+            dashboardName: dashboard.name || dashboard.dashboardName,
             description:
               dashboard.description || "Dashboard from Control Plane",
-            version: 1,
-            targetTeams: ["default"],
-            layout: {
+            version: dashboard.version || 1,
+            targetTeams: dashboard.targetTeams || ["default"],
+            layout: dashboard.layout || {
               type: "grid",
               columns: 12,
               rowHeight: 50,
             },
-            widgets: this.convertWidgetsFromAPI(dashboard.widgets || []),
-            dataSources: [],
+            widgets: dashboard.widgets || [],
+            dataSources: dashboard.dataSources || [],
           })
         );
 
@@ -200,6 +201,99 @@ class ManifestSyncService {
       };
     } catch (error) {
       console.error("❌ Manifest sync failed:", error);
+
+      let errorMessage = "Unknown error";
+      if (error instanceof Error) {
+        if (error.name === "AbortError") {
+          errorMessage = "Connection timeout - Control Plane not responding";
+        } else if (error.message.includes("fetch")) {
+          errorMessage = "Network error - Cannot connect to Control Plane";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  }
+
+  // Method to fetch specific dashboard manifest with license validation
+  async fetchDashboardManifest(dashboardId: string): Promise<{
+    success: boolean;
+    manifest?: DashboardManifest;
+    error?: string;
+  }> {
+    try {
+      const config = await this.getCurrentConfig();
+
+      console.log(`🔄 Fetching manifest for dashboard: ${dashboardId}`);
+      console.log(`Tenant ID: ${config.tenantId}`);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+      // Fetch specific dashboard manifest from control-plane-api
+      const response = await fetch(
+        `${config.controlPlaneUrl}/api/dashboard-as-code/tenants/${config.tenantId}/dashboards/${dashboardId}/manifest`,
+        {
+          headers: {
+            Authorization: `Bearer ${config.licenseKey}`,
+            "Content-Type": "application/json",
+          },
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error(
+            "Access denied - Invalid license or dashboard not authorized"
+          );
+        } else if (response.status === 404) {
+          throw new Error("Dashboard not found");
+        }
+
+        const errorText = await response.text().catch(() => "Unknown error");
+        throw new Error(
+          `Control Plane API error: ${response.status} ${response.statusText} - ${errorText}`
+        );
+      }
+
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        const manifest: DashboardManifest = {
+          schemaVersion: result.data.schemaVersion || "1.0",
+          dashboardId: result.data.dashboardId,
+          dashboardName: result.data.dashboardName || result.data.name,
+          description:
+            result.data.description || "Dashboard from Control Plane",
+          version: result.data.version || 1,
+          targetTeams: result.data.targetTeams || ["default"],
+          layout: result.data.layout || {
+            type: "grid",
+            columns: 12,
+            rowHeight: 50,
+          },
+          widgets: result.data.widgets || [],
+          dataSources: result.data.dataSources || [],
+        };
+
+        console.log(`✅ Successfully fetched manifest for ${dashboardId}`);
+        return { success: true, manifest };
+      }
+
+      return {
+        success: false,
+        error: "No manifest data received from Control Plane",
+      };
+    } catch (error) {
+      console.error(`❌ Failed to fetch manifest for ${dashboardId}:`, error);
 
       let errorMessage = "Unknown error";
       if (error instanceof Error) {
