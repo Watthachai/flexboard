@@ -8,6 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { BarChart3 } from "lucide-react";
 import {
   BaseChartProps,
   DEFAULT_COLORS,
@@ -55,12 +56,14 @@ export default function BarChart({
   if (!data || data.length === 0) {
     return (
       <div
-        className="h-full flex items-center justify-center bg-gray-50 rounded"
+        className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-lg"
         style={{ minHeight: finalHeight }}
       >
         <div className="text-center p-4">
-          <div className="text-2xl mb-2">📊</div>
-          <p className="text-sm text-gray-500">No data available for {title}</p>
+          <BarChart3 className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            No data available for {title}
+          </p>
         </div>
       </div>
     );
@@ -68,17 +71,21 @@ export default function BarChart({
 
   return (
     <div className="h-full flex flex-col" style={{ maxHeight: finalHeight }}>
-      <div className="flex items-center justify-between mb-3 flex-shrink-0">
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <span className="text-lg">📊</span>
-          <h3 className="font-medium text-sm">{title}</h3>
+          <BarChart3 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <h3 className="font-medium text-sm text-gray-900 dark:text-white">
+            {title}
+          </h3>
         </div>
-        <div className="text-xs text-gray-500">{sortedData.length} records</div>
+        <div className="text-xs text-gray-500 dark:text-gray-400">
+          {sortedData.length} records
+        </div>
       </div>
 
       <div
-        style={{ height: finalHeight - 60 }}
-        className="bg-white rounded border"
+        style={{ height: finalHeight - 80 }}
+        className="bg-white dark:bg-gray-900 rounded-lg"
       >
         <ResponsiveContainer width="100%" height="100%">
           <RechartsBarChart
@@ -96,26 +103,17 @@ export default function BarChart({
             />
             <YAxis fontSize={10} stroke="#666" />
             <Tooltip contentStyle={DEFAULT_TOOLTIP_STYLE} />
-            <Bar
-              dataKey="value"
-              fill={colors[0]}
-              radius={[4, 4, 0, 0]}
-              stroke={colors[0]}
-              strokeWidth={1}
-            />
+            <Bar dataKey="value" fill={colors[0]} radius={[4, 4, 0, 0]} />
           </RechartsBarChart>
         </ResponsiveContainer>
       </div>
 
       {/* Summary */}
-      <div className="flex-shrink-0 mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
-        <strong>Total:</strong>{" "}
+      <div className="flex-shrink-0 mt-3 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
+        <span className="font-medium">Total:</span>{" "}
         {sortedData.reduce((sum, item) => sum + item.value, 0).toLocaleString()}{" "}
-        •
-        <strong>
-          {" "}
-          Top {sortedData.length} of {groupedData.length}
-        </strong>
+        • <span className="font-medium">Top {sortedData.length}</span> of{" "}
+        {groupedData.length}
       </div>
     </div>
   );

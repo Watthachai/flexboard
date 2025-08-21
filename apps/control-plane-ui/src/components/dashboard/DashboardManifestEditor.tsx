@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { useDashboardManifestDetail } from "@/hooks/use-dashboard-manifest";
 import { EnhancedWidgetPreview } from "@/components/widget/enhanced-widget-preview";
+import { validateConfigString } from "@flexboard/schema";
 
 interface DashboardManifestEditorProps {
   tenantId: string;
@@ -140,50 +141,19 @@ export default function DashboardManifestEditor({
       return;
     }
 
-    try {
-      const parsed = JSON.parse(content);
+    // Use schema validation instead of basic validation
+    const result = validateConfigString(content);
 
-      // Basic schema validation
-      const errors: string[] = [];
-
-      // Check for schemaVersion (with or without $)
-      if (
-        !parsed["$schemaVersion"] &&
-        !parsed.$schemaVersion &&
-        !parsed.schemaVersion
-      ) {
-        errors.push(
-          "Missing required field: schemaVersion (or $schemaVersion)"
-        );
-      }
-
-      if (!parsed.dashboardId) {
-        errors.push("Missing required field: dashboardId");
-      }
-
-      if (!parsed.dashboardName) {
-        errors.push("Missing required field: dashboardName");
-      }
-
-      if (!Array.isArray(parsed.widgets)) {
-        errors.push("widgets must be an array");
-      }
-
-      if (errors.length > 0) {
-        console.log("Validation failed with errors:", errors);
-        setValidationResult({ isValid: false, errors });
-      } else {
-        console.log("Validation passed successfully");
-        setValidationResult({ isValid: true, errors: [] });
-      }
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Invalid JSON";
-      console.log("JSON parsing failed:", errorMessage);
-      setValidationResult({
-        isValid: false,
-        errors: [`JSON Syntax Error: ${errorMessage}`],
+    if (result.valid) {
+      console.log("Schema validation passed successfully");
+      setValidationResult({ isValid: true, errors: [] });
+    } else {
+      const errors = result.errors.map((error) => {
+        const path = error.path ? `${error.path}: ` : "";
+        return `${path}${error.message}`;
       });
+      console.log("Schema validation failed with errors:", errors);
+      setValidationResult({ isValid: false, errors });
     }
   };
 

@@ -62,7 +62,20 @@ export default function Navbar({
     if (typeof window !== "undefined" && window.localStorage) {
       const savedDarkMode = localStorage.getItem("darkMode");
       if (savedDarkMode !== null) {
-        setDarkMode(JSON.parse(savedDarkMode));
+        const isDark = JSON.parse(savedDarkMode);
+        setDarkMode(isDark);
+
+        // Apply dark mode to document immediately
+        if (isDark) {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
+      } else {
+        // Default to dark mode if no preference saved
+        setDarkMode(true);
+        document.documentElement.classList.add("dark");
+        localStorage.setItem("darkMode", JSON.stringify(true));
       }
     }
 
@@ -73,16 +86,21 @@ export default function Navbar({
     const newDarkMode = !darkMode;
     setDarkMode(newDarkMode);
 
+    console.log("🌙 Dark mode toggled:", { from: darkMode, to: newDarkMode });
+
     // Update document class
     if (newDarkMode) {
       document.documentElement.classList.add("dark");
+      console.log("✅ Added 'dark' class to document");
     } else {
       document.documentElement.classList.remove("dark");
+      console.log("❌ Removed 'dark' class from document");
     }
 
     // Save to localStorage
     if (typeof window !== "undefined" && window.localStorage) {
       localStorage.setItem("darkMode", JSON.stringify(newDarkMode));
+      console.log("💾 Saved dark mode preference:", newDarkMode);
     }
   };
 
@@ -207,11 +225,15 @@ export default function Navbar({
 
           {/* Dark Mode Toggle */}
           <button
-            onClick={toggleDarkMode}
+            onClick={() => {
+              console.log("🔘 Dark mode button clicked!");
+              toggleDarkMode();
+            }}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
           >
             {darkMode ? (
-              <Sun className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              <Sun className="w-5 h-5 text-yellow-500 dark:text-yellow-400" />
             ) : (
               <Moon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
             )}

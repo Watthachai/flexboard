@@ -55,9 +55,9 @@ interface DashboardAsCodeRequest {
 }
 
 export default async function dashboardAsCodeRoutes(fastify: FastifyInstance) {
-  // POST /api/tenants/:tenantId/dashboard-as-code - Create dashboard as code (Frontend compatible)
+  // POST /tenants/:tenantId/dashboard-as-code - Create dashboard as code (Frontend compatible)
   fastify.post(
-    "/api/tenants/:tenantId/dashboard-as-code",
+    "/tenants/:tenantId/dashboard-as-code",
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const { tenantId } = request.params as { tenantId: string };
@@ -113,77 +113,6 @@ export default async function dashboardAsCodeRoutes(fastify: FastifyInstance) {
         });
       } catch (error) {
         console.error("Error creating dashboard as code:", error);
-        return reply.status(500).send({
-          success: false,
-          message: "Internal server error",
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
-      }
-    }
-  );
-
-  // POST /api/dashboard-as-code/tenants/:tenantId/dashboards - Create dashboard as code (Original route)
-  fastify.post(
-    "/tenants/:tenantId/dashboards",
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      try {
-        const { tenantId } = request.params as { tenantId: string };
-        const dashboardConfig = request.body as DashboardAsCodeRequest;
-
-        // Validate required fields
-        if (!dashboardConfig.metadata?.name || !dashboardConfig.spec) {
-          return reply.status(400).send({
-            success: false,
-            message: "Dashboard metadata.name and spec are required",
-          });
-        }
-
-        // Generate slug if not provided
-        const slug =
-          dashboardConfig.metadata.slug ||
-          dashboardConfig.metadata.name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/^-+|-+$/g, "");
-
-        // Create dashboard ID
-        const dashboardId = `${slug}-${Date.now()}`;
-
-        // Prepare dashboard data
-        const dashboardData = {
-          id: dashboardId,
-          tenantId,
-          name: dashboardConfig.metadata.name,
-          slug,
-          description: dashboardConfig.metadata.description || "",
-          status: "active",
-          isPublic: false,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          // Store the complete dashboard-as-code config
-          dashboardAsCode: JSON.stringify(dashboardConfig),
-        };
-
-        // Save to Firestore subcollection
-        const dashboardRef = db
-          .collection("tenants")
-          .doc(tenantId)
-          .collection("dashboards")
-          .doc(dashboardId);
-
-        await dashboardRef.set(dashboardData);
-
-        // Return success response with parsed dashboard-as-code config
-        return reply.send({
-          success: true,
-          data: {
-            ...dashboardData,
-            dashboardAsCode: dashboardConfig, // Return as object
-          },
-          message: "Dashboard created successfully",
-        });
-      } catch (error) {
-        console.error("Error creating dashboard:", error);
         return reply.status(500).send({
           success: false,
           message: "Internal server error",
@@ -377,6 +306,101 @@ export default async function dashboardAsCodeRoutes(fastify: FastifyInstance) {
         return reply.status(500).send({
           success: false,
           message: "Internal server error",
+        });
+      }
+    }
+  );
+
+  // GET /api/dashboard-as-code/tenants/:tenantId/dashboards/:dashboardId/manifest - Get dashboard manifest
+  fastify.get(
+    "/tenants/:tenantId/dashboards/:dashboardId/manifest",
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const { tenantId, dashboardId } = request.params as {
+          tenantId: string;
+          dashboardId: string;
+        };
+
+        // Check for Authorization header (License validation)
+        const authHeader = request.headers.authorization;
+        if (!authHeader || !authHeader.startsWith("Bearer ")) {
+          return reply.status(401).send({
+            success: false,
+            error: "Missing or invalid authorization header",
+          });
+        }
+
+        const licenseKey = authHeader.replace("Bearer ", "");
+
+        // TODO: Add proper license validation here
+        // For now, accept demo-license-key or any license key for testing
+        console.log(`License validation for: ${licenseKey}`);
+
+        // Fetch manifest from config/manifest document
+        const manifestRef = db
+          .collection("tenants")
+          .doc(tenantId)
+          .collection("dashboards")
+          .doc(dashboardId)
+          .collection("config")
+          .doc("manifest");
+
+        // Fetch columns metadata from metadata/columns document
+        const columnsRef = db
+          .collection("tenants")
+          .doc(tenantId)
+          .collection("dashboards")
+          .doc(dashboardId)
+          .collection("metadata")
+          .doc("columns");
+
+        // Fetch both documents in parallel
+        const [manifestDoc, columnsDoc] = await Promise.all([
+          manifestRef.get(),
+          columnsRef.get(),
+        ]);
+
+        if (!manifestDoc.exists) {
+          return reply.status(404).send({
+            success: false,
+            error: "Dashboard manifest not found",
+          });
+        }
+
+        const manifestData = manifestDoc.data();
+        const columnsData = columnsDoc.exists ? columnsDoc.data() : null;
+
+        // Extract data from the nested 'data' field in the manifest document
+        const manifestConfig = manifestData?.data || manifestData;
+
+        // Extract manifest data
+        const manifest = {
+          schemaVersion: manifestConfig?.schemaVersion || "1.0",
+          dashboardId: dashboardId,
+          dashboardName: manifestConfig?.dashboardName || "Dashboard",
+          description: manifestConfig?.description || "Dashboard description",
+          version: manifestConfig?.version || 1,
+          targetTeams: manifestConfig?.targetTeams || ["default"],
+          layout: manifestConfig?.layout || {
+            type: "grid",
+            columns: 12,
+            rowHeight: 50,
+          },
+          widgets: manifestConfig?.widgets || [],
+          dataSources: manifestConfig?.dataSources || [],
+          // Add available columns for file upload validation
+          availableColumns: columnsData?.columns || [],
+        };
+
+        return reply.send({
+          success: true,
+          data: manifest,
+        });
+      } catch (error) {
+        console.error("Error fetching dashboard manifest:", error);
+        return reply.status(500).send({
+          success: false,
+          error: "Failed to fetch dashboard manifest",
         });
       }
     }

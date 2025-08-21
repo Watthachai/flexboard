@@ -150,17 +150,14 @@ export default function NewDashboardPage({
 
       console.log("📊 Dashboard config:", dashboardConfig);
 
-      // ส่งไปยัง dashboard-as-code API
-      const response = await fetch(
-        `/api/tenants/${tenantId}/dashboard-as-code`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(dashboardConfig),
-        }
-      );
+      // ส่งไปยัง dashboard API
+      const response = await fetch(`/api/tenants/${tenantId}/dashboards`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(dashboardConfig),
+      });
 
       console.log("🌐 API Response status:", response.status);
 

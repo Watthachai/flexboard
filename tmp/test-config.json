@@ -1,0 +1,737 @@
+{
+  "schemaVersion": "1.3",
+  "dashboardId": "xml-dashboard",
+  "dashboardName": "XML Dashboard",
+  "description": "Auto-generated from pvs.xml",
+  "version": 3,
+  "theme": {
+    "dark": true,
+    "brandColor": "#7c3aed",
+    "radius": "20px",
+    "statusColors": {
+      "ok": "#10b981",
+      "warning": "#f59e0b",
+      "danger": "#ef4444"
+    }
+  },
+  "formatters": {
+    "qty": {
+      "kind": "number",
+      "precision": 0,
+      "thousandsSep": ","
+    },
+    "date": {
+      "kind": "date",
+      "pattern": "dd MMM yyyy",
+      "timezone": "Asia/Bangkok"
+    },
+    "days": {
+      "kind": "number",
+      "precision": 0,
+      "suffix": " วัน"
+    }
+  },
+  "dataSources": [
+    {
+      "id": "uploaded-xml",
+      "type": "local",
+      "accept": [".csv", ".json", ".xml"],
+      "fieldTypes": {
+        "DataDate": "date",
+        "Corp": "string",
+        "Branch": "string",
+        "Prod": "string",
+        "UnitName": "string",
+        "DocNumber": "string",
+        "DocDate": "date",
+        "QtyFromThisDoc": "number",
+        "AverageCost": "number"
+      },
+      "dateParsing": {
+        "DataDate": "yyyy-MM-dd",
+        "DocDate": "yyyy-MM-dd"
+      }
+    },
+    {
+      "id": "shelf-life-map",
+      "type": "local",
+      "accept": [".csv", ".json", ".xml"],
+      "fieldTypes": {
+        "Prod": "string",
+        "ShelfLifeDays": "number"
+      },
+      "description": "เลือกไฟล์ mapping อายุสินค้า: คอลัมน์ Prod, ShelfLifeDays (จำนวนวัน)"
+    }
+  ],
+  "transforms": [
+    {
+      "expr": "formatDate(DataDate,'yyyy-MM')",
+      "as": "DataMonth"
+    },
+    {
+      "as": "ShelfLifeDaysResolved",
+      "expr": "coalesce(lookupDs('shelf-life-map','Prod','ShelfLifeDays'), 365)"
+    },
+    {
+      "as": "ExpiryDate",
+      "expr": "addDays(DocDate, ShelfLifeDaysResolved)"
+    },
+    {
+      "as": "DaysToExpire",
+      "expr": "dateDiff(DataDate, ExpiryDate, 'days')"
+    },
+    {
+      "as": "NearExpiryFlag",
+      "expr": "iif(DaysToExpire <= settings.nearExpiryDays && DaysToExpire >= 0, 1, 0)"
+    },
+    {
+      "as": "ExpiredFlag",
+      "expr": "iif(DaysToExpire < 0, 1, 0)"
+    }
+  ],
+  "filters": {
+    "global": []
+  },
+  "layout": {
+    "type": "grid",
+    "columns": 12,
+    "rowHeight": 50,
+    "desktop": [
+      {
+        "widgetId": "kpi-near-expiry",
+        "x": 0,
+        "y": 0,
+        "width": 6,
+        "height": 4
+      },
+      {
+        "widgetId": "kpi-expired",
+        "x": 6,
+        "y": 0,
+        "width": 6,
+        "height": 4
+      },
+      {
+        "widgetId": "bar-reason-prod",
+        "x": 0,
+        "y": 4,
+        "width": 6,
+        "height": 10
+      },
+      {
+        "widgetId": "bar-reason-branch",
+        "x": 6,
+        "y": 4,
+        "width": 6,
+        "height": 10
+      },
+      {
+        "widgetId": "action-export",
+        "x": 0,
+        "y": 14,
+        "width": 12,
+        "height": 2
+      },
+      {
+        "widgetId": "table-action",
+        "x": 0,
+        "y": 16,
+        "width": 12,
+        "height": 12
+      },
+      {
+        "widgetId": "line-near-expiry-trend",
+        "x": 0,
+        "y": 28,
+        "width": 12,
+        "height": 10
+      }
+    ],
+    "mobile": [
+      {
+        "widgetId": "kpi-near-expiry"
+      },
+      {
+        "widgetId": "kpi-expired"
+      },
+      {
+        "widgetId": "bar-reason-prod"
+      },
+      {
+        "widgetId": "bar-reason-branch"
+      },
+      {
+        "widgetId": "action-export"
+      },
+      {
+        "widgetId": "table-action"
+      },
+      {
+        "widgetId": "line-near-expiry-trend"
+      }
+    ]
+  },
+  "widgets": [
+    {
+      "id": "kpi-total",
+      "type": "kpi",
+      "title": "รวม QtyFromThisDoc",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "measures": [
+          {
+            "field": "QtyFromThisDoc",
+            "agg": "sum",
+            "as": "TotalQty"
+          }
+        ]
+      },
+      "display": {
+        "valueFormatter": "qty"
+      },
+      "tooltip": {
+        "template": "รวมทั้งหมด: {{ format TotalQty 'qty' }}"
+      }
+    },
+    {
+      "id": "bar-top-cat",
+      "type": "bar",
+      "title": "Top Prod ตาม QtyFromThisDoc",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "dimensions": ["Prod"],
+        "measures": [
+          {
+            "field": "QtyFromThisDoc",
+            "agg": "sum",
+            "as": "SumVal"
+          }
+        ],
+        "sort": [
+          {
+            "field": "SumVal",
+            "dir": "desc"
+          }
+        ],
+        "limit": 10
+      },
+      "encoding": {
+        "x": {
+          "field": "SumVal",
+          "type": "quantitative",
+          "formatter": "qty"
+        },
+        "y": {
+          "field": "Prod",
+          "type": "nominal"
+        }
+      },
+      "tooltip": {
+        "template": "<b>{{ Prod }}</b><br/>ค่า: {{ format SumVal 'qty' }}"
+      },
+      "interactions": {
+        "onBarClick": {
+          "action": "crossFilter",
+          "payload": {
+            "field": "Prod",
+            "from": "datum.Prod"
+          }
+        }
+      }
+    },
+    {
+      "id": "line-trend",
+      "type": "line",
+      "title": "แนวโน้ม QtyFromThisDoc ตามเวลา",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "dimensions": ["DataMonth"],
+        "measures": [
+          {
+            "field": "QtyFromThisDoc",
+            "agg": "sum",
+            "as": "SumQty"
+          }
+        ],
+        "sort": [
+          {
+            "field": "DataMonth",
+            "dir": "asc"
+          }
+        ]
+      },
+      "encoding": {
+        "x": {
+          "field": "DataMonth",
+          "type": "temporal"
+        },
+        "y": {
+          "field": "SumQty",
+          "type": "quantitative",
+          "formatter": "qty"
+        }
+      },
+      "tooltip": {
+        "template": "<b>{{ DataMonth }}</b><br/>ค่า: {{ format SumQty 'qty' }}"
+      }
+    },
+    {
+      "id": "pareto-prod",
+      "type": "pareto",
+      "title": "Pareto: สินค้าที่มีสัดส่วนปริมาณสะสม",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "dimensions": ["Prod"],
+        "measures": [
+          {
+            "field": "QtyFromThisDoc",
+            "agg": "sum",
+            "as": "SumQty"
+          }
+        ],
+        "sort": [
+          {
+            "field": "SumQty",
+            "dir": "desc"
+          }
+        ],
+        "limit": 20
+      },
+      "encoding": {
+        "x": {
+          "field": "Prod",
+          "type": "nominal"
+        },
+        "yLeft": {
+          "field": "SumQty",
+          "type": "quantitative",
+          "formatter": "qty"
+        },
+        "yRight": {
+          "field": "CumPct",
+          "type": "quantitative",
+          "formatter": null
+        }
+      },
+      "tooltip": {
+        "template": "<b>{{ Prod }}</b><br/>ปริมาณ: {{ format SumQty 'qty' }}<br/>สะสม: {{ CumPct }}%"
+      }
+    },
+    {
+      "id": "stacked-branch-prod",
+      "type": "stackedBar",
+      "title": "สัดส่วนปริมาณตามสาขา (ซ้อนตามสินค้า Top 5)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "dimensions": ["Branch", "Prod"],
+        "measures": [
+          {
+            "field": "QtyFromThisDoc",
+            "agg": "sum",
+            "as": "SumQty"
+          }
+        ],
+        "sort": [
+          {
+            "field": "SumQty",
+            "dir": "desc"
+          }
+        ],
+        "topNBy": {
+          "dimension": "Prod",
+          "n": 5,
+          "measure": "SumQty"
+        }
+      },
+      "encoding": {
+        "x": {
+          "field": "Branch",
+          "type": "nominal"
+        },
+        "y": {
+          "field": "SumQty",
+          "type": "quantitative",
+          "formatter": "qty"
+        },
+        "series": {
+          "field": "Prod"
+        }
+      },
+      "tooltip": {
+        "template": "<b>{{ Branch }}</b><br/>{{ Prod }}: {{ format SumQty 'qty' }}"
+      },
+      "interactions": {
+        "onBarSegmentClick": {
+          "action": "crossFilter",
+          "payload": {
+            "field": "Branch",
+            "from": "datum.Branch"
+          }
+        }
+      }
+    },
+    {
+      "id": "table-docs",
+      "type": "table",
+      "title": "รายละเอียดเอกสาร (Drilldown)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "columns": [
+          "DocDate",
+          "DocNumber",
+          "Prod",
+          "QtyFromThisDoc",
+          "UnitName",
+          "Branch",
+          "Corp",
+          "AverageCost"
+        ],
+        "sort": [
+          {
+            "field": "DocDate",
+            "dir": "desc"
+          }
+        ],
+        "filters": [
+          {
+            "field": "Prod",
+            "op": "in",
+            "valueFrom": "crossFilter.Prod",
+            "optional": true
+          },
+          {
+            "field": "Branch",
+            "op": "in",
+            "valueFrom": "crossFilter.Branch",
+            "optional": true
+          }
+        ]
+      },
+      "display": {
+        "columnFormatters": {
+          "DocDate": "date",
+          "QtyFromThisDoc": "qty",
+          "AverageCost": "money"
+        },
+        "pageSize": 25,
+        "stickyHeader": true
+      }
+    },
+    {
+      "id": "kpi-near-expiry",
+      "type": "kpi",
+      "title": "สินค้าใกล้หมดอายุ (≤ 30 วัน)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "measures": [
+          {
+            "field": "NearExpiryFlag",
+            "agg": "sum",
+            "as": "NearExpiry"
+          }
+        ]
+      },
+      "display": {
+        "valueFormatter": "number",
+        "severityRules": [
+          {
+            "if": "NearExpiry > 0",
+            "color": "danger"
+          },
+          {
+            "else": true,
+            "color": "ok"
+          }
+        ]
+      },
+      "tooltip": {
+        "template": "จำนวนสินค้าใกล้หมดอายุ: {{ NearExpiry }} รายการ"
+      }
+    },
+    {
+      "id": "kpi-expired",
+      "type": "kpi",
+      "title": "หมดอายุแล้ว",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "measures": [
+          {
+            "field": "ExpiredFlag",
+            "agg": "sum",
+            "as": "Expired"
+          }
+        ]
+      },
+      "display": {
+        "valueFormatter": "number",
+        "severityRules": [
+          {
+            "if": "Expired > 0",
+            "color": "danger"
+          },
+          {
+            "else": true,
+            "color": "ok"
+          }
+        ]
+      },
+      "tooltip": {
+        "template": "จำนวนหมดอายุแล้ว: {{ Expired }} รายการ"
+      }
+    },
+    {
+      "id": "bar-reason-prod",
+      "type": "bar",
+      "title": "สินค้า/ล็อตที่ใกล้หมดอายุ (เรียงจากวันคงเหลือน้อย)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "dimensions": ["Prod", "DocNumber"],
+        "measures": [
+          {
+            "field": "DaysToExpire",
+            "agg": "min",
+            "as": "MinDays"
+          }
+        ],
+        "sort": [
+          {
+            "field": "MinDays",
+            "dir": "asc"
+          }
+        ],
+        "limit": 15,
+        "filters": [
+          {
+            "field": "DaysToExpire",
+            "op": "between",
+            "value": [0, 60]
+          }
+        ]
+      },
+      "encoding": {
+        "x": {
+          "field": "MinDays",
+          "type": "quantitative",
+          "formatter": "days"
+        },
+        "y": {
+          "field": "Prod",
+          "type": "nominal"
+        },
+        "series": {
+          "field": "DocNumber"
+        }
+      },
+      "tooltip": {
+        "template": "<b>{{ Prod }}</b><br/>ล็อต: {{ DocNumber }}<br/>คงเหลือ: {{ format MinDays 'days' }}"
+      },
+      "interactions": {
+        "onBarClick": {
+          "action": "crossFilter",
+          "payload": {
+            "field": "Prod",
+            "from": "datum.Prod"
+          }
+        }
+      }
+    },
+    {
+      "id": "table-action",
+      "type": "table",
+      "title": "รายการต้องจัดการ (ใกล้หมดอายุ/หมดอายุ)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "columns": [
+          "Prod",
+          "DocNumber",
+          "DocDate",
+          "DataDate",
+          "ExpiryDate",
+          "DaysToExpire",
+          "QtyFromThisDoc",
+          "UnitName",
+          "Branch",
+          "Corp"
+        ],
+        "sort": [
+          {
+            "field": "DaysToExpire",
+            "dir": "asc"
+          }
+        ],
+        "filters": [
+          {
+            "field": "DaysToExpire",
+            "op": "lte",
+            "value": 30
+          }
+        ]
+      },
+      "display": {
+        "columnFormatters": {
+          "DocDate": "date",
+          "DataDate": "date",
+          "ExpiryDate": "date",
+          "DaysToExpire": "days",
+          "QtyFromThisDoc": "qty"
+        },
+        "rowSeverityRules": [
+          {
+            "if": "DaysToExpire < 0",
+            "color": "danger"
+          },
+          {
+            "if": "DaysToExpire <= 7",
+            "color": "danger"
+          },
+          {
+            "if": "DaysToExpire <= 30",
+            "color": "warning"
+          }
+        ],
+        "pageSize": 20,
+        "stickyHeader": true
+      }
+    },
+    {
+      "id": "line-near-expiry-trend",
+      "type": "line",
+      "title": "แนวโน้มจำนวนรายการใกล้หมดอายุต่อเดือน",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "dimensions": ["DataMonth"],
+        "measures": [
+          {
+            "field": "NearExpiryFlag",
+            "agg": "sum",
+            "as": "NearExpiry"
+          }
+        ],
+        "sort": [
+          {
+            "field": "DataMonth",
+            "dir": "asc"
+          }
+        ]
+      },
+      "encoding": {
+        "x": {
+          "field": "DataMonth",
+          "type": "temporal",
+          "format": "month"
+        },
+        "y": {
+          "field": "NearExpiry",
+          "type": "quantitative"
+        },
+        "series": [
+          {
+            "field": "NearExpiry",
+            "label": "Actual"
+          },
+          {
+            "field": "NearExpiry_MA",
+            "label": "3M MA",
+            "style": {
+              "dash": [4, 2]
+            }
+          }
+        ]
+      },
+      "tooltip": {
+        "template": "<b>{{ format DataMonth 'month' }}</b><br/>Actual: {{ NearExpiry }} รายการ<br/>3M MA: {{ NearExpiry_MA }}"
+      },
+      "analytics": {
+        "movingAverage": {
+          "field": "NearExpiry",
+          "window": 3,
+          "as": "NearExpiry_MA"
+        }
+      }
+    },
+    {
+      "id": "bar-reason-branch",
+      "type": "bar",
+      "title": "สาขาที่เสี่ยง (เรียงจากวันคงเหลือน้อยสุด)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "dimensions": ["Branch"],
+        "measures": [
+          {
+            "field": "DaysToExpire",
+            "agg": "min",
+            "as": "MinDays"
+          }
+        ],
+        "sort": [
+          {
+            "field": "MinDays",
+            "dir": "asc"
+          }
+        ],
+        "limit": 10,
+        "filters": [
+          {
+            "field": "DaysToExpire",
+            "op": "between",
+            "value": [
+              0,
+              {
+                "fromSetting": "nearExpiryDays"
+              }
+            ]
+          }
+        ]
+      },
+      "encoding": {
+        "x": {
+          "field": "MinDays",
+          "type": "quantitative",
+          "formatter": "days"
+        },
+        "y": {
+          "field": "Branch",
+          "type": "nominal"
+        }
+      },
+      "tooltip": {
+        "template": "<b>{{ Branch }}</b><br/>คงเหลือ: {{ format MinDays 'days' }}"
+      }
+    },
+    {
+      "id": "action-export",
+      "type": "actionBar",
+      "title": "การกระทำ",
+      "actions": [
+        {
+          "type": "exportCSV",
+          "title": "Export รายการต้องจัดการ",
+          "targetWidgetId": "table-action",
+          "filename": "near-expiry_items.csv"
+        }
+      ]
+    }
+  ],
+  "referenceTables": {
+    "shelfLifeDaysByProd": {
+      "type": "inline",
+      "key": "Prod",
+      "valueField": "ShelfLifeDays",
+      "rows": [
+        {
+          "Prod": "AE001-วัตถุระเบิด (ยี่ห้อA)",
+          "ShelfLifeDays": 365
+        },
+        {
+          "Prod": "PVI-ดินไฟฟ้า ชนิด IED",
+          "ShelfLifeDays": 180
+        }
+      ],
+      "defaultValue": 365
+    }
+  },
+  "settings": {
+    "nearExpiryDays": 45,
+    "criticalDays": 14
+  }
+}

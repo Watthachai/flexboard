@@ -10,6 +10,7 @@
     "check-types": "turbo run check-types",
     "env:setup": "cp .env.development apps/control-plane-api/.env && cp .env.development apps/onprem-agent-api/.env",
     "env:validate": "node scripts/validate-env.js",
+    "validate:configs": "cd packages/schema && pnpm build && cd ../.. && node scripts/validate-configs.js",
     "start:all": "concurrently \"cd apps/control-plane-api && npm run dev\" \"cd apps/onprem-agent-api && npm run dev\" \"cd apps/control-plane-ui && npm run dev\" \"cd apps/onprem-viewer-ui && npm run dev\"",
     "docker:dev": "docker-compose -f docker-compose.dev.yml up --build",
     "docker:prod": "docker-compose up --build"
