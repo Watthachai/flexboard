@@ -19,12 +19,27 @@ export default function RealKPIWidget({
   width = 200,
   height = 150,
 }: KPIWidgetProps) {
-  // Process data according to query config
-  const processedData = processKPIData(data, config.query);
-  const value = processedData?.value || 0;
+  // Use adaptedConfig if available, otherwise fallback to legacy processing
+  let value: number | string = 0;
+  let display: any;
+  let title: string = config.title || "";
+
+  if (config.adaptedConfig) {
+    // Use processed config from chartConfigAdapter
+    value = config.adaptedConfig.value;
+    display = config.adaptedConfig.display;
+    title = config.adaptedConfig.title;
+  } else {
+    // Legacy processing for backward compatibility
+    const processedData = processKPIData(data, config.query);
+    value = processedData?.value || 0;
+    display = config.display;
+  }
 
   // Determine status color based on severity rules
-  const statusColor = getStatusColor(value, config.display?.severityRules);
+  const numericValue =
+    typeof value === "string" ? parseFloat(value) || 0 : value;
+  const statusColor = getStatusColor(numericValue, display?.severityRules);
 
   const colorClasses = {
     danger: {
@@ -59,8 +74,8 @@ export default function RealKPIWidget({
 
   // Create mini chart data for visual interest
   const chartData = [
-    { name: "Value", value: Math.abs(value) },
-    { name: "Rest", value: Math.max(0, 100 - Math.abs(value)) },
+    { name: "Value", value: Math.abs(numericValue) },
+    { name: "Rest", value: Math.max(0, 100 - Math.abs(numericValue)) },
   ];
 
   return (
@@ -79,7 +94,7 @@ export default function RealKPIWidget({
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className={`text-3xl font-bold mb-1 ${colors.text}`}>
-              {formatValue(value, config?.display?.valueFormatter)}
+              {formatValue(numericValue, config?.display?.valueFormatter)}
             </div>
             <div className="text-xs opacity-60 flex items-center justify-center gap-1">
               {getStatusIcon(statusColor)}
@@ -89,7 +104,7 @@ export default function RealKPIWidget({
         </div>
 
         {/* Mini Chart */}
-        {value > 0 && (
+        {numericValue > 0 && (
           <div className="h-8 mt-2">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>

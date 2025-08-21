@@ -29,10 +29,23 @@ export default function RealBarChart({
   width = 400,
   height = 300,
 }: RealBarChartProps) {
-  // Process data according to query config
-  const processedData = processBarData(data, config.query);
+  // Use adaptedConfig if available, otherwise fallback to legacy processing
+  let chartData: any[];
+  let encoding: any;
+  let title: string = config.title || "";
 
-  if (!processedData || processedData.length === 0) {
+  if (config.adaptedConfig) {
+    // Use processed config from chartConfigAdapter
+    chartData = config.adaptedConfig.data;
+    encoding = config.adaptedConfig.encoding || config.encoding || {};
+    title = config.adaptedConfig.title || title;
+  } else {
+    // Legacy processing for backward compatibility
+    chartData = processBarData(data, config.query);
+    encoding = config.encoding || {};
+  }
+
+  if (!chartData || chartData.length === 0) {
     return (
       <div className="w-full h-full bg-white border rounded-lg p-4 flex items-center justify-center">
         <div className="text-center text-gray-500">
@@ -43,11 +56,12 @@ export default function RealBarChart({
     );
   }
 
-  const encoding = config.encoding || {};
   const colorField = encoding.color?.field;
 
-  console.log("🔍 Bar chart encoding:", {
+  console.log("🔍 Bar chart data:", {
     encoding,
+    chartData: chartData.slice(0, 3),
+    totalRows: chartData.length,
     title: config.title,
     xField: encoding.x?.field,
     yField: encoding.y?.field,
@@ -68,7 +82,7 @@ export default function RealBarChart({
       <div style={{ width: "100%", height: height - 80 }}>
         <ResponsiveContainer>
           <BarChart
-            data={processedData}
+            data={chartData}
             margin={{ top: 20, right: 30, bottom: 20, left: 20 }}
           >
             <CartesianGrid strokeDasharray="3 3" />

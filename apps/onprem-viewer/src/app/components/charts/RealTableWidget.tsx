@@ -19,15 +19,44 @@ export default function RealTableWidget({
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  // Process data according to query config
-  const { processedData, columns } = processTableData(
-    data,
-    config.query,
-    sortField,
-    sortOrder
-  );
+  // Use adaptedConfig if available, otherwise fallback to legacy processing
+  let tableData: any[];
+  let columns: Array<{ field: string; title: string; formatter?: string }>;
+  let display: any;
+  let title: string = config.title || "";
 
-  if (!processedData || processedData.length === 0) {
+  if (config.adaptedConfig) {
+    // Use processed config from chartConfigAdapter
+    tableData = config.adaptedConfig.data;
+    // Convert simple column names to column objects
+    const columnNames: string[] = config.adaptedConfig.columns;
+    columns = columnNames.map((col: string) => ({
+      field: col,
+      title: col,
+      formatter: config.adaptedConfig.display?.columnFormatters?.[col],
+    }));
+    display = config.adaptedConfig.display;
+    title = config.adaptedConfig.title;
+  } else {
+    // Legacy processing for backward compatibility
+    const processed = processTableData(
+      data,
+      config.query,
+      sortField,
+      sortOrder
+    );
+    tableData = processed.processedData;
+    // processed.columns returns array of objects, extract field names
+    const columnObjects = processed.columns as Array<{
+      field: string;
+      title: string;
+      formatter?: string;
+    }>;
+    columns = columnObjects; // Use the objects directly
+    display = config.display;
+  }
+
+  if (!tableData || tableData.length === 0) {
     return (
       <div className="w-full h-full bg-white border rounded-lg p-4 flex items-center justify-center">
         <div className="text-center text-gray-500">
@@ -54,7 +83,7 @@ export default function RealTableWidget({
           {config?.title || "Data Table"}
         </h3>
         <p className="text-sm text-gray-500">
-          {processedData.length} rows • {columns.length} columns
+          {tableData.length} rows • {columns.length} columns
         </p>
       </div>
 
@@ -84,7 +113,7 @@ export default function RealTableWidget({
             </tr>
           </thead>
           <tbody>
-            {processedData.map((row, index) => (
+            {tableData.map((row, index) => (
               <tr
                 key={index}
                 className={`border-b hover:bg-gray-50 ${

@@ -1,0 +1,304 @@
+{
+  "targetTeams": [
+    "default"
+  ],
+  "schemaVersion": "1.0",
+  "description": "Inventory Aging Dashboard (Aging Only + KPIs)",
+  "version": 2,
+  "filters": {
+    "global": []
+  },
+  "widgets": [
+    {
+      "id": "kpi-0-90",
+      "type": "kpi",
+      "title": "0–90 Days (Value)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "measures": [
+          {
+            "field": "TotalValueRow",
+            "agg": "sum",
+            "as": "Val0to90"
+          }
+        ],
+        "filters": [
+          {
+            "field": "AgeBucket",
+            "op": "=",
+            "value": "0-90"
+          }
+        ]
+      },
+      "display": {
+        "valueFormatter": "money"
+      }
+    },
+    {
+      "id": "kpi-91-180",
+      "type": "kpi",
+      "title": "91–180 Days (Value)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "measures": [
+          {
+            "field": "TotalValueRow",
+            "agg": "sum",
+            "as": "Val91to180"
+          }
+        ],
+        "filters": [
+          {
+            "field": "AgeBucket",
+            "op": "=",
+            "value": "91-180"
+          }
+        ]
+      },
+      "display": {
+        "valueFormatter": "money"
+      }
+    },
+    {
+      "id": "kpi-181-365",
+      "type": "kpi",
+      "title": "181–365 Days (Value)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "measures": [
+          {
+            "field": "TotalValueRow",
+            "agg": "sum",
+            "as": "Val181to365"
+          }
+        ],
+        "filters": [
+          {
+            "field": "AgeBucket",
+            "op": "=",
+            "value": "181-365"
+          }
+        ]
+      },
+      "display": {
+        "valueFormatter": "money"
+      }
+    },
+    {
+      "id": "kpi-over-365",
+      "type": "kpi",
+      "title": "Over 365 Days (Value)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "measures": [
+          {
+            "field": "TotalValueRow",
+            "agg": "sum",
+            "as": "ValOver365"
+          }
+        ],
+        "filters": [
+          {
+            "field": "AgeBucket",
+            "op": "=",
+            "value": ">365"
+          }
+        ]
+      },
+      "display": {
+        "valueFormatter": "money"
+      }
+    },
+    {
+      "id": "bar-aging",
+      "type": "bar",
+      "title": "ปริมาณตามช่วงอายุ (Qty)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "dimensions": [
+          "AgeBucket"
+        ],
+        "measures": [
+          {
+            "field": "QtyFromThisDoc",
+            "agg": "sum",
+            "as": "SumQty"
+          }
+        ],
+        "sort": [
+          {
+            "field": "AgeBucket",
+            "dir": "asc"
+          }
+        ]
+      },
+      "encoding": {
+        "x": {
+          "field": "SumQty",
+          "type": "quantitative",
+          "formatter": "qty"
+        },
+        "y": {
+          "field": "AgeBucket",
+          "type": "nominal"
+        }
+      },
+      "tooltip": {
+        "template": "<b>{{ AgeBucket }}</b><br/>Qty: {{ format SumQty 'qty' }}"
+      }
+    },
+    {
+      "id": "table-aging-pivot",
+      "type": "table",
+      "title": "Pivot Aging (Qty + Value)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "dimensions": [
+          "Prod",
+          "AgeBucket"
+        ],
+        "measures": [
+          {
+            "field": "QtyFromThisDoc",
+            "agg": "sum",
+            "as": "SumQty"
+          },
+          {
+            "field": "TotalValueRow",
+            "agg": "sum",
+            "as": "SumValue"
+          }
+        ]
+      },
+      "display": {
+        "columnFormatters": {
+          "SumQty": "qty",
+          "SumValue": "money"
+        },
+        "pageSize": 25
+      }
+    }
+  ],
+  "dashboardName": "PVS Inventory Aging Only (With KPIs)",
+  "layout": {
+    "type": "grid",
+    "columns": 12,
+    "rowHeight": 50,
+    "desktop": [
+      {
+        "widgetId": "kpi-0-90",
+        "x": 0,
+        "y": 0,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "widgetId": "kpi-91-180",
+        "x": 3,
+        "y": 0,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "widgetId": "kpi-181-365",
+        "x": 6,
+        "y": 0,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "widgetId": "kpi-over-365",
+        "x": 9,
+        "y": 0,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "widgetId": "bar-aging",
+        "x": 0,
+        "y": 3,
+        "width": 12,
+        "height": 8
+      },
+      {
+        "widgetId": "table-aging-pivot",
+        "x": 0,
+        "y": 11,
+        "width": 12,
+        "height": 12
+      }
+    ],
+    "mobile": [
+      {
+        "widgetId": "kpi-0-90"
+      },
+      {
+        "widgetId": "kpi-91-180"
+      },
+      {
+        "widgetId": "kpi-181-365"
+      },
+      {
+        "widgetId": "kpi-over-365"
+      },
+      {
+        "widgetId": "bar-aging"
+      },
+      {
+        "widgetId": "table-aging-pivot"
+      }
+    ]
+  },
+  "formatters": {
+    "qty": {
+      "kind": "number",
+      "precision": 0,
+      "thousandsSep": ","
+    },
+    "money": {
+      "kind": "number",
+      "precision": 2,
+      "thousandsSep": ",",
+      "prefix": "฿"
+    }
+  },
+  "dashboardId": "pvs-inventory-aging-v2",
+  "dataSources": [
+    {
+      "id": "uploaded-xml",
+      "type": "local",
+      "accept": [
+        ".csv",
+        ".json",
+        ".xml"
+      ],
+      "fieldTypes": {
+        "DataDate": "date",
+        "DocDate": "date",
+        "Prod": "string",
+        "QtyFromThisDoc": "number",
+        "AverageCost": "number",
+        "AgeBucket": "string",
+        "TotalValueRow": "number"
+      },
+      "dateParsing": {
+        "DataDate": "yyyy-MM-dd",
+        "DocDate": "yyyy-MM-dd"
+      },
+      "transforms": [
+        {
+          "as": "DaysAge",
+          "expr": "dateDiff(DataDate, DocDate, 'days')"
+        },
+        {
+          "as": "AgeBucket",
+          "expr": "if(DaysAge<=90,'0-90', if(DaysAge<=180,'91-180', if(DaysAge<=365,'181-365','>365')))"
+        },
+        {
+          "as": "TotalValueRow",
+          "expr": "QtyFromThisDoc * AverageCost"
+        }
+      ]
+    }
+  ]
+}
