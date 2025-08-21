@@ -16,6 +16,7 @@ export interface DashboardManifest {
   };
   widgets: any[];
   dataSources: any[];
+  transforms?: { as: string; expr: string }[];
 }
 
 export interface SyncConfig {
@@ -282,6 +283,7 @@ class ManifestSyncService {
           },
           widgets: result.data.widgets || [],
           dataSources: result.data.dataSources || [],
+          transforms: result.data.transforms || [], // Add transforms mapping
         };
 
         console.log(`✅ Successfully fetched manifest for ${dashboardId}`);

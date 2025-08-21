@@ -205,7 +205,7 @@
       "prefix": "฿"
     }
   },
-  "dashboardId": "inventory-report-simple",
+  "dashboardId": "pvs-inventory-aging-report",
   "theme": {
     "brandColor": "#7c3aed",
     "dark": true,

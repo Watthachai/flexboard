@@ -48,7 +48,14 @@ export class DashboardManifestService {
       const response = await apiClient.get(
         `/api/tenants/${tenantId}/data-status`
       );
-      return response.data;
+      return response.data as {
+        hasData: boolean;
+        fileName?: string;
+        fileSize?: number;
+        lastModified?: string;
+        message: string;
+        uploadPath?: string;
+      };
     } catch (error) {
       console.error("Error checking data status:", error);
       return {
@@ -72,7 +79,12 @@ export class DashboardManifestService {
       const response = await apiClient.get(
         `/api/tenants/${tenantId}/xml-preview`
       );
-      return response.data;
+      return response.data as {
+        products: any[];
+        categories: string[];
+        sampleQuery: string;
+        dataPreview: any;
+      };
     } catch (error) {
       console.error("Error fetching XML sample data:", error);
       return null;

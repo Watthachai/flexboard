@@ -31,6 +31,15 @@ export default function OnPremViewer() {
 
             <div className="flex items-center space-x-4">
               <a
+                href="/expiry"
+                className="px-4 py-2 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center space-x-2"
+                title="Expiry Dashboard with File Upload"
+              >
+                <span>📋</span>
+                <span>Expiry Dashboard</span>
+              </a>
+
+              <a
                 href="/dashboard?tenantId=pvs-co-ltd&dashboardId=test-dashboard"
                 className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 flex items-center space-x-2"
                 title="View Dashboard with File Upload"
@@ -58,7 +67,32 @@ export default function OnPremViewer() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                📊 Dashboard Viewer
+                � Expiry Dashboard
+              </h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-4">
+                Upload CSV/XML/JSON files to track inventory aging and expiry
+                status with automatic transforms and aggregations.
+              </p>
+              <div className="space-y-2">
+                <a
+                  href="/expiry"
+                  className="block w-full px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-center"
+                >
+                  Open Expiry Dashboard
+                </a>
+                <a
+                  href="/sample-inventory.csv"
+                  className="block w-full px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-center text-sm"
+                  download
+                >
+                  📄 Download Sample CSV
+                </a>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                �📊 Dashboard Viewer
               </h3>
               <p className="text-gray-600 dark:text-gray-300 mb-4">
                 Upload data files and view charts according to dashboard
