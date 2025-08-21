@@ -10,6 +10,9 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@flexboard/schema": "workspace:*",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
     "lucide-react": "^0.469.0",
     "mysql2": "^3.14.3",
     "next": "15.3.5",

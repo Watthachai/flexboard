@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DataSet>
+  <Record>
+    <DataDate>2024-08-15</DataDate>
+    <Corp>AE001-ยี่ห้อA</Corp>
+    <Branch>00001-สำนักงานใหญ่</Branch>
+    <Prod>AE001-วัตถุระเบิด (ยี่ห้อA)</Prod>
+    <UnitName>หีบ</UnitName>
+    <DocNumber>IB.66001411</DocNumber>
+    <DocDate>2024-01-15</DocDate>
+    <QtyFromThisDoc>100</QtyFromThisDoc>
+    <AverageCost>1500</AverageCost>
+  </Record>
+  <Record>
+    <DataDate>2024-08-15</DataDate>
+    <Corp>PVI-ดินไฟฟ้า</Corp>
+    <Branch>00001-สำนักงานใหญ่</Branch>
+    <Prod>PVI-ดินไฟฟ้า ชนิด IED</Prod>
+    <UnitName>กิโลกรัม</UnitName>
+    <DocNumber>IB.66001411</DocNumber>
+    <DocDate>2024-02-10</DocDate>
+    <QtyFromThisDoc>50</QtyFromThisDoc>
+    <AverageCost>2500</AverageCost>
+  </Record>
+  <Record>
+    <DataDate>2024-08-15</DataDate>
+    <Corp>AE001-ยี่ห้อA</Corp>
+    <Branch>00002-สาขา สุขุมวิท</Branch>
+    <Prod>AE001-วัตถุระเบิด (ยี่ห้อA)</Prod>
+    <UnitName>หีบ</UnitName>
+    <DocNumber>IB.66001412</DocNumber>
+    <DocDate>2024-03-20</DocDate>
+    <QtyFromThisDoc>75</QtyFromThisDoc>
+    <AverageCost>1500</AverageCost>
+  </Record>
+  <Record>
+    <DataDate>2024-08-15</DataDate>
+    <Corp>PVI-ดินไฟฟ้า</Corp>
+    <Branch>00002-สาขา สุขุมวิท</Branch>
+    <Prod>PVI-ดินไฟฟ้า ชนิด IED</Prod>
+    <UnitName>กิโลกรัม</UnitName>
+    <DocNumber>IB.66001413</DocNumber>
+    <DocDate>2024-04-15</DocDate>
+    <QtyFromThisDoc>30</QtyFromThisDoc>
+    <AverageCost>2500</AverageCost>
+  </Record>
+  <Record>
+    <DataDate>2024-08-15</DataDate>
+    <Corp>AE001-ยี่ห้อA</Corp>
+    <Branch>00003-สาขา รัชดา</Branch>
+    <Prod>AE001-วัตถุระเบิด (ยี่ห้อA)</Prod>
+    <UnitName>หีบ</UnitName>
+    <DocNumber>IB.66001414</DocNumber>
+    <DocDate>2024-05-10</DocDate>
+    <QtyFromThisDoc>120</QtyFromThisDoc>
+    <AverageCost>1500</AverageCost>
+  </Record>
+</DataSet>

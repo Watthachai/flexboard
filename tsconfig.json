@@ -1,0 +1,11 @@
+{
+  "extends": "./packages/typescript-config/base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@flexboard/schema": ["./packages/schema/dist"]
+    }
+  },
+  "include": ["scripts/**/*"],
+  "exclude": ["node_modules", "**/dist"]
+}

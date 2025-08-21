@@ -98,7 +98,7 @@ export class DashboardManifestService {
       if (filters?.team) queryParams.set("team", filters.team);
 
       const response = await apiClient.get<DashboardManifestListItem[]>(
-        `/api/manifest/tenants/${tenantId}/dashboards/manifests?${queryParams.toString()}`
+        `/api/tenants/${tenantId}/dashboards?${queryParams.toString()}`
       );
       return response;
     } catch (error) {
@@ -116,7 +116,7 @@ export class DashboardManifestService {
   ): Promise<ApiResponse<DashboardManifest>> {
     try {
       const response = await apiClient.get<{ manifestContent: string }>(
-        `/api/manifest/tenants/${tenantId}/dashboards/${dashboardId}/manifest`
+        `/api/tenants/${tenantId}/dashboards/${dashboardId}/config/manifest`
       );
 
       if (response.success && response.data?.manifestContent) {
@@ -149,7 +149,7 @@ export class DashboardManifestService {
   ): Promise<ApiResponse<string>> {
     try {
       const response = await apiClient.get<{ manifestContent: string }>(
-        `/api/manifest/tenants/${tenantId}/dashboards/${dashboardId}/manifest`
+        `/api/tenants/${tenantId}/dashboards/${dashboardId}/config/manifest`
       );
 
       if (response.success && response.data?.manifestContent) {
@@ -187,7 +187,7 @@ export class DashboardManifestService {
       }
 
       const response = await apiClient.post<DashboardManifestListItem>(
-        `/api/manifest/tenants/${tenantId}/dashboards/manifests`,
+        `/api/tenants/${tenantId}/dashboards`,
         data
       );
       return response;
@@ -218,7 +218,7 @@ export class DashboardManifestService {
       }
 
       const response = await apiClient.put<DashboardManifestListItem>(
-        `/api/manifest/tenants/${tenantId}/dashboards/${dashboardId}`,
+        `/api/tenants/${tenantId}/dashboards/${dashboardId}/config/manifest`,
         data
       );
       return response;
@@ -237,7 +237,7 @@ export class DashboardManifestService {
   ): Promise<ApiResponse<void>> {
     try {
       const response = await apiClient.delete<void>(
-        `/api/manifest/tenants/${tenantId}/dashboards/${dashboardId}`
+        `/api/tenants/${tenantId}/dashboards/${dashboardId}/config/manifest`
       );
       return response;
     } catch (error) {
@@ -256,7 +256,7 @@ export class DashboardManifestService {
   ): Promise<ApiResponse<void>> {
     try {
       const response = await apiClient.patch<void>(
-        `/api/manifest/tenants/${tenantId}/dashboards/${dashboardId}/status`,
+        `/api/tenants/${tenantId}/dashboards/${dashboardId}/status`,
         { isActive }
       );
       return response;

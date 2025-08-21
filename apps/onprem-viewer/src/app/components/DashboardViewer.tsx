@@ -8,7 +8,21 @@
 import React, { useState, useEffect } from "react";
 import { manifestSyncService } from "../../services/manifestSync";
 import { UniversalXmlParser } from "../../lib/xml-parser";
-import { BarChart, LineChart, PieChart } from "./charts";
+import {
+  BarChart,
+  LineChart,
+  PieChart,
+  ParetoChart,
+  StackedBarChart,
+  ActionBar,
+  KPIWidget,
+} from "./charts";
+import RealKPIWidget from "./charts/RealKPIWidget";
+import RealBarChart from "./charts/RealBarChart";
+import RealLineChart from "./charts/RealLineChart";
+import RealParetoChart from "./charts/RealParetoChart";
+import RealStackedBarChart from "./charts/RealStackedBarChart";
+import RealTableWidget from "./charts/RealTableWidget";
 import DashboardLayout from "./layout/DashboardLayout";
 import StatsCards from "./StatsCards";
 import {
@@ -19,11 +33,87 @@ import {
   generateLayoutDebugInfo,
 } from "./layout/ResponsiveLayoutUtils";
 
+// Layout adapter for new schema format
+const adaptLayoutFromSchema = (config: any) => {
+  // If config has layout.desktop structure (new schema)
+  if (config.layout?.desktop && Array.isArray(config.layout.desktop)) {
+    const layoutMap = new Map();
+
+    // Create layout map from desktop layout
+    config.layout.desktop.forEach((item: any) => {
+      layoutMap.set(item.widgetId, {
+        x: item.x,
+        y: item.y,
+        width: item.width,
+        height: item.height,
+      });
+    });
+
+    // Add layout to widgets and adapt widget structure
+    const adaptedWidgets =
+      config.widgets?.map((widget: any) => {
+        // Extract xAxis and yAxis from new query structure
+        let xAxis = "";
+        let yAxis = "";
+
+        // For chart widgets, try to extract axis info from query/encoding
+        if (widget.encoding) {
+          xAxis = widget.encoding.x?.field || "";
+          yAxis = widget.encoding.y?.field || "";
+        } else if (widget.query?.dimensions) {
+          xAxis = widget.query.dimensions[0] || "";
+          if (widget.query.measures?.[0]) {
+            yAxis =
+              widget.query.measures[0].field ||
+              widget.query.measures[0].as ||
+              "";
+          }
+        }
+
+        // Get layout from map - fix for missing layouts
+        const widgetLayout = layoutMap.get(widget.id);
+
+        console.log(`🔍 Widget "${widget.id}" layout:`, {
+          found: !!widgetLayout,
+          layout: widgetLayout,
+          availableLayoutIds: Array.from(layoutMap.keys()),
+        });
+
+        return {
+          ...widget,
+          layout: widgetLayout || {
+            x: 0,
+            y: 0,
+            width: 6,
+            height: 4,
+          },
+          config: {
+            xAxis,
+            yAxis,
+            dataSource: widget.dataSource || "",
+            tenantId: "",
+          },
+        };
+      }) || [];
+
+    return {
+      ...config,
+      widgets: adaptedWidgets,
+    };
+  }
+
+  // Return as-is if already in old format
+  return config;
+};
+
 interface Widget {
   id: string;
   type: string;
   title: string;
   dataSource: string;
+  query?: any; // Add query for new schema format
+  encoding?: any; // Add encoding for chart config
+  display?: any; // Add display config
   config: {
     xAxis: string;
     yAxis: string;
@@ -137,7 +227,19 @@ export default function DashboardViewer({
           await manifestSyncService.fetchDashboardManifest(dashboardId);
 
         if (result.success && result.manifest) {
-          setManifest(result.manifest);
+          console.log("🔍 Loaded manifest from API:", {
+            dashboardId,
+            schemaVersion: result.manifest.schemaVersion,
+            version: result.manifest.version,
+            dashboardName: result.manifest.dashboardName,
+            widgetCount: result.manifest.widgets?.length,
+            firstWidget: result.manifest.widgets?.[0],
+            rawManifest: result.manifest,
+          });
+
+          // Adapt layout from new schema format to old format
+          const adaptedManifest = adaptLayoutFromSchema(result.manifest);
+          setManifest(adaptedManifest);
         } else {
           throw new Error(
             result.error || "Failed to load dashboard configuration"
@@ -230,6 +332,7 @@ export default function DashboardViewer({
       widgetId: widget.id,
       widgetTitle: widget.title,
       widgetType: widget.type,
+      query: widget.query, // Log the new query structure
       xAxis: widget.config.xAxis,
       yAxis: widget.config.yAxis,
       hasData: uploadedData.length > 0,
@@ -292,16 +395,79 @@ export default function DashboardViewer({
       title: widget.title,
       height: maxChartHeight,
       maxHeight: 400, // Global max height limit
+      config: widget, // Add full widget config
     };
+
+    // For widgets that need raw data
+    const widgetData = uploadedData;
 
     // Render appropriate chart type
     switch (widget.type) {
       case "bar":
-        return <BarChart {...chartProps} />;
+        return (
+          <RealBarChart
+            data={widgetData}
+            config={widget}
+            height={chartProps.height}
+          />
+        );
       case "line":
-        return <LineChart {...chartProps} />;
+        return (
+          <RealLineChart
+            data={widgetData}
+            config={widget}
+            height={chartProps.height}
+          />
+        );
       case "pie":
         return <PieChart {...chartProps} />;
+      case "kpi":
+        return (
+          <RealKPIWidget
+            data={widgetData}
+            config={widget}
+            height={chartProps.height}
+          />
+        );
+      case "pareto":
+        return (
+          <RealParetoChart
+            data={widgetData}
+            config={widget}
+            height={chartProps.height}
+          />
+        );
+      case "stackedBar":
+        return (
+          <RealStackedBarChart
+            data={widgetData}
+            config={widget}
+            height={chartProps.height}
+          />
+        );
+      case "table":
+        return (
+          <RealTableWidget
+            data={widgetData}
+            config={widget}
+            height={chartProps.height}
+          />
+        );
+      case "actionBar":
+        return (
+          <ActionBar actions={(widget as any).actions || []} config={widget} />
+        );
+      default:
+        return (
+          <div className="w-full h-full bg-gray-50 border border-gray-200 rounded-lg p-4 flex items-center justify-center">
+            <div className="text-center text-gray-500">
+              <div className="text-2xl mb-2">🔧</div>
+              <p className="text-sm">
+                Widget type "{widget.type}" not supported yet
+              </p>
+            </div>
+          </div>
+        );
     }
   };
 
@@ -383,16 +549,7 @@ export default function DashboardViewer({
         </div>
 
         {/* Stats Cards - Show when data is uploaded */}
-        {uploadedData.length > 0 && (
-          <StatsCards
-            data={uploadedData}
-            manifest={{
-              ...manifest,
-              availableColumns:
-                uploadedData.length > 0 ? Object.keys(uploadedData[0]) : [],
-            }}
-          />
-        )}
+        {/* Remove this section - let widgets from config handle display instead */}
 
         {/* Show upload prompt if no data */}
         {uploadedData.length === 0 && (
@@ -427,18 +584,13 @@ export default function DashboardViewer({
             return (
               <div
                 key={widget.id}
-                className="bg-white rounded-lg shadow-sm p-4 min-h-0"
+                className="min-h-0"
                 style={getWidgetGridStyles(
                   validatedLayout,
                   manifest.layout.columns
                 )}
               >
-                <div className="h-full flex flex-col">
-                  <h3 className="text-lg font-medium text-gray-900 mb-2 flex-shrink-0">
-                    {widget.title}
-                  </h3>
-                  <div className="flex-1 min-h-0">{renderWidget(widget)}</div>
-                </div>
+                {renderWidget(widget)}
               </div>
             );
           })}
@@ -459,15 +611,11 @@ export default function DashboardViewer({
               return (
                 <div
                   key={`mobile-${mobileWidget.id}`}
-                  className="bg-white rounded-lg shadow-sm p-4"
                   style={{
                     minHeight: `${mobileWidget.mobileHeight}px`,
                   }}
                 >
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    {originalWidget.title}
-                  </h3>
-                  <div className="h-full">{renderWidget(originalWidget)}</div>
+                  {renderWidget(originalWidget)}
                 </div>
               );
             })}

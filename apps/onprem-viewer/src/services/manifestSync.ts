@@ -237,7 +237,7 @@ class ManifestSyncService {
 
       // Fetch specific dashboard manifest from control-plane-api
       const response = await fetch(
-        `${config.controlPlaneUrl}/api/dashboard-as-code/tenants/${config.tenantId}/dashboards/${dashboardId}/manifest`,
+        `${config.controlPlaneUrl}/api/tenants/${config.tenantId}/dashboards/${dashboardId}/manifest`,
         {
           headers: {
             Authorization: `Bearer ${config.licenseKey}`,

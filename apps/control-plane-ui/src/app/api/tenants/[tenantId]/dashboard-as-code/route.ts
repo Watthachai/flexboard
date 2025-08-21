@@ -13,7 +13,7 @@ export async function POST(
     console.log("Dashboard manifest:", JSON.stringify(body, null, 2));
 
     const response = await fetch(
-      `${envConfig.apiUrl}/api/tenants/${tenantId}/dashboard-as-code`,
+      `${envConfig.apiUrl}/api/tenants/${tenantId}/dashboards`,
       {
         method: "POST",
         headers: {
