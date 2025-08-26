@@ -40,6 +40,7 @@ import RealLineChart from "./charts/RealLineChart";
 import RealParetoChart from "./charts/RealParetoChart";
 import RealStackedBarChart from "./charts/RealStackedBarChart";
 import RealTableWidget from "./charts/RealTableWidget";
+import AdvancedTableWidget from "../../components/AdvancedTableWidget";
 import DashboardLayout from "./layout/DashboardLayout";
 import StatsCards from "./StatsCards";
 import {
@@ -160,6 +161,8 @@ interface DashboardManifest {
   widgets: Widget[];
   dataSources: any[];
   availableColumns?: string[]; // Add optional availableColumns
+  transforms?: any[]; // Add optional transforms property
+  formatters?: Record<string, any>; // Add optional formatters property
 }
 
 interface WidgetConfigValidation {
@@ -460,16 +463,30 @@ export default function DashboardViewer({
         const tableConfig = adaptTableWidget(widget, uploadedData, manifest!);
         console.log("📊 Table Config:", tableConfig);
 
-        return (
-          <RealTableWidget
-            data={tableConfig.data}
-            config={{
-              ...widget,
-              adaptedConfig: tableConfig,
-            }}
-            height={maxChartHeight}
-          />
-        );
+        // Use AdvancedTableWidget if columnGroups are defined
+        if (widget.display?.columnGroups?.length) {
+          return (
+            <AdvancedTableWidget
+              data={tableConfig.data}
+              display={widget.display}
+              formatters={manifest?.formatters || {}}
+              height={maxChartHeight}
+              title={widget.title}
+            />
+          );
+        } else {
+          // Fallback to original RealTableWidget
+          return (
+            <RealTableWidget
+              data={tableConfig.data}
+              config={{
+                ...widget,
+                adaptedConfig: tableConfig,
+              }}
+              height={maxChartHeight}
+            />
+          );
+        }
       }
 
       case "pie": {

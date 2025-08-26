@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { VersionDisplay } from "@/components/VersionDisplay";
 import "./globals.css";
 
 interface UserSession {
@@ -445,6 +446,11 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
           >
             {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
           </button>
+        </div>
+
+        {/* Version Display */}
+        <div className="flex justify-center pt-4">
+          <VersionDisplay variant="minimal" />
         </div>
       </div>
     </div>

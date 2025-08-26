@@ -1,5 +1,10 @@
 import dayjs from "dayjs";
 
+const DEBUG = false;
+const dlog = (...args: any[]) => {
+  if (DEBUG) console.log(...args);
+};
+
 type Row = Record<string, any>;
 
 interface ReferenceTable {
@@ -20,33 +25,253 @@ export function coerceTypes(
   fieldTypes?: Record<string, string>,
   dateParsing?: Record<string, string>
 ) {
-  return rows.map((r) => {
+  if (!fieldTypes) return rows;
+  const out = new Array<Row>(rows.length);
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
     const rr: Row = { ...r };
-    if (fieldTypes) {
-      for (const [k, t] of Object.entries(fieldTypes)) {
-        if (rr[k] == null) continue;
-        if (t === "number") rr[k] = Number(rr[k]);
-        if (t === "date") {
-          const fmt = dateParsing?.[k];
-          rr[k] = fmt ? dayjs(String(rr[k])) : dayjs(String(rr[k])); // สมมุติ ISO/yyyy-MM-dd
-        }
+    for (const [k, t] of Object.entries(fieldTypes)) {
+      const v = rr[k];
+      if (v == null) continue;
+      if (t === "number") {
+        rr[k] = typeof v === "number" ? v : Number(v);
+      } else if (t === "date") {
+        // แปลงเป็น epoch number ทีเดียว
+        const s = String(v);
+        const ts = Date.parse(s); // NaN หาก parse ไม่ได้
+        rr[k] = Number.isNaN(ts) ? Date.parse(s) : ts;
       }
     }
-    return rr;
-  });
+    out[i] = rr;
+  }
+  return out;
+}
+
+interface CaseCondition {
+  condition: (row: any, ctx?: EngineContext) => boolean;
+  value: any;
+}
+
+interface CompiledTransform {
+  field: string;
+  type: "computed" | "case" | "dateDiff";
+  evaluator?: (row: any, ctx?: EngineContext) => any;
+  caseConditions?: CaseCondition[];
+  defaultValue?: any;
+}
+
+const expressionCache = new Map<
+  string,
+  (row: any, ctx?: EngineContext) => any
+>();
+
+function compileExpression(
+  expr: string
+): ((row: any, ctx?: EngineContext) => any) | null {
+  if (expressionCache.has(expr)) {
+    return expressionCache.get(expr)!;
+  }
+
+  try {
+    // Pre-compile common patterns
+    if (expr.includes("dateDiff")) {
+      const match = expr.match(
+        /dateDiff\(\s*([^,]+),\s*([^,]+),\s*"([^"]+)"\s*\)/
+      );
+      if (match) {
+        const [, field1, field2, unit] = match;
+        const compiled = (row: any, ctx?: EngineContext) => {
+          const val1 = row[field1.trim()] || Date.now();
+          const val2 = row[field2.trim()] || 0;
+          return dateDiff(val1, val2, unit as any);
+        };
+        expressionCache.set(expr, compiled);
+        return compiled;
+      }
+    }
+
+    // For complex expressions, fallback to runtime evaluation
+    const compiled = (row: any, ctx?: EngineContext) => {
+      const defaultCtx: EngineContext = ctx || {
+        referenceTables: {},
+        settings: {},
+      };
+      return evaluateExpression(expr, row, defaultCtx);
+    };
+    expressionCache.set(expr, compiled);
+    return compiled;
+  } catch (error) {
+    if (DEBUG) console.error(`Failed to compile expression: ${expr}`, error);
+    // ไม่ return null แต่ให้ fallback function แทน
+    const fallback = (row: any, ctx?: EngineContext) => {
+      try {
+        const defaultCtx: EngineContext = ctx || {
+          referenceTables: {},
+          settings: {},
+        };
+        return evaluateExpression(expr, row, defaultCtx);
+      } catch (e) {
+        if (DEBUG) console.error(`Fallback expression failed: ${expr}`, e);
+        return null;
+      }
+    };
+    expressionCache.set(expr, fallback);
+    return fallback;
+  }
+}
+
+const transformCache = new Map<string, CompiledTransform>();
+
+function compileTransform(transform: any): CompiledTransform {
+  const cacheKey = JSON.stringify(transform);
+  if (transformCache.has(cacheKey)) {
+    return transformCache.get(cacheKey)!;
+  }
+
+  let compiled: CompiledTransform;
+
+  if (transform.field && transform.expression) {
+    if (transform.expression.includes("dateDiff")) {
+      // Parse dateDiff expression - format: dateDiff(field1, field2, "unit")
+      const match = transform.expression.match(
+        /dateDiff\(\s*([^,]+),\s*([^,]+),\s*"([^"]+)"\s*\)/
+      );
+      if (match) {
+        const [, field1, field2, unit] = match;
+        compiled = {
+          field: transform.field,
+          type: "dateDiff",
+          evaluator: (row: any) => {
+            const val1 = row[field1.trim()] || Date.now();
+            const val2 = row[field2.trim()] || 0;
+            return dateDiff(val1, val2, unit as any);
+          },
+        };
+      } else {
+        compiled = {
+          field: transform.field,
+          type: "computed",
+          evaluator: (row: any, ctx?: EngineContext) => {
+            const defaultCtx: EngineContext = ctx || {
+              referenceTables: {},
+              settings: {},
+            };
+            return evaluateExpression(transform.expression, row, defaultCtx);
+          },
+        };
+      }
+    } else {
+      compiled = {
+        field: transform.field,
+        type: "computed",
+        evaluator: (row: any, ctx?: EngineContext) => {
+          const defaultCtx: EngineContext = ctx || {
+            referenceTables: {},
+            settings: {},
+          };
+          return evaluateExpression(transform.expression, row, defaultCtx);
+        },
+      };
+    }
+  } else if (transform.field && transform.case) {
+    const caseConditions: CaseCondition[] = [];
+    for (const caseItem of transform.case) {
+      const condition = (row: any, ctx?: EngineContext) => {
+        const defaultCtx: EngineContext = ctx || {
+          referenceTables: {},
+          settings: {},
+        };
+        return evaluateExpression(caseItem.when, row, defaultCtx);
+      };
+      caseConditions.push({
+        condition,
+        value: caseItem.then,
+      });
+    }
+
+    compiled = {
+      field: transform.field,
+      type: "case",
+      caseConditions,
+      defaultValue: transform.default || null,
+    };
+  } else {
+    compiled = {
+      field: transform.field,
+      type: "computed",
+      evaluator: (row: any) => null,
+    };
+  }
+
+  transformCache.set(cacheKey, compiled);
+  return compiled;
+}
+
+function applyCompiledTransform(
+  row: any,
+  compiled: CompiledTransform,
+  ctx?: EngineContext
+): any {
+  try {
+    const defaultCtx: EngineContext = ctx || {
+      referenceTables: {},
+      settings: {},
+    };
+
+    if (compiled.type === "case" && compiled.caseConditions) {
+      for (const caseCondition of compiled.caseConditions) {
+        if (caseCondition.condition(row, defaultCtx)) {
+          return caseCondition.value;
+        }
+      }
+      return compiled.defaultValue;
+    } else if (compiled.evaluator) {
+      return compiled.evaluator(row, defaultCtx);
+    }
+    return null;
+  } catch (error) {
+    if (DEBUG)
+      console.error(`Transform error for field ${compiled.field}:`, error);
+    return null;
+  }
 }
 
 // --- Helper functions for expression evaluation ---
+function iif(condition: any, trueValue: any, falseValue: any = 0): any {
+  return condition ? trueValue : falseValue;
+}
+
+function dateDiffEpoch(
+  aMs: number,
+  bMs: number,
+  unit: "days" | "months" | "years"
+) {
+  const diffMs = aMs - bMs;
+  if (unit === "days") return Math.floor(diffMs / 86400000);
+  if (unit === "months") return Math.floor(diffMs / 2629800000); // ~30.44d
+  if (unit === "years") return Math.floor(diffMs / 31557600000); // ~365.25d
+  return 0;
+}
+
 function dateDiff(a: any, b: any, unit: "days" | "months" | "years") {
-  console.log("🔢 dateDiff called:", {
+  dlog("🔢 dateDiff called:", {
     a,
     b,
     unit,
     aType: typeof a,
     bType: typeof b,
   });
+
+  // If already epoch numbers, use fast calculation
+  if (typeof a === "number" && typeof b === "number") {
+    const result = dateDiffEpoch(a, b, unit);
+    dlog("🔢 dateDiff result (fast):", result);
+    return result;
+  }
+
+  // Fallback to dayjs for non-numeric values
   const result = dayjs(a).diff(dayjs(b), unit);
-  console.log("🔢 dateDiff result:", result);
+  dlog("🔢 dateDiff result (dayjs):", result);
   return result;
 }
 
@@ -79,10 +304,6 @@ function coalesce(...values: any[]): any {
   return values.find((v) => v != null) ?? null;
 }
 
-function iif(condition: boolean, trueValue: any, falseValue: any): any {
-  return condition ? trueValue : falseValue;
-}
-
 // Enhanced expression parser
 function evaluateExpression(
   expr: string,
@@ -94,27 +315,27 @@ function evaluateExpression(
     const caseMatch = expr.match(/case\s*\(\s*(.*)\s*\)/);
     if (caseMatch) {
       const args = caseMatch[1].split(",").map((s) => s.trim());
-      console.log("case expression args:", args);
+      dlog("case expression args:", args);
 
       // Process pairs of condition, value
       for (let i = 0; i < args.length - 1; i += 2) {
         const condition = args[i];
         const value = args[i + 1];
 
-        console.log(`evaluating case condition: "${condition}"`);
+        dlog(`evaluating case condition: "${condition}"`);
 
         // Special case for 'true' condition (default case)
         if (condition === "true") {
-          console.log("case default value:", value.replace(/'/g, ""));
+          dlog("case default value:", value.replace(/'/g, ""));
           return value.replace(/'/g, ""); // Remove quotes
         }
 
         // Evaluate the condition
         const conditionResult = evaluateCondition(condition, row, context);
-        console.log("case condition result:", conditionResult);
+        dlog("case condition result:", conditionResult);
 
         if (conditionResult) {
-          console.log("case value:", value.replace(/'/g, ""));
+          dlog("case value:", value.replace(/'/g, ""));
           return value.replace(/'/g, ""); // Remove quotes
         }
       }
@@ -178,7 +399,7 @@ function evaluateExpression(
       const dateA = row[dateDiffMatch[1].trim()];
       const dateB = row[dateDiffMatch[2].trim()];
       const unit = dateDiffMatch[3] as "days" | "months" | "years";
-      console.log("🔍 dateDiff match found:", {
+      dlog("🔍 dateDiff match found:", {
         expr,
         field1: dateDiffMatch[1].trim(),
         field2: dateDiffMatch[2].trim(),
@@ -219,7 +440,7 @@ function evaluateCondition(
   context: EngineContext
 ): boolean {
   try {
-    console.log(`evaluateCondition: "${condExpr}"`);
+    dlog(`evaluateCondition: "${condExpr}"`);
 
     // Handle settings references
     if (condExpr.includes("settings.")) {
@@ -231,9 +452,7 @@ function evaluateCondition(
         const operator = settingsMatch[2].trim();
         const settingValue = context.settings?.[settingsMatch[3]];
 
-        console.log(
-          `settings comparison: ${leftValue} ${operator} ${settingValue}`
-        );
+        dlog(`settings comparison: ${leftValue} ${operator} ${settingValue}`);
 
         switch (operator) {
           case "<=":
@@ -269,7 +488,7 @@ function evaluateCondition(
       const operator = comparisonMatch[2].trim();
       const rightValue = evaluateValue(comparisonMatch[3].trim(), row, context);
 
-      console.log(`comparison: ${leftValue} ${operator} ${rightValue}`);
+      dlog(`comparison: ${leftValue} ${operator} ${rightValue}`);
 
       switch (operator) {
         case "<=":
@@ -287,7 +506,7 @@ function evaluateCondition(
       }
     }
 
-    console.log(`condition evaluation failed for: "${condExpr}"`);
+    dlog(`condition evaluation failed for: "${condExpr}"`);
     return false;
   } catch (error) {
     console.warn(`Error evaluating condition "${condExpr}":`, error);
@@ -301,22 +520,22 @@ function evaluateValue(
   context: EngineContext
 ): any {
   const trimmed = valueExpr.trim();
-  console.log(`evaluateValue: "${trimmed}"`);
+  dlog(`evaluateValue: "${trimmed}"`);
 
   // Handle numbers
   if (/^\d+(\.\d+)?$/.test(trimmed)) {
-    console.log(`evaluateValue number: ${Number(trimmed)}`);
+    dlog(`evaluateValue number: ${Number(trimmed)}`);
     return Number(trimmed);
   }
 
   // Handle field references
   if (row.hasOwnProperty(trimmed)) {
-    console.log(`evaluateValue field "${trimmed}": ${row[trimmed]}`);
+    dlog(`evaluateValue field "${trimmed}": ${row[trimmed]}`);
     return row[trimmed];
   }
 
   // Default return as is
-  console.log(`evaluateValue default: "${trimmed}"`);
+  dlog(`evaluateValue default: "${trimmed}"`);
   return trimmed;
 }
 
@@ -325,7 +544,7 @@ export function applyTransforms(
   transforms?: { as: string; expr: string }[],
   context?: EngineContext
 ) {
-  console.log("🔄 applyTransforms called:", {
+  dlog("🔄 applyTransforms called:", {
     rowsLength: rows.length,
     transformsLength: transforms?.length || 0,
     transforms: transforms,
@@ -333,35 +552,46 @@ export function applyTransforms(
   });
 
   if (!transforms?.length) {
-    console.log("⚠️ No transforms to apply");
+    dlog("⚠️ No transforms to apply");
     return rows;
   }
+
+  // Pre-compile all transforms
+  const compiledTransforms = transforms.map((t) => ({
+    as: t.as,
+    compiledExpr: compileExpression(t.expr),
+  }));
 
   const ctx = context || { referenceTables: {}, settings: {} };
 
   const result = rows.map((r, index) => {
     const rr = { ...r };
-    console.log(`🔄 Processing row ${index}:`, {
-      originalKeys: Object.keys(r),
-      originalData: index < 2 ? r : "...",
-    });
-
-    for (const t of transforms) {
-      console.log(`🔧 Applying transform: ${t.as} = ${t.expr}`);
-      const value = evaluateExpression(t.expr, rr, ctx);
-      console.log(`🔧 Transform result: ${t.as} = ${value}`);
-      rr[t.as] = value;
+    if (DEBUG && index < 2) {
+      dlog(`🔄 Processing row ${index}:`, {
+        originalKeys: Object.keys(r),
+        originalData: r,
+      });
     }
 
-    console.log(`🔄 Row ${index} after transforms:`, {
-      newKeys: Object.keys(rr),
-      newData: index < 2 ? rr : "...",
-    });
+    for (const t of compiledTransforms) {
+      const value = t.compiledExpr ? t.compiledExpr(rr, ctx) : null;
+      rr[t.as] = value;
+      if (DEBUG && index < 2) {
+        dlog(`🔧 Transform result: ${t.as} = ${value}`);
+      }
+    }
+
+    if (DEBUG && index < 2) {
+      dlog(`🔄 Row ${index} after transforms:`, {
+        newKeys: Object.keys(rr),
+        newData: rr,
+      });
+    }
 
     return rr;
   });
 
-  console.log("✅ applyTransforms completed:", {
+  dlog("✅ applyTransforms completed:", {
     resultLength: result.length,
     firstResultKeys: result.length > 0 ? Object.keys(result[0]) : [],
   });
@@ -389,23 +619,134 @@ export function groupAgg(
   measures: any[]
 ) {
   if (!measures?.length) return [];
+
   if (!dimensions?.length) {
     return [aggBucket({}, rows, measures)];
   }
-  const keyOf = (r: Row) => dimensions.map((d) => String(r[d])).join("¬");
-  const buckets = new Map<string, Row[]>();
+
+  // Single-pass optimized grouping with pre-calculated aggregation state
+  const buckets = new Map<
+    string,
+    {
+      keys: string[];
+      base: Row;
+      counts: number[];
+      sums: number[];
+      mins: number[];
+      maxs: number[];
+      distinctSets: Set<any>[];
+    }
+  >();
+
+  // Pre-calculate measure indices for performance
+  const measureIndices = measures.map((m, idx) => ({
+    idx,
+    field: m.field,
+    expr: m.expr, // Support expressions
+    as: m.as || (m.field ? `${m.agg}_${m.field}` : `expr_${idx}`),
+    agg: m.agg,
+  }));
+
+  // Single pass through data
   for (const r of rows) {
-    const k = keyOf(r);
-    if (!buckets.has(k)) buckets.set(k, []);
-    buckets.get(k)!.push(r);
+    const keys = dimensions.map((d) => String(r[d]));
+    const keyStr = keys.join("¬");
+
+    let bucket = buckets.get(keyStr);
+    if (!bucket) {
+      const base: Row = {};
+      dimensions.forEach((d, i) => (base[d] = keys[i]));
+
+      bucket = {
+        keys,
+        base,
+        counts: new Array(measureIndices.length).fill(0),
+        sums: new Array(measureIndices.length).fill(0),
+        mins: new Array(measureIndices.length).fill(Infinity),
+        maxs: new Array(measureIndices.length).fill(-Infinity),
+        distinctSets: measureIndices.map(() => new Set()),
+      };
+      buckets.set(keyStr, bucket);
+    }
+
+    // Update aggregations in single pass
+    for (const { idx, field, expr, agg } of measureIndices) {
+      let value: number;
+
+      if (expr) {
+        // Handle expressions like sum(iif(AgeBucket='0-90', QtyFromThisDoc, 0))
+        if (expr.startsWith("sum(iif(")) {
+          // Extract the iif condition and evaluate it for this row
+          const iifMatch = expr.match(
+            /sum\(iif\(([^,]+),\s*([^,]+),\s*([^)]+)\)\)/
+          );
+          if (iifMatch) {
+            const condition = iifMatch[1].trim();
+            const trueValue = iifMatch[2].trim();
+            const falseValue = iifMatch[3].trim();
+
+            // Evaluate condition (e.g., AgeBucket='0-90')
+            const conditionResult = evaluateCondition(condition, r, {
+              referenceTables: {},
+              settings: {},
+            });
+
+            if (conditionResult) {
+              value = Number(r[trueValue] || 0);
+            } else {
+              value = Number(falseValue || 0);
+            }
+          } else {
+            value = 0;
+          }
+        } else {
+          // Handle other expressions
+          const exprResult = evaluateExpression(expr, r, {
+            referenceTables: {},
+            settings: {},
+          });
+          value = Number(exprResult || 0);
+        }
+      } else {
+        value = Number(r[field] || 0);
+      }
+
+      bucket.counts[idx]++;
+      bucket.sums[idx] += value;
+      bucket.mins[idx] = Math.min(bucket.mins[idx], value);
+      bucket.maxs[idx] = Math.max(bucket.maxs[idx], value);
+      if (agg === "countDistinct") {
+        bucket.distinctSets[idx].add(expr ? value : r[field]);
+      }
+    }
   }
+
+  // Convert buckets to final result
   const out: Row[] = [];
-  for (const [k, arr] of buckets.entries()) {
-    const keys = k.split("¬");
-    const base: Row = {};
-    dimensions.forEach((d, i) => (base[d] = keys[i]));
-    out.push(aggBucket(base, arr, measures));
+  for (const bucket of buckets.values()) {
+    const row: Row = { ...bucket.base };
+
+    for (const { idx, as, agg } of measureIndices) {
+      if (agg === "sum") {
+        row[as] = bucket.sums[idx];
+      } else if (agg === "count") {
+        row[as] = bucket.counts[idx];
+      } else if (agg === "countDistinct") {
+        row[as] = bucket.distinctSets[idx].size;
+      } else if (agg === "min") {
+        row[as] = bucket.mins[idx] === Infinity ? 0 : bucket.mins[idx];
+      } else if (agg === "max") {
+        row[as] = bucket.maxs[idx] === -Infinity ? 0 : bucket.maxs[idx];
+      } else if (agg === "avg") {
+        row[as] = bucket.counts[idx]
+          ? bucket.sums[idx] / bucket.counts[idx]
+          : 0;
+      }
+    }
+
+    out.push(row);
   }
+
   return out;
 }
 
@@ -466,7 +807,7 @@ export function processDataWithManifest(
   },
   dataSourceId: string = "uploaded-xml"
 ) {
-  console.log("🏭 processDataWithManifest called:", {
+  dlog("🏭 processDataWithManifest called:", {
     rowsLength: rows.length,
     dataSourceId,
     manifestKeys: Object.keys(manifest || {}),
@@ -478,7 +819,7 @@ export function processDataWithManifest(
 
   // 1. Find data source config
   const dataSource = manifest.dataSources?.find((ds) => ds.id === dataSourceId);
-  console.log("🏭 Data source config:", dataSource);
+  dlog("🏭 Data source config:", dataSource);
 
   // 2. Apply type coercion
   let processedData = coerceTypes(
@@ -486,7 +827,7 @@ export function processDataWithManifest(
     dataSource?.fieldTypes,
     dataSource?.dateParsing
   );
-  console.log("🏭 After type coercion:", {
+  dlog("🏭 After type coercion:", {
     length: processedData.length,
     firstRowKeys: processedData.length > 0 ? Object.keys(processedData[0]) : [],
     firstRowSample: processedData.length > 0 ? processedData[0] : null,
@@ -498,14 +839,14 @@ export function processDataWithManifest(
     settings: manifest.settings || {},
   };
 
-  console.log("🏭 About to call applyTransforms with:", {
+  dlog("🏭 About to call applyTransforms with:", {
     transforms: manifest.transforms,
     context,
   });
 
   processedData = applyTransforms(processedData, manifest.transforms, context);
 
-  console.log("🏭 processDataWithManifest completed:", {
+  dlog("🏭 processDataWithManifest completed:", {
     resultLength: processedData.length,
     resultKeys: processedData.length > 0 ? Object.keys(processedData[0]) : [],
   });

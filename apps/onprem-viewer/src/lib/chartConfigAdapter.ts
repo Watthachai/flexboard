@@ -118,30 +118,147 @@ export function processWidgetData(
       );
     }
   } else {
-    // Fallback: Add PVS-specific transforms if dashboard is PVS and no transforms in manifest
-    if (
-      manifest &&
-      manifest.dashboardId === "pvs-co-ltd-inventory-aging-report"
-    ) {
-      console.log("🔄 Applying fallback PVS transforms...");
-      const pvsTransforms = [
-        {
-          as: "DaysAge",
-          expr: "dateDiff(DataDate, DocDate, 'days')",
-        },
-        {
-          as: "AgeBucket",
-          expr: "case( DaysAge <= 90, '0-90', DaysAge <= 180, '91-180', DaysAge <= 365, '181-365', true, '>365' )",
-        },
-        {
-          as: "TotalValueRow",
-          expr: "QtyFromThisDoc * AverageCost",
-        },
-      ];
+    // Fallback: Check if dashboard config has transforms but manifest doesn't
+    console.log("🔍 Checking localStorage for dashboard config...");
+
+    // Check all localStorage keys
+    const localStorageKeys = Object.keys(localStorage);
+    console.log("🗄️ All localStorage keys:", localStorageKeys);
+
+    // Try multiple possible keys for dashboard config
+    const possibleKeys = [
+      "dashboardConfig",
+      "selectedDashboard",
+      "currentDashboard",
+      "onprem-manifest-config",
+    ];
+    let configTransforms = null;
+    let configSource = null;
+
+    for (const key of possibleKeys) {
+      const configData = localStorage.getItem(key);
+      if (configData) {
+        console.log(
+          `📋 Found config in localStorage.${key}:`,
+          configData.substring(0, 200) + "..."
+        );
+        try {
+          const parsedConfig = JSON.parse(configData);
+          console.log(`🔍 Parsed config structure for ${key}:`, {
+            hasTransforms: !!parsedConfig.transforms,
+            transformsLength: parsedConfig.transforms?.length || 0,
+            transformsPreview: parsedConfig.transforms?.slice(0, 2),
+            topLevelKeys: Object.keys(parsedConfig),
+            hasData: !!parsedConfig.data,
+            dataKeys: parsedConfig.data ? Object.keys(parsedConfig.data) : null,
+          });
+
+          // Check if transforms exist in top level
+          if (parsedConfig.transforms && parsedConfig.transforms.length > 0) {
+            configTransforms = parsedConfig.transforms;
+            configSource = key;
+            break;
+          }
+
+          // Check if transforms exist in data.transforms (for API response format)
+          if (
+            parsedConfig.data &&
+            parsedConfig.data.transforms &&
+            parsedConfig.data.transforms.length > 0
+          ) {
+            configTransforms = parsedConfig.data.transforms;
+            configSource = key + ".data";
+            break;
+          }
+        } catch (error) {
+          console.warn(`Failed to parse ${key}:`, error);
+        }
+      }
+    }
+
+    // If no transforms found in localStorage, try to read from local file
+    if (!configTransforms) {
+      console.log(
+        "🔍 No transforms in localStorage, checking local config file..."
+      );
+
+      // Try to get the config from the last used file path
+      const lastUsedFilePath = localStorage.getItem("lastUsedFilePath");
+      console.log("📁 Last used file path:", lastUsedFilePath);
+
+      if (lastUsedFilePath) {
+        try {
+          // For client-side, we need to rely on the dashboard config that was loaded
+          // Let's check if there's a way to get the original config
+          const filePathHistory = localStorage.getItem("filePathHistory");
+          if (filePathHistory) {
+            console.log("📚 File path history:", filePathHistory);
+            // This might contain information about the loaded config
+          }
+        } catch (error) {
+          console.warn("Failed to read local config file:", error);
+        }
+      }
+    }
+
+    // Final fallback: Generic transforms based on common patterns
+    if (!configTransforms) {
+      console.log(
+        "🔄 Using generic fallback transforms for dashboard:",
+        manifest?.dashboardId
+      );
+
+      // Check if the data has date fields that could be used for aging calculations
+      if (rawData.length > 0) {
+        const sampleRow = rawData[0];
+        const hasDataDate = "DataDate" in sampleRow || "data_date" in sampleRow;
+        const hasDocDate = "DocDate" in sampleRow || "doc_date" in sampleRow;
+        const hasQty =
+          "QtyFromThisDoc" in sampleRow || "qty_from_this_doc" in sampleRow;
+        const hasCost =
+          "AverageCost" in sampleRow || "average_cost" in sampleRow;
+
+        console.log("� Data pattern analysis:", {
+          hasDataDate,
+          hasDocDate,
+          hasQty,
+          hasCost,
+          sampleKeys: Object.keys(sampleRow),
+        });
+
+        // If it looks like inventory aging data, apply appropriate transforms
+        if (hasDataDate && hasDocDate) {
+          configTransforms = [
+            { as: "DaysAge", expr: "dateDiff(DataDate, DocDate, 'days')" },
+            {
+              as: "AgeBucket",
+              expr: "case( DaysAge <= 90, '0-90', DaysAge <= 180, '91-180', DaysAge <= 365, '181-365', true, '>365' )",
+            },
+          ];
+
+          // Add value calculation if quantity and cost are available
+          if (hasQty && hasCost) {
+            configTransforms.push({
+              as: "TotalValueRow",
+              expr: "QtyFromThisDoc * AverageCost",
+            });
+          }
+
+          configSource = "auto-detected-aging";
+        }
+      }
+    }
+
+    if (configTransforms && configTransforms.length > 0) {
+      console.log("🔄 Applying fallback transforms from config...", {
+        source: configSource,
+        transformsCount: configTransforms.length,
+        transforms: configTransforms.map((t) => `${t.as} = ${t.expr}`),
+      });
 
       const manifestWithTransforms = {
         ...manifest,
-        transforms: pvsTransforms,
+        transforms: configTransforms,
       };
 
       processedData = processDataWithManifest(
@@ -154,25 +271,22 @@ export function processWidgetData(
         sampleTransformed: processedData.slice(0, 2),
       });
 
-      // Debug: Check AgeBucket values
+      // Debug: Check computed field values
       if (processedData.length > 0) {
-        const ageBucketValues = processedData
-          .map((row) => row.AgeBucket)
-          .filter((value, index, self) => self.indexOf(value) === index)
-          .sort();
-        console.log("🎯 AgeBucket unique values:", ageBucketValues);
-        console.log(
-          "🎯 Sample AgeBucket data:",
-          processedData.slice(0, 5).map((row) => ({
-            DataDate: row.DataDate,
-            DocDate: row.DocDate,
-            DaysAge: row.DaysAge,
-            AgeBucket: row.AgeBucket,
-          }))
-        );
+        const computedFields = configTransforms.map((t) => t.as);
+        console.log("🎯 Computed fields created:", computedFields);
+
+        // Sample the first few rows for each computed field
+        computedFields.forEach((field) => {
+          const values = processedData
+            .slice(0, 5)
+            .map((row) => row[field])
+            .filter((v) => v !== undefined && v !== null);
+          console.log(`🎯 Sample ${field} values:`, values);
+        });
       }
     } else {
-      console.log("⚠️ No transforms found in manifest");
+      console.log("⚠️ No transforms found in manifest or config");
     }
   }
 
