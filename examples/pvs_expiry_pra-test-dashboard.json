@@ -1,0 +1,476 @@
+{
+  "schemaVersion": "1.3",
+  "dashboardId": "pvs-co-ltd-inventory-aging-report",
+  "dashboardName": "PVS Expiry Monitor (Problem→Reason→Action)",
+  "description": "เฝ้าระวังสินค้าใกล้หมดอายุด้วยแนวคิด Problem→Reason→Action",
+  "version": 1,
+  "theme": {
+    "dark": true,
+    "brandColor": "#7c3aed",
+    "radius": "20px",
+    "statusColors": {
+      "ok": "#10b981",
+      "warning": "#f59e0b",
+      "danger": "#ef4444"
+    }
+  },
+  "settings": {
+    "nearExpiryDays": 45,
+    "criticalDays": 14
+  },
+  "formatters": {
+    "date": {
+      "kind": "date",
+      "timezone": "Asia/Bangkok",
+      "pattern": "dd MMM yyyy"
+    },
+    "qty": {
+      "kind": "number",
+      "precision": 0,
+      "thousandsSep": ","
+    },
+    "money": {
+      "kind": "number",
+      "precision": 2,
+      "thousandsSep": ",",
+      "prefix": "฿"
+    },
+    "days": {
+      "kind": "number",
+      "precision": 0
+    }
+  },
+  "dataSources": [
+    {
+      "id": "uploaded-xml",
+      "type": "local",
+      "accept": [".xml", ".csv", ".json"],
+      "fieldTypes": {
+        "DataDate": "date",
+        "Corp": "string",
+        "Branch": "string",
+        "Prod": "string",
+        "UnitName": "string",
+        "DocNumber": "string",
+        "DocDate": "date",
+        "QtyFromThisDoc": "number",
+        "AverageCost": "number"
+      },
+      "dateParsing": {
+        "DataDate": "yyyy-MM-dd",
+        "DocDate": "yyyy-MM-dd"
+      }
+    }
+  ],
+  "transforms": [
+    {
+      "as": "DaysAge",
+      "expr": "dateDiff(DataDate, DocDate, 'days')"
+    },
+    {
+      "as": "AgeBucket",
+      "expr": "case( DaysAge <= 90, '0-90', DaysAge <= 180, '91-180', DaysAge <= 365, '181-365', true, '>365' )"
+    },
+    {
+      "as": "TotalValueRow",
+      "expr": "QtyFromThisDoc * AverageCost"
+    }
+  ],
+  "widgets": [
+    {
+      "id": "kpi-expired",
+      "type": "kpi",
+      "title": "Expired (<0 วัน)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "measures": [
+          {
+            "field": "DaysAge",
+            "agg": "count",
+            "as": "ExpiredCnt"
+          }
+        ],
+        "filters": [
+          {
+            "field": "DaysAge",
+            "op": "<",
+            "value": 0
+          }
+        ]
+      },
+      "display": {
+        "valueFormatter": "qty",
+        "severityRules": [
+          {
+            "op": ">",
+            "value": 0,
+            "color": "danger"
+          },
+          {
+            "op": "=",
+            "value": 0,
+            "color": "ok"
+          }
+        ]
+      },
+      "tooltip": {
+        "template": "จำนวนรายการหมดอายุแล้ว: {{ format ExpiredCnt 'qty' }}"
+      }
+    },
+    {
+      "id": "kpi-0-90",
+      "type": "kpi",
+      "title": "0–90 วัน (ใกล้หมด)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "measures": [
+          {
+            "field": "Prod",
+            "agg": "countDistinct",
+            "as": "Cnt"
+          }
+        ],
+        "filters": [
+          {
+            "field": "AgeBucket",
+            "op": "=",
+            "value": "0-90"
+          }
+        ]
+      },
+      "display": {
+        "valueFormatter": "qty",
+        "severityRules": [
+          {
+            "op": ">",
+            "value": 0,
+            "color": "danger"
+          },
+          {
+            "op": "=",
+            "value": 0,
+            "color": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kpi-91-180",
+      "type": "kpi",
+      "title": "91–180 วัน",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "measures": [
+          {
+            "field": "Prod",
+            "agg": "countDistinct",
+            "as": "Cnt"
+          }
+        ],
+        "filters": [
+          {
+            "field": "AgeBucket",
+            "op": "=",
+            "value": "91-180"
+          }
+        ]
+      },
+      "display": {
+        "valueFormatter": "qty",
+        "severityRules": [
+          {
+            "op": ">",
+            "value": 0,
+            "color": "warning"
+          },
+          {
+            "op": "=",
+            "value": 0,
+            "color": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "id": "kpi-181-365",
+      "type": "kpi",
+      "title": "181–365 วัน",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "measures": [
+          {
+            "field": "Prod",
+            "agg": "countDistinct",
+            "as": "Cnt"
+          }
+        ],
+        "filters": [
+          {
+            "field": "AgeBucket",
+            "op": "=",
+            "value": "181-365"
+          }
+        ]
+      },
+      "display": {
+        "valueFormatter": "qty"
+      }
+    },
+    {
+      "id": "kpi-over-365",
+      "type": "kpi",
+      "title": ">365 วัน",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "measures": [
+          {
+            "field": "Prod",
+            "agg": "countDistinct",
+            "as": "Cnt"
+          }
+        ],
+        "filters": [
+          {
+            "field": "AgeBucket",
+            "op": "=",
+            "value": ">365"
+          }
+        ]
+      },
+      "display": {
+        "valueFormatter": "qty"
+      }
+    },
+    {
+      "id": "bar-near-prod",
+      "type": "bar",
+      "title": "Top สินค้าใกล้หมด (อายุน้อยสุด)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "dimensions": ["Prod"],
+        "measures": [
+          {
+            "field": "DaysAge",
+            "agg": "min",
+            "as": "MinDaysAge"
+          }
+        ],
+        "filters": [
+          {
+            "field": "AgeBucket",
+            "op": "in",
+            "value": ["0-90", "91-180"]
+          }
+        ],
+        "sort": [
+          {
+            "field": "MinDaysAge",
+            "dir": "desc"
+          }
+        ],
+        "limit": 10
+      },
+      "encoding": {
+        "x": {
+          "field": "MinDaysAge",
+          "type": "quantitative",
+          "formatter": "days"
+        },
+        "y": {
+          "field": "Prod",
+          "type": "nominal"
+        }
+      },
+      "tooltip": {
+        "template": "<b>{{ Prod }}</b><br/>อายุสูงสุด: {{ format MinDaysAge 'days' }} วัน"
+      }
+    },
+    {
+      "id": "bar-near-branch",
+      "type": "bar",
+      "title": "สาขาเสี่ยง (ค่าอายุเฉลี่ยสูง)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "dimensions": ["Branch"],
+        "measures": [
+          {
+            "field": "DaysAge",
+            "agg": "avg",
+            "as": "AvgDaysAge"
+          }
+        ],
+        "filters": [
+          {
+            "field": "AgeBucket",
+            "op": "in",
+            "value": ["0-90", "91-180"]
+          }
+        ],
+        "sort": [
+          {
+            "field": "AvgDaysAge",
+            "dir": "desc"
+          }
+        ],
+        "limit": 10
+      },
+      "encoding": {
+        "x": {
+          "field": "AvgDaysAge",
+          "type": "quantitative",
+          "formatter": "days"
+        },
+        "y": {
+          "field": "Branch",
+          "type": "nominal"
+        }
+      },
+      "tooltip": {
+        "template": "<b>{{ Branch }}</b><br/>อายุเฉลี่ย: {{ format AvgDaysAge 'days' }} วัน"
+      }
+    },
+    {
+      "id": "table-action",
+      "type": "table",
+      "title": "รายการต้องจัดการ (0–180 วัน)",
+      "dataSource": "uploaded-xml",
+      "query": {
+        "columns": [
+          "DataDate",
+          "Branch",
+          "Prod",
+          "UnitName",
+          "DocNumber",
+          "DocDate",
+          "QtyFromThisDoc",
+          "AverageCost",
+          "DaysAge",
+          "AgeBucket",
+          "TotalValueRow"
+        ],
+        "filters": [
+          {
+            "field": "AgeBucket",
+            "op": "in",
+            "value": ["0-90", "91-180"]
+          }
+        ],
+        "sort": [
+          {
+            "field": "DaysAge",
+            "dir": "desc"
+          }
+        ]
+      },
+      "display": {
+        "columnFormatters": {
+          "DataDate": "date",
+          "DocDate": "date",
+          "QtyFromThisDoc": "qty",
+          "AverageCost": "money",
+          "TotalValueRow": "money",
+          "DaysAge": "days"
+        },
+        "rowClassRules": [
+          {
+            "when": {
+              "field": "AgeBucket",
+              "op": "=",
+              "value": "0-90"
+            },
+            "className": "bg-yellow-900/30"
+          },
+          {
+            "when": {
+              "field": "AgeBucket",
+              "op": "=",
+              "value": "91-180"
+            },
+            "className": "bg-orange-900/20"
+          }
+        ],
+        "pageSize": 25,
+        "stickyHeader": true
+      }
+    }
+  ],
+  "layout": {
+    "type": "grid",
+    "columns": 12,
+    "rowHeight": 50,
+    "desktop": [
+      {
+        "widgetId": "kpi-expired",
+        "x": 0,
+        "y": 0,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "widgetId": "kpi-0-90",
+        "x": 3,
+        "y": 0,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "widgetId": "kpi-91-180",
+        "x": 6,
+        "y": 0,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "widgetId": "kpi-181-365",
+        "x": 9,
+        "y": 0,
+        "width": 3,
+        "height": 3
+      },
+      {
+        "widgetId": "bar-near-prod",
+        "x": 0,
+        "y": 3,
+        "width": 6,
+        "height": 10
+      },
+      {
+        "widgetId": "bar-near-branch",
+        "x": 6,
+        "y": 3,
+        "width": 6,
+        "height": 10
+      },
+      {
+        "widgetId": "table-action",
+        "x": 0,
+        "y": 13,
+        "width": 12,
+        "height": 14
+      }
+    ],
+    "mobile": [
+      {
+        "widgetId": "kpi-expired"
+      },
+      {
+        "widgetId": "kpi-0-90"
+      },
+      {
+        "widgetId": "kpi-91-180"
+      },
+      {
+        "widgetId": "kpi-181-365"
+      },
+      {
+        "widgetId": "bar-near-prod"
+      },
+      {
+        "widgetId": "bar-near-branch"
+      },
+      {
+        "widgetId": "table-action"
+      }
+    ]
+  }
+}
