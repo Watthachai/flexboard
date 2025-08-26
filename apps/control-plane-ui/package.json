@@ -1,6 +1,6 @@
 {
   "name": "control-plane-ui",
-  "version": "0.1.0",
+  "version": "5.15.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack --port 3001",
