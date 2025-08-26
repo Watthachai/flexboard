@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from "react";
+import * as XLSX from "xlsx";
 
 interface RealTableWidgetProps {
   data: any[];
@@ -76,20 +77,154 @@ export default function RealTableWidget({
     }
   };
 
+  const exportToExcel = () => {
+    try {
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+
+      // Define age buckets for separate sheets
+      const ageBuckets = [
+        { bucket: "0-90", sheetName: "0-90 Days" },
+        { bucket: "91-180", sheetName: "91-180 Days" },
+        { bucket: "181-365", sheetName: "181-365 Days" },
+        { bucket: ">365", sheetName: "Over 365 Days" },
+      ];
+
+      // Check if this is an aging report table (has AgeBucket data)
+      const hasAgeBucket = tableData.some((row) => row.AgeBucket);
+
+      if (hasAgeBucket) {
+        // Create separate sheets for each age bucket
+        ageBuckets.forEach(({ bucket, sheetName }) => {
+          // Filter data for this age bucket
+          const bucketData = tableData.filter(
+            (row) => row.AgeBucket === bucket
+          );
+
+          if (bucketData.length > 0) {
+            // Prepare export data for this bucket
+            const exportData = bucketData.map((row) => {
+              const exportRow: any = {};
+              columns.forEach((col) => {
+                exportRow[col.title] = formatCellValue(
+                  row[col.field],
+                  col.formatter || ""
+                );
+              });
+              return exportRow;
+            });
+
+            // Create worksheet
+            const ws = XLSX.utils.json_to_sheet(exportData);
+
+            // Set column widths
+            const columnWidths = columns.map((col) => ({
+              wch: Math.max(col.title.length, 15),
+            }));
+            ws["!cols"] = columnWidths;
+
+            // Add worksheet to workbook
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+          }
+        });
+
+        // Also create a summary sheet with all data
+        const allExportData = tableData.map((row) => {
+          const exportRow: any = {};
+          columns.forEach((col) => {
+            exportRow[col.title] = formatCellValue(
+              row[col.field],
+              col.formatter || ""
+            );
+          });
+          return exportRow;
+        });
+
+        const summaryWs = XLSX.utils.json_to_sheet(allExportData);
+        const summaryColumnWidths = columns.map((col) => ({
+          wch: Math.max(col.title.length, 15),
+        }));
+        summaryWs["!cols"] = summaryColumnWidths;
+        XLSX.utils.book_append_sheet(wb, summaryWs, "Summary");
+      } else {
+        // For non-aging reports, create single sheet
+        const exportData = tableData.map((row) => {
+          const exportRow: any = {};
+          columns.forEach((col) => {
+            exportRow[col.title] = formatCellValue(
+              row[col.field],
+              col.formatter || ""
+            );
+          });
+          return exportRow;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const columnWidths = columns.map((col) => ({
+          wch: Math.max(col.title.length, 15),
+        }));
+        ws["!cols"] = columnWidths;
+
+        const sheetName = title.replace(/[^\w\s]/gi, "") || "Data Export";
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      }
+
+      // Generate filename with timestamp
+      const timestamp = new Date()
+        .toISOString()
+        .slice(0, 19)
+        .replace(/:/g, "-");
+      const filename = hasAgeBucket
+        ? `Inventory_Aging_Report_${timestamp}.xlsx`
+        : `${title.replace(/[^\w\s]/gi, "")}_${timestamp}.xlsx`;
+
+      // Write file
+      XLSX.writeFile(wb, filename);
+
+      console.log(`📊 Excel export completed: ${filename}`);
+      console.log(`📋 Sheets created: ${wb.SheetNames.join(", ")}`);
+    } catch (error) {
+      console.error("Failed to export Excel:", error);
+      alert("Failed to export Excel file. Please try again.");
+    }
+  };
+
   return (
     <div className="w-full h-full bg-white border rounded-lg p-4">
-      <div className="mb-4">
-        <h3 className="font-semibold text-lg text-gray-800">
-          {config?.title || "Data Table"}
-        </h3>
-        <p className="text-sm text-gray-500">
-          {tableData.length} rows • {columns.length} columns
-        </p>
+      <div className="mb-4 flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-lg text-gray-800">
+            {config?.title || "Data Table"}
+          </h3>
+          <p className="text-sm text-gray-500">
+            {tableData.length} rows • {columns.length} columns
+          </p>
+        </div>
+        <button
+          onClick={exportToExcel}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+          title="Export to Excel"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
+          </svg>
+          Export Excel
+        </button>
       </div>
 
       <div
         className="overflow-auto border border-gray-200 rounded-lg"
-        style={{ height: height - 80 }}
+        style={{ height: "800px" }}
       >
         <table className="w-full text-sm">
           <thead className="bg-gray-50 sticky top-0">
