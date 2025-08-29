@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 
+// Debug flag
 const DEBUG = false;
 const dlog = (...args: any[]) => {
   if (DEBUG) console.log(...args);
@@ -25,26 +26,61 @@ export function coerceTypes(
   fieldTypes?: Record<string, string>,
   dateParsing?: Record<string, string>
 ) {
-  if (!fieldTypes) return rows;
-  const out = new Array<Row>(rows.length);
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i];
-    const rr: Row = { ...r };
-    for (const [k, t] of Object.entries(fieldTypes)) {
-      const v = rr[k];
-      if (v == null) continue;
-      if (t === "number") {
-        rr[k] = typeof v === "number" ? v : Number(v);
-      } else if (t === "date") {
-        // แปลงเป็น epoch number ทีเดียว
-        const s = String(v);
-        const ts = Date.parse(s); // NaN หาก parse ไม่ได้
-        rr[k] = Number.isNaN(ts) ? Date.parse(s) : ts;
+  dlog("🔧 coerceTypes called:", {
+    rowsLength: rows.length,
+    fieldTypes,
+    dateParsing,
+    firstRowKeys: rows.length > 0 ? Object.keys(rows[0]) : [],
+    firstRowSample: rows.length > 0 ? rows[0] : null,
+  });
+
+  if (!fieldTypes || rows.length === 0) return rows;
+
+  return rows.map((row, index) => {
+    const newRow = { ...row };
+
+    for (const [field, type] of Object.entries(fieldTypes)) {
+      if (!(field in newRow)) continue;
+
+      const value = newRow[field];
+
+      // Skip if value is null/undefined
+      if (value == null) continue;
+
+      if (type === "date") {
+        try {
+          // Check if it's a timestamp (number > 1000000000000 = after year 2001)
+          if (typeof value === "number" && value > 1000000000000) {
+            // Convert timestamp to ISO date string
+            newRow[field] = new Date(value).toISOString().split("T")[0];
+            if (DEBUG && index < 3) {
+              dlog(`🔧 Converted timestamp ${value} to date: ${newRow[field]}`);
+            }
+          } else if (typeof value === "string") {
+            // Try to parse as timestamp first
+            const numValue = Number(value);
+            if (!isNaN(numValue) && numValue > 1000000000000) {
+              newRow[field] = new Date(numValue).toISOString().split("T")[0];
+              if (DEBUG && index < 3) {
+                dlog(
+                  `🔧 Converted string timestamp ${value} to date: ${newRow[field]}`
+                );
+              }
+            } else {
+              // Keep as string if it's already a date string
+              newRow[field] = value;
+            }
+          }
+        } catch (error) {
+          console.warn(`Error converting date field ${field}:`, error);
+        }
+      } else if (type === "number") {
+        newRow[field] = Number(value);
       }
     }
-    out[i] = rr;
-  }
-  return out;
+
+    return newRow;
+  });
 }
 
 interface CaseCondition {
@@ -326,8 +362,10 @@ function evaluateExpression(
 
         // Special case for 'true' condition (default case)
         if (condition === "true") {
-          dlog("case default value:", value.replace(/'/g, ""));
-          return value.replace(/'/g, ""); // Remove quotes
+          // Default branch: evaluate value so numbers/fields resolve, strip quotes if any
+          const evaluatedDefault = evaluateValue(value, row, context);
+          dlog("case default value:", evaluatedDefault);
+          return evaluatedDefault;
         }
 
         // Evaluate the condition
@@ -335,8 +373,9 @@ function evaluateExpression(
         dlog("case condition result:", conditionResult);
 
         if (conditionResult) {
-          dlog("case value:", value.replace(/'/g, ""));
-          return value.replace(/'/g, ""); // Remove quotes
+          const evaluatedValue = evaluateValue(value, row, context);
+          dlog("case value:", evaluatedValue);
+          return evaluatedValue;
         }
       }
 
@@ -499,6 +538,9 @@ function evaluateCondition(
           return Number(leftValue) < Number(rightValue);
         case ">":
           return Number(leftValue) > Number(rightValue);
+        case "=":
+          // Support single equals as equality for DSL convenience
+          return leftValue == rightValue;
         case "==":
           return leftValue == rightValue;
         case "!=":
@@ -521,6 +563,14 @@ function evaluateValue(
 ): any {
   const trimmed = valueExpr.trim();
   dlog(`evaluateValue: "${trimmed}"`);
+
+  // Handle quoted string literals ('text' or "text")
+  if (
+    (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+  ) {
+    return trimmed.slice(1, -1);
+  }
 
   // Handle numbers
   if (/^\d+(\.\d+)?$/.test(trimmed)) {
@@ -618,6 +668,30 @@ export function groupAgg(
   dimensions: string[] | undefined,
   measures: any[]
 ) {
+  console.log("🔍 SUMMARY TABLE AGGREGATION START:", {
+    rowsCount: rows.length,
+    dimensions,
+    measures: measures?.map((m) => ({
+      field: m.field,
+      expr: m.expr,
+      agg: m.agg,
+      as: m.as,
+    })),
+    firstRowKeys: rows.length > 0 ? Object.keys(rows[0]) : [],
+    firstRowSample: rows.length > 0 ? rows[0] : null,
+    hasTransformedFields:
+      rows.length > 0
+        ? {
+            hasQty0_90: "Qty_0_90_row" in rows[0],
+            hasQty91_180: "Qty_91_180_row" in rows[0],
+            hasQty181_365: "Qty_181_365_row" in rows[0],
+            hasQty365Plus: "Qty_365_plus_row" in rows[0],
+            hasAgeBucket: "AgeBucket" in rows[0],
+            hasDaysAge: "DaysAge" in rows[0],
+          }
+        : null,
+  });
+
   if (!measures?.length) return [];
 
   if (!dimensions?.length) {
@@ -685,10 +759,30 @@ export function groupAgg(
             const trueValue = iifMatch[2].trim();
             const falseValue = iifMatch[3].trim();
 
+            console.log("🔍 IIF EXPRESSION DEBUG:", {
+              expr,
+              condition,
+              trueValue,
+              falseValue,
+              rowSample: {
+                AgeBucket: r["AgeBucket"],
+                QtyFromThisDoc: r["QtyFromThisDoc"],
+                Qty_0_90_row: r["Qty_0_90_row"],
+              },
+              availableFields: Object.keys(r).filter(
+                (k) => k.startsWith("Qty_") || k.includes("Age")
+              ),
+            });
+
             // Evaluate condition (e.g., AgeBucket='0-90')
             const conditionResult = evaluateCondition(condition, r, {
               referenceTables: {},
               settings: {},
+            });
+
+            console.log("🔍 CONDITION RESULT:", {
+              condition,
+              result: conditionResult,
             });
 
             if (conditionResult) {
@@ -709,6 +803,11 @@ export function groupAgg(
         }
       } else {
         value = Number(r[field] || 0);
+        console.log("🔍 FIELD VALUE:", {
+          field,
+          value,
+          rowFieldValue: r[field],
+        });
       }
 
       bucket.counts[idx]++;
@@ -746,6 +845,12 @@ export function groupAgg(
 
     out.push(row);
   }
+
+  console.log("🔍 SUMMARY TABLE AGGREGATION RESULT:", {
+    resultCount: out.length,
+    resultSample: out.slice(0, 3),
+    allResults: out,
+  });
 
   return out;
 }

@@ -36,9 +36,26 @@ export async function GET(
 
     const manifestData = await manifestResponse.json();
 
+    // Parse manifestContent if it exists
+    let parsedManifest = {};
+    if (manifestData.data?.manifestContent) {
+      try {
+        parsedManifest = JSON.parse(manifestData.data.manifestContent);
+        console.log("📋 Parsed manifestContent successfully:", {
+          hasTransforms: !!(parsedManifest as any).transforms,
+          transformsLength: (parsedManifest as any).transforms?.length || 0,
+        });
+      } catch (error) {
+        console.error("Failed to parse manifestContent:", error);
+        parsedManifest = manifestData.data;
+      }
+    } else {
+      parsedManifest = manifestData.data;
+    }
+
     return NextResponse.json({
       success: true,
-      data: manifestData.data,
+      data: parsedManifest,
     });
   } catch (error) {
     console.error("Error fetching dashboard manifest:", error);

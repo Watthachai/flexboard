@@ -421,7 +421,12 @@ export default function DashboardViewer({
     // Calculate widget height based on layout
     const widgetHeight =
       widget.layout.height * (manifest?.layout?.rowHeight || 50);
-    const maxChartHeight = Math.min(400, Math.max(250, widgetHeight - 80));
+
+    // For table widgets, allow more height to accommodate data
+    const maxChartHeight =
+      widget.type === "table"
+        ? Math.max(500, widgetHeight - 80) // ให้ความสูงขั้นต่ำ 500px สำหรับตาราง
+        : Math.min(400, Math.max(250, widgetHeight - 80));
 
     // Use chartConfigAdapter to process data and create chart configs
     switch (widget.type) {

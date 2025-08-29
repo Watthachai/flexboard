@@ -20,6 +20,7 @@ import {
 } from "@tanstack/react-table";
 import { ChevronUp, ChevronDown, Download, Search } from "lucide-react";
 import * as XLSX from "xlsx";
+import { aggregateBy } from "../utils/aggregate";
 
 // Types for dynamic column configuration
 interface ColumnGroup {
@@ -67,6 +68,10 @@ interface AdvancedTableProps {
   formatters?: Record<string, any>;
   height?: number;
   title?: string;
+  preAggregation?: {
+    groupBy: string[];
+    measures: any[];
+  };
 }
 
 // Formatter utility
@@ -124,6 +129,14 @@ const generateColumns = (
   display: TableDisplayConfig,
   formatters: Record<string, any>
 ): ColumnDef<any>[] => {
+  console.log("🔧 generateColumns called:", {
+    dataLength: data.length,
+    hasColumnGroups: !!display.columnGroups?.length,
+    columnGroups: display.columnGroups,
+    dataKeys: data.length > 0 ? Object.keys(data[0]) : [],
+    sampleData: data.slice(0, 1),
+  });
+
   if (!data.length) return [];
 
   const dataKeys = Object.keys(data[0]);
@@ -134,51 +147,79 @@ const generateColumns = (
     const columns: ColumnDef<any>[] = [];
 
     display.columnGroups.forEach((group) => {
+      console.log("🔧 Processing column group:", {
+        groupTitle: group.title,
+        groupColumns: group.columns,
+        availableInData: group.columns.filter((col) => dataKeys.includes(col)),
+      });
+
       if (group.columns.length === 1) {
         // Single column - no group header
         const field = group.columns[0];
-        columns.push(
-          columnHelper.accessor(field, {
-            id: field, // Explicit ID
-            header: display.columnLabels?.[field] || field,
-            cell: (info: any) => {
-              const value = info.getValue();
-              const formatter = display.columnFormatters?.[field];
-              return formatter
-                ? formatValue(value, formatter, formatters)
-                : value;
-            },
-            meta: {
-              align: display.columnAlignment?.[field] || "left",
-              className: display.rowClassRules ? "dynamic-cell" : undefined,
-            },
-          })
-        );
+        if (dataKeys.includes(field)) {
+          columns.push(
+            columnHelper.accessor(field, {
+              id: field, // Explicit ID
+              header: display.columnLabels?.[field] || field,
+              cell: (info: any) => {
+                const value = info.getValue();
+                const formatter = display.columnFormatters?.[field];
+                return formatter
+                  ? formatValue(value, formatter, formatters)
+                  : value;
+              },
+              meta: {
+                align: display.columnAlignment?.[field] || "left",
+                className: display.rowClassRules ? "dynamic-cell" : undefined,
+              },
+            })
+          );
+        } else {
+          console.warn(
+            `🚨 Column '${field}' not found in data. Available columns:`,
+            dataKeys
+          );
+        }
       } else {
         // Multiple columns - create group
-        columns.push(
-          columnHelper.group({
-            id: `group_${group.title.replace(/\s+/g, "_").toLowerCase()}`, // Explicit group ID
-            header: group.title,
-            columns: group.columns.map((field) =>
-              columnHelper.accessor(field, {
-                id: field, // Explicit ID for each column
-                header: display.columnLabels?.[field] || field,
-                cell: (info: any) => {
-                  const value = info.getValue();
-                  const formatter = display.columnFormatters?.[field];
-                  return formatter
-                    ? formatValue(value, formatter, formatters)
-                    : value;
-                },
-                meta: {
-                  align: display.columnAlignment?.[field] || "left",
-                  className: display.rowClassRules ? "dynamic-cell" : undefined,
-                },
-              })
-            ),
-          })
+        const availableColumns = group.columns.filter((field) =>
+          dataKeys.includes(field)
         );
+
+        if (availableColumns.length > 0) {
+          columns.push(
+            columnHelper.group({
+              id: `group_${group.title.replace(/\s+/g, "_").toLowerCase()}`, // Explicit group ID
+              header: group.title,
+              columns: availableColumns.map((field) =>
+                columnHelper.accessor(field, {
+                  id: field, // Explicit ID for each column
+                  header: display.columnLabels?.[field] || field,
+                  cell: (info: any) => {
+                    const value = info.getValue();
+                    const formatter = display.columnFormatters?.[field];
+                    return formatter
+                      ? formatValue(value, formatter, formatters)
+                      : value;
+                  },
+                  meta: {
+                    align: display.columnAlignment?.[field] || "left",
+                    className: display.rowClassRules
+                      ? "dynamic-cell"
+                      : undefined,
+                  },
+                })
+              ),
+            })
+          );
+        } else {
+          console.warn(
+            `🚨 No columns from group '${group.title}' found in data. Requested:`,
+            group.columns,
+            "Available:",
+            dataKeys
+          );
+        }
       }
     });
 
@@ -289,7 +330,33 @@ export default function AdvancedTableWidget({
   formatters = {},
   height = 400,
   title,
+  preAggregation,
 }: AdvancedTableProps) {
+  // Debug logging
+  console.log("🔥 AdvancedTableWidget Props:", {
+    dataLength: data?.length || 0,
+    dataPreview: data?.slice(0, 2) || [],
+    display,
+    formatters,
+    height,
+    title,
+    preAggregation,
+  });
+
+  const aggregatedData = useMemo(() => {
+    if (preAggregation && data.length > 0) {
+      console.log("🚀 Running pre-aggregation:", preAggregation);
+      const result = aggregateBy(
+        data,
+        preAggregation.groupBy,
+        preAggregation.measures
+      );
+      console.log("✅ Aggregation result:", result.slice(0, 5));
+      return result;
+    }
+    return data;
+  }, [data, preAggregation]);
+
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [pagination, setPagination] = useState<PaginationState>({
@@ -297,20 +364,35 @@ export default function AdvancedTableWidget({
     pageSize: display.pageSize || 25,
   });
 
+  // Calculate dynamic height - เพิ่มความสูงให้เพียงพอ
+  const tableContainerHeight = useMemo(() => {
+    const headerHeight = 60;
+    const paginationHeight = 60;
+    const minHeight = 500; // เพิ่มความสูงขั้นต่ำ
+    const calculatedHeight = height - headerHeight - paginationHeight;
+    return Math.max(minHeight, calculatedHeight);
+  }, [height]);
+
   // Generate columns dynamically
   const columns = useMemo(() => {
-    return generateColumns(data, display, formatters);
-  }, [data, display, formatters]);
+    const generatedColumns = generateColumns(
+      aggregatedData,
+      display,
+      formatters
+    );
+    console.log("🔥 Generated Columns:", generatedColumns);
+    return generatedColumns;
+  }, [aggregatedData, display, formatters]);
 
   // Calculate totals if enabled
   const totalsRow = useMemo(() => {
     if (!display.showTotalsRow || !display.totalsAgg) return null;
-    return calculateTotalsRow(data, display.totalsAgg);
-  }, [data, display.showTotalsRow, display.totalsAgg]);
+    return calculateTotalsRow(aggregatedData, display.totalsAgg);
+  }, [aggregatedData, display.showTotalsRow, display.totalsAgg]);
 
   // Initialize table
   const table = useReactTable({
-    data,
+    data: aggregatedData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -328,7 +410,7 @@ export default function AdvancedTableWidget({
 
   // Export to Excel function
   const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(data);
+    const worksheet = XLSX.utils.json_to_sheet(aggregatedData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
 
@@ -339,9 +421,9 @@ export default function AdvancedTableWidget({
   };
 
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="w-full h-full flex flex-col bg-white rounded-lg shadow-sm border">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between p-4 border-b bg-gray-50 flex-shrink-0">
         <h3 className="text-lg font-semibold">{title}</h3>
         <div className="flex items-center gap-2">
           {display.searchable && (
@@ -368,135 +450,225 @@ export default function AdvancedTableWidget({
 
       {/* Table Container */}
       <div
-        className={`flex-1 overflow-auto ${display.horizontalScroll ? "overflow-x-auto" : ""}`}
-        style={{ maxHeight: height - 120 }}
+        className="flex-1 relative border border-gray-300"
+        style={{
+          minHeight: `${tableContainerHeight}px`,
+          maxHeight: `${Math.max(tableContainerHeight, 600)}px`,
+          overflow: "hidden", // ป้องกันการล้น
+        }}
       >
-        <table className="w-full border-collapse border border-gray-200">
-          {/* Headers */}
-          <thead className={display.stickyHeader ? "sticky top-0 z-10" : ""}>
-            {table.getHeaderGroups().map((headerGroup: any) => (
-              <tr key={headerGroup.id} className="bg-gray-50">
-                {headerGroup.headers.map((header: any, index: number) => {
-                  const isSticky =
-                    display.stickyFirstColumns &&
-                    index < display.stickyFirstColumns;
-                  return (
-                    <th
-                      key={header.id}
-                      colSpan={header.colSpan}
-                      className={`
-                        border border-gray-200 p-3 text-left font-medium text-gray-700
-                        ${isSticky ? "sticky left-0 z-20 bg-gray-50" : ""}
-                        ${header.column.getCanSort() ? "cursor-pointer hover:bg-gray-100" : ""}
-                      `}
-                      style={isSticky ? { left: index * 150 } : {}}
-                      onClick={header.column.getToggleSortingHandler()}
-                    >
-                      <div className="flex items-center gap-2">
-                        {header.isPlaceholder
-                          ? null
-                          : flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                        {header.column.getCanSort() && (
-                          <div className="flex flex-col">
-                            <ChevronUp
-                              className={`h-3 w-3 ${
-                                header.column.getIsSorted() === "asc"
-                                  ? "text-blue-600"
-                                  : "text-gray-400"
-                              }`}
-                            />
-                            <ChevronDown
-                              className={`h-3 w-3 ${
-                                header.column.getIsSorted() === "desc"
-                                  ? "text-blue-600"
-                                  : "text-gray-400"
-                              }`}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </th>
-                  );
-                })}
-              </tr>
-            ))}
-          </thead>
-
-          {/* Body */}
-          <tbody>
-            {table.getRowModel().rows.map((row: any) => {
-              const rowClassName = display.rowClassRules
-                ? evaluateRowClass(row.original, display.rowClassRules)
-                : "";
-
-              return (
-                <tr
-                  key={row.id}
-                  className={`border-b hover:bg-gray-50 ${rowClassName}`}
-                >
-                  {row.getVisibleCells().map((cell: any, index: number) => {
+        {/* Table Wrapper with proper scroll */}
+        <div
+          className="absolute inset-0 overflow-auto"
+          style={{
+            overflowX: "auto",
+            overflowY: "auto",
+          }}
+        >
+          <table
+            className="border-collapse border border-gray-200"
+            style={{
+              minWidth: "100%",
+              width: "max-content", // ให้ table ขยายตามเนื้อหา
+            }}
+          >
+            {/* Headers */}
+            <thead className="sticky top-0 z-30 bg-gray-50">
+              {table.getHeaderGroups().map((headerGroup: any) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header: any, index: number) => {
                     const isSticky =
                       display.stickyFirstColumns &&
                       index < display.stickyFirstColumns;
-                    const align = cell.column.columnDef.meta?.align || "left";
+
+                    // คำนวณ left position สำหรับ sticky columns
+                    let leftPosition = 0;
+                    if (isSticky) {
+                      for (let i = 0; i < index; i++) {
+                        leftPosition += 120; // width ของแต่ละ column
+                      }
+                    }
+
+                    return (
+                      <th
+                        key={header.id}
+                        colSpan={header.colSpan}
+                        className={`
+                          border border-gray-200 p-2 text-left font-medium text-gray-700 text-sm bg-gray-50
+                          ${isSticky ? "sticky z-40" : ""}
+                          ${header.column.getCanSort() ? "cursor-pointer hover:bg-gray-100" : ""}
+                        `}
+                        style={{
+                          ...(isSticky
+                            ? {
+                                left: `${leftPosition}px`,
+                                backgroundColor: "#f9fafb", // เพื่อให้เห็นชัดเจน
+                                borderRight: "2px solid #e5e7eb", // เส้นขอบขวาสำหรับ sticky
+                              }
+                            : {}),
+                          minWidth: "120px",
+                          width: "120px",
+                          maxWidth: "120px",
+                        }}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        <div className="flex items-center gap-2">
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                          {header.column.getCanSort() && (
+                            <div className="flex flex-col">
+                              <ChevronUp
+                                className={`h-3 w-3 ${
+                                  header.column.getIsSorted() === "asc"
+                                    ? "text-blue-600"
+                                    : "text-gray-400"
+                                }`}
+                              />
+                              <ChevronDown
+                                className={`h-3 w-3 ${
+                                  header.column.getIsSorted() === "desc"
+                                    ? "text-blue-600"
+                                    : "text-gray-400"
+                                }`}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              ))}
+            </thead>
+
+            {/* Body */}
+            <tbody>
+              {table.getRowModel().rows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="text-center p-8 text-gray-500"
+                  >
+                    No data available
+                  </td>
+                </tr>
+              ) : (
+                table.getRowModel().rows.map((row: any) => {
+                  const rowClassName = display.rowClassRules
+                    ? evaluateRowClass(row.original, display.rowClassRules)
+                    : "";
+
+                  return (
+                    <tr
+                      key={row.id}
+                      className={`border-b hover:bg-gray-50 ${rowClassName}`}
+                    >
+                      {row.getVisibleCells().map((cell: any, index: number) => {
+                        const isSticky =
+                          display.stickyFirstColumns &&
+                          index < display.stickyFirstColumns;
+                        const align =
+                          cell.column.columnDef.meta?.align || "left";
+
+                        // คำนวณ left position สำหรับ sticky columns
+                        let leftPosition = 0;
+                        if (isSticky) {
+                          for (let i = 0; i < index; i++) {
+                            leftPosition += 120; // width ของแต่ละ column
+                          }
+                        }
+
+                        return (
+                          <td
+                            key={cell.id}
+                            className={`
+                            border border-gray-200 p-2 text-${align} text-sm
+                            ${isSticky ? "sticky z-20 bg-white" : ""}
+                          `}
+                            style={{
+                              ...(isSticky
+                                ? {
+                                    left: `${leftPosition}px`,
+                                    backgroundColor: "white",
+                                    borderRight: "2px solid #e5e7eb",
+                                  }
+                                : {}),
+                              minWidth: "120px",
+                              width: "120px",
+                              maxWidth: "120px",
+                            }}
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })
+              )}
+
+              {/* Totals Row */}
+              {totalsRow && (
+                <tr className="bg-gray-100 font-semibold">
+                  {table.getAllColumns().map((column: any, index: number) => {
+                    const isSticky =
+                      display.stickyFirstColumns &&
+                      index < display.stickyFirstColumns;
+                    const value = totalsRow[column.id];
+                    const formatter = display.columnFormatters?.[column.id];
+                    const formattedValue = formatter
+                      ? formatValue(value, formatter, formatters)
+                      : value;
+
+                    // คำนวณ left position สำหรับ sticky columns
+                    let leftPosition = 0;
+                    if (isSticky) {
+                      for (let i = 0; i < index; i++) {
+                        leftPosition += 120; // width ของแต่ละ column
+                      }
+                    }
 
                     return (
                       <td
-                        key={cell.id}
+                        key={column.id}
                         className={`
-                          border border-gray-200 p-3 text-${align}
-                          ${isSticky ? "sticky left-0 z-10 bg-white" : ""}
-                        `}
-                        style={isSticky ? { left: index * 150 } : {}}
+                        border border-gray-200 p-2 text-sm
+                        ${isSticky ? "sticky z-20 bg-gray-100" : ""}
+                      `}
+                        style={{
+                          ...(isSticky
+                            ? {
+                                left: `${leftPosition}px`,
+                                backgroundColor: "#f3f4f6",
+                                borderRight: "2px solid #e5e7eb",
+                              }
+                            : {}),
+                          minWidth: "120px",
+                          width: "120px",
+                          maxWidth: "120px",
+                        }}
                       >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
+                        {index === 0 ? "Total" : formattedValue || ""}
                       </td>
                     );
                   })}
                 </tr>
-              );
-            })}
-
-            {/* Totals Row */}
-            {totalsRow && (
-              <tr className="bg-gray-100 font-semibold">
-                {table.getAllColumns().map((column: any, index: number) => {
-                  const isSticky =
-                    display.stickyFirstColumns &&
-                    index < display.stickyFirstColumns;
-                  const value = totalsRow[column.id];
-                  const formatter = display.columnFormatters?.[column.id];
-                  const formattedValue = formatter
-                    ? formatValue(value, formatter, formatters)
-                    : value;
-
-                  return (
-                    <td
-                      key={column.id}
-                      className={`
-                        border border-gray-200 p-3
-                        ${isSticky ? "sticky left-0 z-10 bg-gray-100" : ""}
-                      `}
-                      style={isSticky ? { left: index * 150 } : {}}
-                    >
-                      {index === 0 ? "Total" : formattedValue || ""}
-                    </td>
-                  );
-                })}
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>{" "}
+        {/* Close min-w-max wrapper */}
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between p-4 border-t bg-gray-50">
+      <div className="flex items-center justify-between p-4 border-t bg-gray-50 flex-shrink-0">
         <div className="text-sm text-gray-600">
           Showing{" "}
           {table.getState().pagination.pageIndex *
@@ -509,6 +681,11 @@ export default function AdvancedTableWidget({
             table.getFilteredRowModel().rows.length
           )}{" "}
           of {table.getFilteredRowModel().rows.length} entries
+          {/* Debug info */}
+          <span className="ml-4 text-xs text-blue-600">
+            (Total rows: {aggregatedData.length}, Filtered:{" "}
+            {table.getFilteredRowModel().rows.length})
+          </span>
         </div>
 
         <div className="flex items-center gap-2">
