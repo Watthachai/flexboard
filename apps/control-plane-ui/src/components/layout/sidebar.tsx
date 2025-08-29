@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { VersionDisplay } from "@/components/VersionDisplay";
 import {
   LayoutDashboard,
   Users,
@@ -152,7 +153,7 @@ export function Sidebar({
           })}
         </nav>
 
-        <div className="mt-auto pt-8">
+        <div className="mt-auto pt-8 space-y-4">
           <Card className="p-4 glass-card">
             <h4 className="font-medium mb-2 text-foreground">Quick Actions</h4>
             <Button variant="outline" size="sm" className="w-full">
@@ -160,6 +161,10 @@ export function Sidebar({
               Add Tenant
             </Button>
           </Card>
+
+          <div className="px-2">
+            <VersionDisplay variant="minimal" className="block text-center" />
+          </div>
         </div>
       </div>
     </>

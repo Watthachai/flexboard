@@ -83,12 +83,7 @@ export default function TenantsContent() {
                 )}
 
                 <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span>
-                    {tenant._count.dashboards}{" "}
-                    {tenant._count.dashboards === 1
-                      ? "dashboard"
-                      : "dashboards"}
-                  </span>
+                  <span>{/* TODO: Add dashboards count */}0 dashboards</span>
                   <span>
                     Created {new Date(tenant.createdAt).toLocaleDateString()}
                   </span>

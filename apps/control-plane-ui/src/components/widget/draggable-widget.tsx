@@ -23,8 +23,15 @@ import {
   Type,
   Image,
   Calendar,
+  TrendingUp,
+  Target,
+  Users,
+  Layers,
+  LineChart,
+  BarChart,
 } from "lucide-react";
 import { Widget, WidgetType, ItemTypes } from "@/types/dashboard-editor";
+import { EnhancedWidgetPreview } from "./enhanced-widget-preview";
 
 // Widget icons mapping
 const WIDGET_ICONS: Record<
@@ -40,6 +47,18 @@ const WIDGET_ICONS: Record<
   text: Type,
   image: Image,
   date: Calendar,
+  gauge: Activity,
+  progress: Activity,
+  iframe: Type,
+  map: Hash,
+  calendar: Calendar,
+  // Analytics widget icons
+  "period-comparison": TrendingUp,
+  "target-comparison": Target,
+  "peer-comparison": Users,
+  "composition-analysis": Layers,
+  "trend-analysis": LineChart,
+  "interactive-chart": BarChart,
 };
 
 interface DraggableWidgetProps {
@@ -52,6 +71,8 @@ interface DraggableWidgetProps {
   onResize: (id: string, width: number, height: number) => void;
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onConfigChange?: (config: any) => void;
+  uploadedData?: any;
 }
 
 export default function DraggableWidget({
@@ -64,6 +85,8 @@ export default function DraggableWidget({
   onResize,
   onDelete,
   onDuplicate,
+  onConfigChange,
+  uploadedData,
 }: DraggableWidgetProps) {
   const [isResizing, setIsResizing] = useState(false);
   const widgetRef = useRef<HTMLDivElement>(null);
@@ -81,10 +104,9 @@ export default function DraggableWidget({
       if (dropResult && monitor.didDrop()) {
         const clientOffset = monitor.getClientOffset();
         if (clientOffset) {
-          // คำนวณตำแหน่งใหม่
-          const newX = Math.round(clientOffset.x / gridSize) * gridSize;
-          const newY = Math.round(clientOffset.y / gridSize) * gridSize;
-          onMove(widget.id, newX, newY);
+          // ใช้ตำแหน่งปัจจุบันของ widget เป็น grid units แล้ว
+          // ไม่ต้องแปลงอีก
+          console.log("Widget dropped at:", clientOffset);
         }
       }
     },
@@ -92,16 +114,22 @@ export default function DraggableWidget({
 
   // Handle widget movement
   const handleMove = (deltaX: number, deltaY: number) => {
-    const newX = widget.x * gridSize + deltaX;
-    const newY = widget.y * gridSize + deltaY;
-    onMove(widget.id, newX, newY);
+    // แปลงเป็น grid units
+    const gridDeltaX = Math.floor(deltaX / gridSize);
+    const gridDeltaY = Math.floor(deltaY / gridSize);
+    const newX = widget.x + gridDeltaX;
+    const newY = widget.y + gridDeltaY;
+    onMove(widget.id, newX * gridSize, newY * gridSize);
   };
 
   // Handle widget resizing
   const handleResize = (deltaWidth: number, deltaHeight: number) => {
-    const newWidth = widget.width * gridSize + deltaWidth;
-    const newHeight = widget.height * gridSize + deltaHeight;
-    onResize(widget.id, newWidth, newHeight);
+    // แปลงเป็น grid units
+    const gridDeltaW = Math.ceil(deltaWidth / gridSize);
+    const gridDeltaH = Math.ceil(deltaHeight / gridSize);
+    const newWidth = widget.width + gridDeltaW;
+    const newHeight = widget.height + gridDeltaH;
+    onResize(widget.id, newWidth * gridSize, newHeight * gridSize);
   };
 
   const Icon = WIDGET_ICONS[widget.type] || Hash;
@@ -180,7 +208,11 @@ export default function DraggableWidget({
 
         {/* Widget Content */}
         <div className="flex-1 flex items-center justify-center">
-          <WidgetPreview widget={widget} />
+          <EnhancedWidgetPreview
+            widget={widget}
+            uploadedData={uploadedData}
+            onConfigChange={onConfigChange}
+          />
         </div>
 
         {/* Resize Handle */}
@@ -299,6 +331,67 @@ function WidgetPreview({ widget }: { widget: Widget }) {
       return (
         <div className="text-sm text-gray-600 dark:text-gray-400">
           {new Date().toLocaleDateString()}
+        </div>
+      );
+
+    // Analytics Widget Previews
+    case "period-comparison":
+      return (
+        <div className="w-full h-full bg-blue-50 dark:bg-blue-900/20 rounded flex items-center justify-center">
+          <TrendingUp className="w-8 h-8 text-blue-500" />
+          <div className="ml-2 text-xs text-blue-600 dark:text-blue-400">
+            Period Compare
+          </div>
+        </div>
+      );
+
+    case "target-comparison":
+      return (
+        <div className="w-full h-full bg-green-50 dark:bg-green-900/20 rounded flex items-center justify-center">
+          <Target className="w-8 h-8 text-green-500" />
+          <div className="ml-2 text-xs text-green-600 dark:text-green-400">
+            Target Compare
+          </div>
+        </div>
+      );
+
+    case "peer-comparison":
+      return (
+        <div className="w-full h-full bg-purple-50 dark:bg-purple-900/20 rounded flex items-center justify-center">
+          <Users className="w-8 h-8 text-purple-500" />
+          <div className="ml-2 text-xs text-purple-600 dark:text-purple-400">
+            Peer Compare
+          </div>
+        </div>
+      );
+
+    case "composition-analysis":
+      return (
+        <div className="w-full h-full bg-orange-50 dark:bg-orange-900/20 rounded flex items-center justify-center">
+          <Layers className="w-8 h-8 text-orange-500" />
+          <div className="ml-2 text-xs text-orange-600 dark:text-orange-400">
+            Composition
+          </div>
+        </div>
+      );
+
+    case "trend-analysis":
+      return (
+        <div className="w-full h-full bg-indigo-50 dark:bg-indigo-900/20 rounded flex items-center justify-center">
+          <LineChart className="w-8 h-8 text-indigo-500" />
+          <div className="ml-2 text-xs text-indigo-600 dark:text-indigo-400">
+            Trend Analysis
+          </div>
+        </div>
+      );
+
+    case "interactive-chart":
+      return (
+        <div className="w-full h-full bg-teal-50 dark:bg-teal-900/20 rounded flex items-center justify-center">
+          <BarChart className="w-8 h-8 text-teal-500" />
+          <div className="ml-2 text-xs text-teal-600 dark:text-teal-400">
+            Interactive Chart
+          </div>
         </div>
       );
 

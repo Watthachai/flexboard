@@ -33,9 +33,13 @@ export class UserService {
         ? `${this.ENDPOINT}?${queryString}`
         : this.ENDPOINT;
 
-      return await apiClient.get<User[]>(url);
+      console.log("🔄 Fetching users from:", url);
+      const response = await apiClient.get<User[]>(url);
+      console.log("📥 API Response:", response);
+
+      return response;
     } catch (error) {
-      console.error("Error fetching users:", error);
+      console.error("❌ Error fetching users:", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Failed to fetch users",

@@ -6,3 +6,4 @@
 export { TenantService } from "./tenant.service";
 export { DashboardService } from "./dashboard.service";
 export { UserService } from "./user.service";
+export { onPremLicenseService, type License } from "./onprem-license.service";

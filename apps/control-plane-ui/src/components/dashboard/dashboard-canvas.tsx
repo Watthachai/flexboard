@@ -25,6 +25,15 @@ interface DashboardCanvasProps {
   onDeleteWidget: (id: string) => void;
   onDuplicateWidget: (id: string) => void;
   onDropWidget: (type: WidgetType, x: number, y: number) => void;
+  onUpdateWidget?: (id: string, updates: any) => void;
+  // New props for coordinate transformation
+  canvasScale?: number;
+  canvasViewport?: { x: number; y: number };
+  screenToCanvas?: (
+    screenX: number,
+    screenY: number
+  ) => { x: number; y: number };
+  uploadedData?: any;
 }
 
 const DashboardCanvas = forwardRef<HTMLDivElement, DashboardCanvasProps>(
@@ -39,6 +48,11 @@ const DashboardCanvas = forwardRef<HTMLDivElement, DashboardCanvasProps>(
       onDeleteWidget,
       onDuplicateWidget,
       onDropWidget,
+      onUpdateWidget,
+      canvasScale = 1,
+      canvasViewport = { x: 0, y: 0 },
+      screenToCanvas,
+      uploadedData,
     },
     ref
   ) => {
@@ -46,10 +60,24 @@ const DashboardCanvas = forwardRef<HTMLDivElement, DashboardCanvasProps>(
       accept: [ItemTypes.NEW_WIDGET, ItemTypes.WIDGET],
       drop: (item: { type?: WidgetType; id?: string }, monitor) => {
         const clientOffset = monitor.getClientOffset();
-        if (clientOffset && ref && "current" in ref && ref.current) {
-          const canvasRect = ref.current.getBoundingClientRect();
-          const x = clientOffset.x - canvasRect.left;
-          const y = clientOffset.y - canvasRect.top;
+        if (clientOffset) {
+          let x, y;
+
+          if (screenToCanvas) {
+            // Use coordinate transformation if available
+            const canvasPos = screenToCanvas(clientOffset.x, clientOffset.y);
+            x = canvasPos.x;
+            y = canvasPos.y;
+          } else {
+            // Fallback to old method
+            if (ref && "current" in ref && ref.current) {
+              const canvasRect = ref.current.getBoundingClientRect();
+              x = clientOffset.x - canvasRect.left;
+              y = clientOffset.y - canvasRect.top;
+            } else {
+              return { moved: false };
+            }
+          }
 
           if (item.type) {
             // ลาก widget ใหม่จาก library
@@ -78,7 +106,7 @@ const DashboardCanvas = forwardRef<HTMLDivElement, DashboardCanvasProps>(
       }
     };
 
-    const { columns, rows, gridSize } = dashboard.layout;
+    const { columns, rows, gridSize } = dashboard.layout_config;
 
     // คำนวณขนาด canvas ให้เต็มพื้นที่ที่มี
     const containerRef = useRef<HTMLDivElement>(null);
@@ -120,6 +148,13 @@ const DashboardCanvas = forwardRef<HTMLDivElement, DashboardCanvasProps>(
           style={{
             width: canvasSize.width,
             height: canvasSize.height,
+            transform:
+              canvasScale !== 1 ||
+              canvasViewport?.x !== 0 ||
+              canvasViewport?.y !== 0
+                ? `scale(${canvasScale}) translate(${canvasViewport?.x || 0}px, ${canvasViewport?.y || 0}px)`
+                : undefined,
+            transformOrigin: "top left",
           }}
           onClick={() => !isPreviewMode && onSelectWidget(null)}
         >
@@ -164,6 +199,10 @@ const DashboardCanvas = forwardRef<HTMLDivElement, DashboardCanvasProps>(
               onResize={onResizeWidget}
               onDelete={onDeleteWidget}
               onDuplicate={onDuplicateWidget}
+              onConfigChange={(config) =>
+                onUpdateWidget?.(widget.id, { config })
+              }
+              uploadedData={uploadedData}
             />
           ))}
         </div>

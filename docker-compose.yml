@@ -1,39 +1,43 @@
 version: '3.8'
 
 services:
-  # Service สำหรับ Agent API
-  onprem-agent-api:
-    # สั่งให้ build จาก Dockerfile ในโฟลเดอร์ที่ระบุ
+  # Service สำหรับ Control Plane API
+  control-plane-api:
     build:
-      context: ./apps/onprem-agent-api
+      context: ./apps/control-plane-api
       dockerfile: Dockerfile
-    # ตั้งชื่อ Container
-    container_name: flexboard-agent-api
-    # Restart container เสมอถ้ามันล่ม
+    container_name: flexboard-control-plane-api
     restart: unless-stopped
-    # กำหนด Environment Variables - ลูกค้าจะต้องสร้างไฟล์ .env
     environment:
-      # สำคัญมาก! ต้องแก้ให้ตรงกับ Database ของลูกค้า
-      DATABASE_URL: "${DATABASE_URL}"
-      # Control Plane Configuration (Phase 2)
-      CONTROL_PLANE_URL: "${CONTROL_PLANE_URL:-http://localhost:3000}"
-      FLEXBOARD_API_KEY: "${FLEXBOARD_API_KEY:-fxb_demo_key}"
-      # Server Configuration  
       NODE_ENV: "${NODE_ENV:-production}"
-      PORT: "${AGENT_PORT:-3001}"
-      # CORS for Viewer
-      CORS_ORIGIN: "http://onprem-viewer-ui:3000"
-      # Agent Configuration
-      AGENT_VERSION: "${AGENT_VERSION:-1.0.0}"
-      SYNC_INTERVAL: "${SYNC_INTERVAL:-300000}"
-    # เปิด port 3001 ของ container ให้แมพกับ port 3001 ของเครื่อง host
+      PORT: 3000
+      # Firebase Configuration
+      FIREBASE_PROJECT_ID: "${FIREBASE_PROJECT_ID}"
+      FIREBASE_PRIVATE_KEY: "${FIREBASE_PRIVATE_KEY}"
+      FIREBASE_CLIENT_EMAIL: "${FIREBASE_CLIENT_EMAIL}"
     ports:
-      - "3001:3001"
-    # ทำให้ container นี้อยู่ใน network ชื่อ 'flexboard-net'
+      - "3000:3000"
     networks:
       - flexboard-net
 
-  # Service สำหรับ Viewer UI
+  # Service สำหรับ Control Plane UI
+  control-plane-ui:
+    build:
+      context: ./apps/control-plane-ui
+      dockerfile: Dockerfile
+    container_name: flexboard-control-plane-ui
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: "http://control-plane-api:3000"
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      - control-plane-api
+    networks:
+      - flexboard-net
+
+  # Service สำหรับ OnPrem Viewer UI
   onprem-viewer-ui:
     build:
       context: ./apps/onprem-viewer-ui
@@ -41,15 +45,13 @@ services:
     container_name: flexboard-viewer-ui
     restart: unless-stopped
     environment:
-      # บอก Next.js ให้เรียก API จาก container ชื่อ 'onprem-agent-api'
-      # Docker Compose จะ resolve ชื่อนี้ให้เป็น IP ภายใน Docker network
-      NEXT_PUBLIC_API_URL: "http://onprem-agent-api:3001"
-      PORT: 3000
+      # เรียก Control Plane API โดยตรง
+      NEXT_PUBLIC_API_URL: "http://control-plane-api:3000"
+      PORT: 3002
     ports:
-      - "3000:3000"
-    # ทำให้ container นี้เชื่อมต่อกับ agent-api ได้
+      - "3002:3002"
     depends_on:
-      - onprem-agent-api
+      - control-plane-api
     networks:
       - flexboard-net
 

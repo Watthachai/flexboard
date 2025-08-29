@@ -8,6 +8,36 @@ export async function GET(
   try {
     const { tenantId, dashboardId } = await params;
 
+    // Handle "new" route - return empty metadata template
+    if (dashboardId === "new") {
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: "new",
+          version: 1,
+          metadata: {
+            dashboard: {
+              id: "new",
+              name: "New Dashboard",
+              slug: "new-dashboard",
+              tenantId,
+            },
+            widgets: [],
+            config: {
+              layout: {
+                columns: 24,
+                rows: 16,
+                gridSize: 40,
+              },
+            },
+          },
+          status: "draft",
+          createdAt: new Date().toISOString(),
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const response = await fetch(
       `${envConfig.apiUrl}/api/dashboards/${dashboardId}/metadata`,
       {

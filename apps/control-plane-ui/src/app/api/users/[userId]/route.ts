@@ -6,12 +6,15 @@ export async function GET(
   { params }: { params: { userId: string } }
 ) {
   try {
-    const response = await fetch(`${envConfig.apiUrl}/users/${params.userId}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    const response = await fetch(
+      `${envConfig.apiUrl}/api/users/${params.userId}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -35,13 +38,16 @@ export async function PUT(
   try {
     const body = await request.json();
 
-    const response = await fetch(`${envConfig.apiUrl}/users/${params.userId}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
+    const response = await fetch(
+      `${envConfig.apiUrl}/api/users/${params.userId}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -63,12 +69,15 @@ export async function DELETE(
   { params }: { params: { userId: string } }
 ) {
   try {
-    const response = await fetch(`${envConfig.apiUrl}/users/${params.userId}`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    const response = await fetch(
+      `${envConfig.apiUrl}/api/users/${params.userId}`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);

@@ -1,0 +1,202 @@
+{
+  "schemaVersion": "1.0",
+  "dashboardId": "manager-overview-v1",
+  "dashboardName": "Manager Overview Dashboard",
+  "description": "Executive dashboard for inventory management overview with key risk indicators and actionable insights",
+  "version": 1,
+  "targetTeams": ["management", "inventory-managers"],
+  "layout": {
+    "type": "grid",
+    "columns": 12,
+    "rowHeight": 60
+  },
+  "widgets": [
+    {
+      "id": "value-at-risk-kpi",
+      "title": "Value at Risk (Critical Stock)",
+      "type": "kpi-card",
+      "position": { "x": 0, "y": 0, "w": 3, "h": 2 },
+      "dataSourceId": "query_kpi_value_at_risk",
+      "config": {
+        "color": "red",
+        "showTrend": true,
+        "format": "currency",
+        "unit": "THB",
+        "comparison": {
+          "period": "last-month",
+          "showPercentage": true
+        },
+        "thresholds": {
+          "critical": 1000000,
+          "warning": 500000
+        }
+      }
+    },
+    {
+      "id": "stock-aging-overview",
+      "title": "Stock Aging by Category",
+      "type": "bar-chart",
+      "position": { "x": 3, "y": 0, "w": 6, "h": 4 },
+      "dataSourceId": "query_stock_aging_summary",
+      "config": {
+        "chartType": "stacked",
+        "orientation": "vertical",
+        "showLegend": true,
+        "colors": ["#ef4444", "#f59e0b", "#10b981"],
+        "categoryLabels": {
+          "critical": "Critical (<30 days)",
+          "warning": "Warning (30-90 days)",
+          "healthy": "Healthy (>90 days)"
+        },
+        "sorting": "desc",
+        "maxCategories": 10
+      }
+    },
+    {
+      "id": "consumption-trend",
+      "title": "Monthly Consumption Trend (12 Months)",
+      "type": "timeseries-chart",
+      "position": { "x": 9, "y": 0, "w": 3, "h": 4 },
+      "dataSourceId": "query_consumption_trend_monthly",
+      "config": {
+        "showTrendLine": true,
+        "showDataPoints": true,
+        "color": "#3b82f6",
+        "smoothing": true,
+        "showAverage": true,
+        "yAxisFormat": "currency"
+      }
+    },
+    {
+      "id": "fifo-action-list",
+      "title": "FIFO Priority Actions (Top 10 Oldest Lots)",
+      "type": "data-table",
+      "position": { "x": 0, "y": 4, "w": 12, "h": 4 },
+      "dataSourceId": "query_actionable_fifo_list",
+      "config": {
+        "columns": [
+          {
+            "key": "product_code",
+            "title": "Product Code",
+            "width": 120,
+            "sortable": true
+          },
+          {
+            "key": "product_name",
+            "title": "Product Name",
+            "width": 200,
+            "sortable": true
+          },
+          {
+            "key": "lot_number",
+            "title": "Lot Number",
+            "width": 100,
+            "sortable": true
+          },
+          {
+            "key": "expiry_date",
+            "title": "Expiry Date",
+            "width": 120,
+            "sortable": true,
+            "format": "date"
+          },
+          {
+            "key": "days_to_expiry",
+            "title": "Days to Expiry",
+            "width": 100,
+            "sortable": true
+          },
+          {
+            "key": "current_stock",
+            "title": "Current Stock",
+            "width": 100,
+            "sortable": true,
+            "format": "number"
+          },
+          {
+            "key": "unit_cost",
+            "title": "Unit Cost",
+            "width": 100,
+            "format": "currency"
+          },
+          {
+            "key": "total_value",
+            "title": "Total Value",
+            "width": 120,
+            "format": "currency"
+          }
+        ],
+        "defaultSort": { "column": "days_to_expiry", "direction": "asc" },
+        "showPagination": true,
+        "pageSize": 10,
+        "highlightRules": [
+          { "condition": "days_to_expiry < 30", "style": "critical" },
+          { "condition": "days_to_expiry < 60", "style": "warning" }
+        ]
+      }
+    }
+  ],
+  "dataSources": [
+    {
+      "id": "query_kpi_value_at_risk",
+      "type": "sql",
+      "connectionId": "main_inventory_db",
+      "query": "WITH critical_stock AS (\n  SELECT \n    SUM(current_stock * unit_cost) as total_value_at_risk,\n    COUNT(*) as critical_items_count\n  FROM inventory_items \n  WHERE days_to_expiry < 30 AND current_stock > 0\n),\nlast_month_critical AS (\n  SELECT SUM(value_at_risk) as last_month_value\n  FROM monthly_risk_snapshots \n  WHERE snapshot_date = DATE_SUB(CURDATE(), INTERVAL 1 MONTH)\n)\nSELECT \n  cs.total_value_at_risk as current_value,\n  cs.critical_items_count,\n  lmc.last_month_value,\n  CASE \n    WHEN lmc.last_month_value > 0 \n    THEN ((cs.total_value_at_risk - lmc.last_month_value) / lmc.last_month_value) * 100\n    ELSE 0\n  END as change_percentage\nFROM critical_stock cs\nCROSS JOIN last_month_critical lmc",
+      "mappings": {
+        "value": "current_value",
+        "trend": "change_percentage",
+        "metadata": {
+          "itemsCount": "critical_items_count"
+        }
+      }
+    },
+    {
+      "id": "query_stock_aging_summary",
+      "type": "sql",
+      "connectionId": "main_inventory_db",
+      "query": "SELECT \n  pc.category_name,\n  SUM(CASE WHEN ii.days_to_expiry < 30 THEN ii.current_stock * ii.unit_cost ELSE 0 END) as critical_value,\n  SUM(CASE WHEN ii.days_to_expiry BETWEEN 30 AND 90 THEN ii.current_stock * ii.unit_cost ELSE 0 END) as warning_value,\n  SUM(CASE WHEN ii.days_to_expiry > 90 THEN ii.current_stock * ii.unit_cost ELSE 0 END) as healthy_value,\n  SUM(ii.current_stock * ii.unit_cost) as total_value\nFROM inventory_items ii\nJOIN products p ON ii.product_id = p.product_id\nJOIN product_categories pc ON p.category_id = pc.category_id\nWHERE ii.current_stock > 0\nGROUP BY pc.category_name, pc.category_id\nORDER BY total_value DESC\nLIMIT 10",
+      "mappings": {
+        "category": "category_name",
+        "series": {
+          "critical": "critical_value",
+          "warning": "warning_value",
+          "healthy": "healthy_value"
+        }
+      }
+    },
+    {
+      "id": "query_consumption_trend_monthly",
+      "type": "sql",
+      "connectionId": "main_inventory_db",
+      "query": "SELECT \n  DATE_FORMAT(consumption_date, '%Y-%m') as month,\n  SUM(consumed_quantity * unit_cost) as monthly_consumption_value,\n  COUNT(DISTINCT product_id) as products_consumed\nFROM inventory_consumption_log\nWHERE consumption_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)\nGROUP BY DATE_FORMAT(consumption_date, '%Y-%m')\nORDER BY month ASC",
+      "mappings": {
+        "x": "month",
+        "y": "monthly_consumption_value",
+        "metadata": {
+          "productsCount": "products_consumed"
+        }
+      }
+    },
+    {
+      "id": "query_actionable_fifo_list",
+      "type": "sql",
+      "connectionId": "main_inventory_db",
+      "query": "SELECT \n  p.product_code,\n  p.product_name,\n  ii.lot_number,\n  ii.expiry_date,\n  DATEDIFF(ii.expiry_date, CURDATE()) as days_to_expiry,\n  ii.current_stock,\n  ii.unit_cost,\n  (ii.current_stock * ii.unit_cost) as total_value,\n  pc.category_name\nFROM inventory_items ii\nJOIN products p ON ii.product_id = p.product_id\nJOIN product_categories pc ON p.category_id = pc.category_id\nWHERE ii.current_stock > 0\nORDER BY ii.expiry_date ASC, total_value DESC\nLIMIT 10",
+      "mappings": {
+        "rows": "*"
+      }
+    }
+  ],
+  "refreshSettings": {
+    "autoRefresh": true,
+    "intervalMinutes": 30,
+    "lastUpdated": null
+  },
+  "metadata": {
+    "createdBy": "system-architect",
+    "createdDate": "2025-01-31",
+    "templateVersion": "1.0",
+    "businessDomain": "inventory-management",
+    "useCase": "executive-overview"
+  }
+}
