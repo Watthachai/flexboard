@@ -244,6 +244,59 @@ export function processWidgetData(
             });
           }
 
+          // Add aging bucket quantity and value fields for summary table
+          configTransforms.push(
+            // Expired items (example - adjust logic as needed)
+            {
+              as: "Qty_Expired_row",
+              expr: "case( DaysAge < 0, QtyFromThisDoc, true, 0 )",
+            },
+            {
+              as: "Val_Expired_row",
+              expr: "case( DaysAge < 0, QtyFromThisDoc * AverageCost, true, 0 )",
+            },
+
+            // 0-90 days
+            {
+              as: "Qty_0_90_row",
+              expr: "case( AgeBucket = '0-90', QtyFromThisDoc, true, 0 )",
+            },
+            {
+              as: "Val_0_90_row",
+              expr: "case( AgeBucket = '0-90', QtyFromThisDoc * AverageCost, true, 0 )",
+            },
+
+            // 91-180 days
+            {
+              as: "Qty_91_180_row",
+              expr: "case( AgeBucket = '91-180', QtyFromThisDoc, true, 0 )",
+            },
+            {
+              as: "Val_91_180_row",
+              expr: "case( AgeBucket = '91-180', QtyFromThisDoc * AverageCost, true, 0 )",
+            },
+
+            // 181-365 days
+            {
+              as: "Qty_181_365_row",
+              expr: "case( AgeBucket = '181-365', QtyFromThisDoc, true, 0 )",
+            },
+            {
+              as: "Val_181_365_row",
+              expr: "case( AgeBucket = '181-365', QtyFromThisDoc * AverageCost, true, 0 )",
+            },
+
+            // >365 days
+            {
+              as: "Qty_365_plus_row",
+              expr: "case( AgeBucket = '>365', QtyFromThisDoc, true, 0 )",
+            },
+            {
+              as: "Val_365_plus_row",
+              expr: "case( AgeBucket = '>365', QtyFromThisDoc * AverageCost, true, 0 )",
+            }
+          );
+
           configSource = "auto-detected-aging";
         }
       }
@@ -303,10 +356,48 @@ export function processWidgetData(
   }
 
   // Apply grouping and aggregation
-  if (query.dimensions || query.measures) {
-    const dimensions = query.dimensions || [];
+  if (query.groupBy || query.dimensions || query.measures) {
+    console.log("📊 Applying grouping and aggregation:", {
+      groupBy: query.groupBy,
+      dimensions: query.dimensions,
+      measures: query.measures,
+      dataBeforeGrouping: processedData.length,
+      sampleDataBeforeGrouping: processedData.slice(0, 3),
+    });
+
+    // Use groupBy first, then fallback to dimensions
+    const dimensions = query.groupBy || query.dimensions || [];
     const measures = query.measures || [];
+
+    console.log("📊 Final grouping config:", { dimensions, measures });
+
+    // Debug: Check if required fields exist in data
+    if (processedData.length > 0 && dimensions.length > 0) {
+      const sampleRow = processedData[0];
+      const availableFields = Object.keys(sampleRow);
+      const missingDimensions = dimensions.filter(
+        (dim) => !availableFields.includes(dim)
+      );
+      const availableMeasureFields = measures
+        .map((m) => m.field)
+        .filter((field) => field && availableFields.includes(field));
+
+      console.log("📊 Field availability check:", {
+        availableFields,
+        requestedDimensions: dimensions,
+        missingDimensions,
+        requestedMeasureFields: measures.map((m) => m.field),
+        availableMeasureFields,
+      });
+    }
+
     processedData = groupAgg(processedData, dimensions, measures);
+
+    console.log("📊 After grouping:", {
+      originalLength: rawData.length,
+      groupedLength: processedData.length,
+      sampleGrouped: processedData.slice(0, 2),
+    });
   }
 
   // Apply sorting and limiting
@@ -394,7 +485,22 @@ export function adaptTableWidget(
   rawData: any[],
   manifest: any
 ): TableConfig {
+  console.log("🔧 adaptTableWidget called:", {
+    widgetId: widget.id,
+    widgetType: widget.type,
+    hasQuery: !!widget.query,
+    query: widget.query,
+    rawDataLength: rawData.length,
+    sampleRawData: rawData.slice(0, 2),
+  });
+
   const processedData = processWidgetData(widget, rawData, manifest);
+
+  console.log("🔧 adaptTableWidget result:", {
+    originalDataLength: rawData.length,
+    processedDataLength: processedData.length,
+    sampleProcessedData: processedData.slice(0, 2),
+  });
 
   // Get columns from query or use all available columns
   const columns =

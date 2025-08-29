@@ -2,8 +2,8 @@
   "schemaVersion": "1.3",
   "dashboardId": "pvs-co-ltd-inventory-aging-report",
   "dashboardName": "PVS Inventory Aging Summary",
-  "description": "สรุปอายุสินค้าคงคลัง (มีหัวตาราง 2 ชั้น + แถวสรุปรวม + ตารางดิบ)",
-  "version": 3,
+  "description": "RAW + Matrix-style header (show all rows) + Totals + Export",
+  "version": 7,
 
   "theme": {
     "dark": true,
@@ -55,32 +55,63 @@
   ],
 
   "transforms": [
+    { "as": "QtySafe", "expr": "coalesce(QtyFromThisDoc, 0)" },
+    { "as": "CostSafe", "expr": "coalesce(AverageCost, 0)" },
+
     { "as": "DaysAge", "expr": "dateDiff(DataDate, DocDate, 'days')" },
     {
       "as": "AgeBucket",
-      "expr": "case(DaysAge < 0, 'Expired', DaysAge <= 90, '0-90', DaysAge <= 180, '91-180', DaysAge <= 365, '181-365', true, '>365')"
+      "expr": "case(DaysAge > 365, '>365', DaysAge > 180, '181-365', DaysAge > 90, '91-180', DaysAge >= 0, '0-90', true, 'Expired')"
     },
-    { "as": "TotalValueRow", "expr": "QtyFromThisDoc * AverageCost" }
+    { "as": "TotalValueRow", "expr": "QtySafe * CostSafe" },
+
+    {
+      "as": "Qty_Expired_row",
+      "expr": "case(AgeBucket = 'Expired',  QtySafe,        true, 0)"
+    },
+    {
+      "as": "Val_Expired_row",
+      "expr": "case(AgeBucket = 'Expired',  TotalValueRow,  true, 0)"
+    },
+
+    {
+      "as": "Qty_0_90_row",
+      "expr": "case(AgeBucket = '0-90',     QtySafe,        true, 0)"
+    },
+    {
+      "as": "Val_0_90_row",
+      "expr": "case(AgeBucket = '0-90',     TotalValueRow,  true, 0)"
+    },
+
+    {
+      "as": "Qty_91_180_row",
+      "expr": "case(AgeBucket = '91-180',   QtySafe,        true, 0)"
+    },
+    {
+      "as": "Val_91_180_row",
+      "expr": "case(AgeBucket = '91-180',   TotalValueRow,  true, 0)"
+    },
+
+    {
+      "as": "Qty_181_365_row",
+      "expr": "case(AgeBucket = '181-365',  QtySafe,        true, 0)"
+    },
+    {
+      "as": "Val_181_365_row",
+      "expr": "case(AgeBucket = '181-365',  TotalValueRow,  true, 0)"
+    },
+
+    {
+      "as": "Qty_365_plus_row",
+      "expr": "case(AgeBucket = '>365',     QtySafe,        true, 0)"
+    },
+    {
+      "as": "Val_365_plus_row",
+      "expr": "case(AgeBucket = '>365',     TotalValueRow,  true, 0)"
+    }
   ],
 
   "widgets": [
-    {
-      "id": "kpi-expired",
-      "type": "kpi",
-      "title": "Expired (<0 วัน)",
-      "dataSource": "uploaded-xml",
-      "query": {
-        "measures": [{ "field": "TotalValueRow", "agg": "sum", "as": "Value" }],
-        "filters": [{ "field": "AgeBucket", "op": "=", "value": "Expired" }]
-      },
-      "display": {
-        "valueFormatter": "money",
-        "severityRules": [
-          { "op": ">", "value": 0, "color": "danger" },
-          { "op": "=", "value": 0, "color": "ok" }
-        ]
-      }
-    },
     {
       "id": "kpi-0-90",
       "type": "kpi",
@@ -139,106 +170,82 @@
     },
 
     {
-      "id": "table-aging-summary",
+      "id": "table-summary-by-product",
       "type": "table",
-      "title": "สรุปอายุสินค้าคงคลัง (หัว 2 ชั้น + รวมยอด)",
+      "title": "สรุปสต็อกตามสินค้า (จัดกลุ่มตามช่วงอายุ)",
       "dataSource": "uploaded-xml",
       "query": {
-        "dimensions": ["Prod", "UnitName", "Corp", "Branch"],
+        "groupBy": ["Corp", "Branch", "Prod", "UnitName"],
         "measures": [
-          { "field": "QtyFromThisDoc", "agg": "sum", "as": "TotalQuantity" },
-          { "field": "AverageCost", "agg": "avg", "as": "UnitCost" },
+          { "field": "Qty_Expired_row", "agg": "sum", "as": "Qty_Expired" },
+          { "field": "Val_Expired_row", "agg": "sum", "as": "Val_Expired" },
+          { "field": "Qty_0_90_row", "agg": "sum", "as": "Qty_0_90" },
+          { "field": "Val_0_90_row", "agg": "sum", "as": "Val_0_90" },
+          { "field": "Qty_91_180_row", "agg": "sum", "as": "Qty_91_180" },
+          { "field": "Val_91_180_row", "agg": "sum", "as": "Val_91_180" },
+          { "field": "Qty_181_365_row", "agg": "sum", "as": "Qty_181_365" },
+          { "field": "Val_181_365_row", "agg": "sum", "as": "Val_181_365" },
+          { "field": "Qty_365_plus_row", "agg": "sum", "as": "Qty_365_plus" },
+          { "field": "Val_365_plus_row", "agg": "sum", "as": "Val_365_plus" },
           { "field": "TotalValueRow", "agg": "sum", "as": "TotalValue" },
-
-          {
-            "expr": "sum(iif(AgeBucket='0-90', QtyFromThisDoc, 0))",
-            "as": "Qty_0_90"
-          },
-          {
-            "expr": "sum(iif(AgeBucket='0-90', TotalValueRow, 0))",
-            "as": "Val_0_90"
-          },
-
-          {
-            "expr": "sum(iif(AgeBucket='91-180', QtyFromThisDoc, 0))",
-            "as": "Qty_91_180"
-          },
-          {
-            "expr": "sum(iif(AgeBucket='91-180', TotalValueRow, 0))",
-            "as": "Val_91_180"
-          },
-
-          {
-            "expr": "sum(iif(AgeBucket='181-365', QtyFromThisDoc, 0))",
-            "as": "Qty_181_365"
-          },
-          {
-            "expr": "sum(iif(AgeBucket='181-365', TotalValueRow, 0))",
-            "as": "Val_181_365"
-          },
-
-          {
-            "expr": "sum(iif(AgeBucket='>365', QtyFromThisDoc, 0))",
-            "as": "Qty_365_plus"
-          },
-          {
-            "expr": "sum(iif(AgeBucket='>365', TotalValueRow, 0))",
-            "as": "Val_365_plus"
-          }
+          { "field": "QtyFromThisDoc", "agg": "sum", "as": "TotalQty" }
         ],
-        "sort": [{ "field": "TotalValue", "dir": "desc" }],
-        "limit": 5000
+        "sort": [{ "field": "Prod", "dir": "asc" }]
       },
       "display": {
+        "widgetKind": "AdvancedTableWidget",
+        "searchable": true,
+        "enableExportExcel": true,
         "stickyHeader": true,
-        "stickyFirstColumns": 3,
+        "stickyFirstColumns": 4,
+        "horizontalScroll": true,
         "pageSize": 25,
+        "pageSizeOptions": [10, 25, 50, 100],
 
         "columnGroups": [
           {
-            "title": "",
-            "columns": [
-              "Prod",
-              "UnitName",
-              "Corp",
-              "Branch",
-              "TotalQuantity",
-              "UnitCost",
-              "TotalValue"
-            ]
+            "title": "ข้อมูลสินค้า",
+            "columns": ["Corp", "Branch", "Prod", "UnitName"]
           },
-          { "title": "0–90 Days", "columns": ["Qty_0_90", "Val_0_90"] },
-          { "title": "91–180 Days", "columns": ["Qty_91_180", "Val_91_180"] },
+          { "title": "หมดอายุแล้ว", "columns": ["Qty_Expired", "Val_Expired"] },
+          { "title": "0–90 วัน (สดใหม่)", "columns": ["Qty_0_90", "Val_0_90"] },
           {
-            "title": "181–365 Days",
+            "title": "91–180 วัน (เริ่มเก่า)",
+            "columns": ["Qty_91_180", "Val_91_180"]
+          },
+          {
+            "title": "181–365 วัน (เสี่ยง)",
             "columns": ["Qty_181_365", "Val_181_365"]
           },
           {
-            "title": "Over 365 Days",
+            "title": "มากกว่า 365 วัน (เก่าเก็บ)",
             "columns": ["Qty_365_plus", "Val_365_plus"]
-          }
+          },
+          { "title": "รวมทั้งหมด", "columns": ["TotalQty", "TotalValue"] }
         ],
+
         "columnLabels": {
-          "Prod": "สินค้า",
-          "UnitName": "หน่วย",
           "Corp": "บริษัท",
           "Branch": "สาขา",
-          "TotalQuantity": "Quantity",
-          "UnitCost": "Unit Cost",
-          "TotalValue": "Total Value",
-          "Qty_0_90": "Quantity",
-          "Val_0_90": "Value",
-          "Qty_91_180": "Quantity",
-          "Val_91_180": "Value",
-          "Qty_181_365": "Quantity",
-          "Val_181_365": "Value",
-          "Qty_365_plus": "Quantity",
-          "Val_365_plus": "Value"
+          "Prod": "สินค้า",
+          "UnitName": "หน่วย",
+          "Qty_Expired": "จำนวน",
+          "Val_Expired": "มูลค่า",
+          "Qty_0_90": "จำนวน",
+          "Val_0_90": "มูลค่า",
+          "Qty_91_180": "จำนวน",
+          "Val_91_180": "มูลค่า",
+          "Qty_181_365": "จำนวน",
+          "Val_181_365": "มูลค่า",
+          "Qty_365_plus": "จำนวน",
+          "Val_365_plus": "มูลค่า",
+          "TotalQty": "จำนวนรวม",
+          "TotalValue": "มูลค่ารวม"
         },
+
         "columnFormatters": {
-          "TotalQuantity": "qty",
-          "UnitCost": "money",
-          "TotalValue": "money",
+          "Qty_Expired": "qty",
+          "Val_Expired": "money",
           "Qty_0_90": "qty",
           "Val_0_90": "money",
           "Qty_91_180": "qty",
@@ -246,14 +253,30 @@
           "Qty_181_365": "qty",
           "Val_181_365": "money",
           "Qty_365_plus": "qty",
-          "Val_365_plus": "money"
+          "Val_365_plus": "money",
+          "TotalQty": "qty",
+          "TotalValue": "money"
+        },
+
+        "columnAlignment": {
+          "Qty_Expired": "right",
+          "Val_Expired": "right",
+          "Qty_0_90": "right",
+          "Val_0_90": "right",
+          "Qty_91_180": "right",
+          "Val_91_180": "right",
+          "Qty_181_365": "right",
+          "Val_181_365": "right",
+          "Qty_365_plus": "right",
+          "Val_365_plus": "right",
+          "TotalQty": "right",
+          "TotalValue": "right"
         },
 
         "showTotalsRow": true,
         "totalsAgg": {
-          "TotalQuantity": "sum",
-          "UnitCost": "avg",
-          "TotalValue": "sum",
+          "Qty_Expired": "sum",
+          "Val_Expired": "sum",
           "Qty_0_90": "sum",
           "Val_0_90": "sum",
           "Qty_91_180": "sum",
@@ -261,41 +284,155 @@
           "Qty_181_365": "sum",
           "Val_181_365": "sum",
           "Qty_365_plus": "sum",
-          "Val_365_plus": "sum"
+          "Val_365_plus": "sum",
+          "TotalQty": "sum",
+          "TotalValue": "sum"
         },
 
         "rowClassRules": [
           {
-            "when": { "field": "Qty_0_90", "op": ">", "value": 0 },
-            "className": "bg-yellow-200/40"
-          },
-          {
-            "when": { "field": "Qty_91_180", "op": ">", "value": 0 },
-            "className": "bg-orange-200/30"
+            "when": { "field": "Qty_Expired", "op": ">", "value": 0 },
+            "className": "bg-red-50 border-l-4 border-red-500"
           },
           {
             "when": { "field": "Qty_365_plus", "op": ">", "value": 0 },
-            "className": "bg-red-200/30"
+            "className": "bg-orange-50 border-l-4 border-orange-500"
+          },
+          {
+            "when": { "field": "Qty_181_365", "op": ">", "value": 0 },
+            "className": "bg-yellow-50 border-l-4 border-yellow-500"
           }
         ]
       }
     },
 
     {
-      "id": "table-raw-all",
+      "id": "table-raw-aging-matrix",
       "type": "table",
-      "title": "Raw Records (All Fields)",
+      "title": "Raw Records (All Rows) — Matrix Header",
       "dataSource": "uploaded-xml",
       "query": {
-        "autoColumns": true,
-        "sort": [{ "field": "Prod", "dir": "asc" }],
-        "limit": 20000
+        "columns": [
+          "DataDate",
+          "Corp",
+          "Branch",
+          "Prod",
+          "UnitName",
+          "DocNumber",
+          "DocDate",
+          "QtyFromThisDoc",
+          "AverageCost",
+          "DaysAge",
+          "AgeBucket",
+          "TotalValueRow"
+        ],
+        "sort": [{ "field": "Prod", "dir": "asc" }]
       },
       "display": {
+        "widgetKind": "AdvancedTableWidget",
+        "searchable": true,
+        "enableExportExcel": true,
         "stickyHeader": true,
-        "stickyFirstColumns": 2,
-        "pageSize": 25,
-        "horizontalScroll": true
+        "stickyFirstColumns": 3,
+        "rowVirtualization": true,
+        "pageSize": 50,
+        "pageSizeOptions": [25, 50, 100, 200, 500],
+
+        "columnGroups": [
+          {
+            "title": "ข้อมูลพื้นฐาน",
+            "columns": [
+              "DataDate",
+              "Corp",
+              "Branch",
+              "Prod",
+              "UnitName",
+              "DocNumber",
+              "DocDate",
+              "QtyFromThisDoc",
+              "AverageCost"
+            ]
+          },
+          {
+            "title": "การคำนวณอายุ",
+            "columns": ["DaysAge", "AgeBucket", "TotalValueRow"]
+          }
+        ],
+
+        "columnLabels": {
+          "DataDate": "วันที่ข้อมูล",
+          "Corp": "บริษัท",
+          "Branch": "สาขา",
+          "Prod": "สินค้า",
+          "UnitName": "หน่วย",
+          "DocNumber": "เลขที่เอกสาร",
+          "DocDate": "วันที่เอกสาร",
+          "QtyFromThisDoc": "Quantity",
+          "AverageCost": "Unit Cost",
+          "DaysAge": "Days Age",
+          "AgeBucket": "Bucket",
+          "TotalValueRow": "Total Value",
+          "Qty_Expired_row": "Quantity",
+          "Val_Expired_row": "Value",
+          "Qty_0_90_row": "Quantity",
+          "Val_0_90_row": "Value",
+          "Qty_91_180_row": "Quantity",
+          "Val_91_180_row": "Value",
+          "Qty_181_365_row": "Quantity",
+          "Val_181_365_row": "Value",
+          "Qty_365_plus_row": "Quantity",
+          "Val_365_plus_row": "Value"
+        },
+
+        "columnFormatters": {
+          "DataDate": "date",
+          "DocDate": "date",
+          "QtyFromThisDoc": "qty",
+          "AverageCost": "money",
+          "TotalValueRow": "money",
+          "DaysAge": "days",
+          "Qty_Expired_row": "qty",
+          "Val_Expired_row": "money",
+          "Qty_0_90_row": "qty",
+          "Val_0_90_row": "money",
+          "Qty_91_180_row": "qty",
+          "Val_91_180_row": "money",
+          "Qty_181_365_row": "qty",
+          "Val_181_365_row": "money",
+          "Qty_365_plus_row": "qty",
+          "Val_365_plus_row": "money"
+        },
+
+        "showTotalsRow": true,
+        "totalsAgg": {
+          "QtyFromThisDoc": "sum",
+          "TotalValueRow": "sum",
+          "Qty_Expired_row": "sum",
+          "Val_Expired_row": "sum",
+          "Qty_0_90_row": "sum",
+          "Val_0_90_row": "sum",
+          "Qty_91_180_row": "sum",
+          "Val_91_180_row": "sum",
+          "Qty_181_365_row": "sum",
+          "Val_181_365_row": "sum",
+          "Qty_365_plus_row": "sum",
+          "Val_365_plus_row": "sum"
+        },
+
+        "rowClassRules": [
+          {
+            "when": { "field": "AgeBucket", "op": "=", "value": "Expired" },
+            "className": "bg-red-900/20"
+          },
+          {
+            "when": { "field": "AgeBucket", "op": "=", "value": "0-90" },
+            "className": "bg-yellow-900/30"
+          },
+          {
+            "when": { "field": "AgeBucket", "op": "=", "value": "91-180" },
+            "className": "bg-orange-900/20"
+          }
+        ]
       }
     }
   ],
@@ -305,33 +442,32 @@
     "columns": 12,
     "rowHeight": 50,
     "desktop": [
-      { "widgetId": "kpi-expired", "x": 0, "y": 0, "width": 3, "height": 3 },
-      { "widgetId": "kpi-0-90", "x": 3, "y": 0, "width": 3, "height": 3 },
-      { "widgetId": "kpi-91-180", "x": 6, "y": 0, "width": 3, "height": 3 },
-      { "widgetId": "kpi-181-365", "x": 9, "y": 0, "width": 3, "height": 3 },
-
+      { "widgetId": "kpi-0-90", "x": 0, "y": 0, "width": 3, "height": 3 },
+      { "widgetId": "kpi-91-180", "x": 3, "y": 0, "width": 3, "height": 3 },
+      { "widgetId": "kpi-181-365", "x": 6, "y": 0, "width": 3, "height": 3 },
+      { "widgetId": "kpi-over-365", "x": 9, "y": 0, "width": 3, "height": 3 },
       {
-        "widgetId": "table-aging-summary",
+        "widgetId": "table-summary-by-product",
         "x": 0,
         "y": 3,
         "width": 12,
-        "height": 16
+        "height": 15
       },
       {
-        "widgetId": "table-raw-all",
+        "widgetId": "table-raw-aging-matrix",
         "x": 0,
-        "y": 19,
+        "y": 18,
         "width": 12,
-        "height": 14
+        "height": 20
       }
     ],
     "mobile": [
-      { "widgetId": "kpi-expired" },
       { "widgetId": "kpi-0-90" },
       { "widgetId": "kpi-91-180" },
       { "widgetId": "kpi-181-365" },
-      { "widgetId": "table-aging-summary" },
-      { "widgetId": "table-raw-all" }
+      { "widgetId": "kpi-over-365" },
+      { "widgetId": "table-summary-by-product" },
+      { "widgetId": "table-raw-aging-matrix" }
     ]
   }
 }

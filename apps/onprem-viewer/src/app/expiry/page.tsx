@@ -21,7 +21,7 @@ import {
 
 // Mock API endpoint - ในการใช้งานจริงให้เปลี่ยนเป็น URL ของคุณ
 const MANIFEST_URL =
-  "http://localhost:3000/api/v1/tenants/pvs-co-ltd/dashboards/pvs-inventory-aging-report";
+  "/api/dashboard/pvs-co-ltd-inventory-aging-report/manifest?tenantId=pvs-co-ltd";
 
 export default function ExpiryDashboard() {
   const [manifest, setManifest] = useState<any>(null);

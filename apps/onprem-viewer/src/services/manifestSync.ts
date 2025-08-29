@@ -268,22 +268,38 @@ class ManifestSyncService {
       const result = await response.json();
 
       if (result.success && result.data) {
+        // Parse manifestContent if it exists
+        let manifestData = result.data;
+        if (result.data.manifestContent) {
+          try {
+            const parsedManifest = JSON.parse(result.data.manifestContent);
+            console.log("📋 Parsed manifestContent successfully:", {
+              hasTransforms: !!parsedManifest.transforms,
+              transformsLength: parsedManifest.transforms?.length || 0,
+            });
+            manifestData = parsedManifest;
+          } catch (error) {
+            console.error("Failed to parse manifestContent:", error);
+            // Fall back to using result.data as-is
+          }
+        }
+
         const manifest: DashboardManifest = {
-          schemaVersion: result.data.schemaVersion || "1.0",
-          dashboardId: result.data.dashboardId,
-          dashboardName: result.data.dashboardName || result.data.name,
+          schemaVersion: manifestData.schemaVersion || "1.0",
+          dashboardId: manifestData.dashboardId,
+          dashboardName: manifestData.dashboardName || manifestData.name,
           description:
-            result.data.description || "Dashboard from Control Plane",
-          version: result.data.version || 1,
-          targetTeams: result.data.targetTeams || ["default"],
-          layout: result.data.layout || {
+            manifestData.description || "Dashboard from Control Plane",
+          version: manifestData.version || 1,
+          targetTeams: manifestData.targetTeams || ["default"],
+          layout: manifestData.layout || {
             type: "grid",
             columns: 12,
             rowHeight: 50,
           },
-          widgets: result.data.widgets || [],
-          dataSources: result.data.dataSources || [],
-          transforms: result.data.transforms || [], // Add transforms mapping
+          widgets: manifestData.widgets || [],
+          dataSources: manifestData.dataSources || [],
+          transforms: manifestData.transforms || [], // Now correctly parsed from manifestContent
         };
 
         console.log(`✅ Successfully fetched manifest for ${dashboardId}`);
