@@ -654,7 +654,106 @@ export default async function dashboardRoutes(fastify: FastifyInstance) {
           columnsRef.get(),
         ]);
 
-        if (!manifestDoc.exists) {
+        console.log(`🔍 Subcollection manifest exists: ${manifestDoc.exists}`);
+        console.log(`🔍 Columns metadata exists: ${columnsDoc.exists}`);
+
+        let manifest;
+
+        if (manifestDoc.exists) {
+          // ใช้ข้อมูลจาก subcollection /config/manifest เมื่อมีอยู่
+          console.log(`📋 Using data from subcollection /config/manifest`);
+          const manifestData = manifestDoc.data();
+
+          if (manifestData?.manifestContent) {
+            console.log(
+              `🔍 manifestContent from subcollection length:`,
+              manifestData.manifestContent.length
+            );
+            const dashboardConfig = JSON.parse(manifestData.manifestContent);
+            console.log(`🔍 GET manifest: Config from subcollection:`, {
+              schemaVersion: dashboardConfig.schemaVersion,
+              hasTransforms: !!dashboardConfig.transforms,
+              transformsLength: dashboardConfig.transforms?.length || 0,
+            });
+
+            if (dashboardConfig.schemaVersion === "1.3") {
+              console.log(
+                `📋 Processing schema v1.3 config from subcollection`
+              );
+              console.log(
+                `🧬 Transforms in subcollection config:`,
+                dashboardConfig.transforms?.length || 0
+              );
+
+              manifest = {
+                schemaVersion: dashboardConfig.schemaVersion,
+                dashboardId: dashboardId,
+                dashboardName:
+                  dashboardConfig.dashboardName || dashboardConfig.name,
+                description: dashboardConfig.description,
+                version: dashboardConfig.version || 1,
+                targetTeams: dashboardConfig.targetTeams || ["default"],
+                layout: dashboardConfig.layout || {
+                  type: "grid",
+                  columns: 12,
+                  rowHeight: 50,
+                },
+                widgets: dashboardConfig.widgets || [],
+                dataSources: dashboardConfig.dataSources || [],
+                transforms: dashboardConfig.transforms || undefined,
+                analytics: dashboardConfig.analytics || undefined,
+                settings: dashboardConfig.settings || undefined,
+                formatters: dashboardConfig.formatters || undefined,
+                theme: dashboardConfig.theme || undefined,
+              };
+            } else {
+              // Handle older format from subcollection
+              manifest = {
+                schemaVersion: dashboardConfig.apiVersion || "flexboard/v1",
+                dashboardId: dashboardId,
+                dashboardName: dashboardConfig.metadata?.name,
+                description: dashboardConfig.metadata?.description,
+                version: 1,
+                targetTeams: ["default"],
+                layout: {
+                  type: "grid",
+                  columns: dashboardConfig.spec?.layout?.columns || 12,
+                  rowHeight: 50,
+                },
+                widgets: dashboardConfig.spec?.widgets || [],
+                dataSources: dashboardConfig.spec?.dataSources || [],
+                transforms: dashboardConfig.transforms || undefined,
+              };
+            }
+          } else {
+            // Subcollection exists but no manifestContent - use basic structure
+            manifest = {
+              schemaVersion: "flexboard/v1",
+              dashboardId: dashboardId,
+              dashboardName: manifestData?.dashboardName || "Dashboard",
+              description: manifestData?.description || "Dashboard description",
+              version: 1,
+              targetTeams: ["default"],
+              layout: { type: "grid", columns: 12, rowHeight: 50 },
+              widgets: [],
+              dataSources: [],
+            };
+          }
+
+          console.log(
+            `🚀 About to send response from subcollection with transforms:`,
+            {
+              hasTransforms: !!manifest.transforms,
+              transformsCount: manifest.transforms?.length || 0,
+              manifestKeys: Object.keys(manifest),
+            }
+          );
+
+          return reply.send({
+            success: true,
+            data: manifest,
+          });
+        } else if (!manifestDoc.exists) {
           // ถ้าไม่มี subcollection manifest ให้ลองดึงจาก document หลัก
           const dashboardRef = db
             .collection("tenants")
@@ -673,10 +772,21 @@ export default async function dashboardRoutes(fastify: FastifyInstance) {
 
           const dashboardData = dashboardDoc.data();
 
-          // สร้าง manifest จากข้อมูลใน document หลัก
-          let manifest;
+          console.log(
+            `📊 Dashboard data keys:`,
+            Object.keys(dashboardData || {})
+          );
+          console.log(
+            `📋 Has manifestContent:`,
+            !!dashboardData?.manifestContent
+          );
 
+          // สร้าง manifest จากข้อมูลใน document หลัก
           if (dashboardData?.manifestContent) {
+            console.log(
+              `🔍 manifestContent length:`,
+              dashboardData.manifestContent.length
+            );
             // ถ้ามี manifestContent (dashboard-as-code format)
             const dashboardConfig = JSON.parse(dashboardData.manifestContent);
             console.log(`🔍 GET manifest: Detected config format:`, {
@@ -684,11 +794,18 @@ export default async function dashboardRoutes(fastify: FastifyInstance) {
               apiVersion: dashboardConfig.apiVersion,
               hasSpec: !!dashboardConfig.spec,
               hasWidgets: !!dashboardConfig.widgets,
+              hasTransforms: !!dashboardConfig.transforms,
+              transformsLength: dashboardConfig.transforms?.length || 0,
             });
 
             // Check if this is schema v1.3 format
             if (dashboardConfig.schemaVersion === "1.3") {
               console.log(`📋 GET manifest: Processing schema v1.3 config`);
+              console.log(
+                `🧬 Transforms in config:`,
+                dashboardConfig.transforms?.length || 0
+              );
+
               // For schema v1.3, return the config directly as manifest
               manifest = {
                 schemaVersion: dashboardConfig.schemaVersion,
@@ -714,6 +831,11 @@ export default async function dashboardRoutes(fastify: FastifyInstance) {
                 formatters: dashboardConfig.formatters || undefined,
                 theme: dashboardConfig.theme || undefined,
               };
+
+              console.log(
+                `🎯 Final manifest transforms:`,
+                manifest.transforms?.length || 0
+              );
             } else {
               // Handle older dashboard-as-code format
               manifest = {
@@ -754,6 +876,12 @@ export default async function dashboardRoutes(fastify: FastifyInstance) {
               dataSources: [],
             };
           }
+
+          console.log(`🚀 About to send response with transforms:`, {
+            hasTransforms: !!manifest.transforms,
+            transformsCount: manifest.transforms?.length || 0,
+            manifestKeys: Object.keys(manifest),
+          });
 
           return reply.send({
             success: true,
@@ -837,7 +965,7 @@ export default async function dashboardRoutes(fastify: FastifyInstance) {
         };
 
         // Extract manifest data
-        const manifest = {
+        manifest = {
           schemaVersion: manifestConfig?.schemaVersion || "1.0",
           dashboardId: dashboardId,
           dashboardName: manifestConfig?.dashboardName || "Dashboard",

@@ -122,29 +122,27 @@ export default async function dashboardManifestRoutes(
           });
         }
 
-        const response = await DashboardService.getDashboardManifestConfig(
-          tenantId,
-          dashboardId
-        );
+        const response = await DashboardService.getDashboard(dashboardId);
 
-        if (!response.success) {
-          return reply.code(500).send({
+        if (!response.success || !response.data) {
+          return reply.code(404).send({
             success: false,
-            error: "Failed to fetch manifest",
+            error: "Dashboard not found",
           });
         }
 
-        // Return manifest content - handle nested data structure
-        const responseData = response.data as any;
-        const manifestContent = responseData?.data || responseData || {};
+        // Verify the dashboard belongs to the correct tenant
+        if (response.data.tenantId !== tenantId) {
+          return reply.code(404).send({
+            success: false,
+            error: "Dashboard not found",
+          });
+        }
 
         return reply.code(200).send({
           success: true,
           data: {
-            manifestContent:
-              typeof manifestContent === "string"
-                ? manifestContent
-                : JSON.stringify(manifestContent, null, 2),
+            manifestContent: response.data.manifestContent || "{}",
           },
         });
       } catch (error) {
@@ -245,87 +243,6 @@ export default async function dashboardManifestRoutes(
   });
 
   /**
-   * PUT /api/manifest/tenants/:tenantId/dashboards/:dashboardId/manifest
-   * Update dashboard manifest config
-   */
-  fastify.put<{
-    Params: DashboardManifestParams;
-    Body: { manifestContent: string };
-  }>(
-    "/tenants/:tenantId/dashboards/:dashboardId/manifest",
-    async (request, reply) => {
-      try {
-        const { tenantId, dashboardId } = request.params;
-        const { manifestContent } = request.body;
-
-        if (!dashboardId) {
-          return reply.code(400).send({
-            success: false,
-            error: "Dashboard ID is required",
-          });
-        }
-
-        if (!manifestContent) {
-          return reply.code(400).send({
-            success: false,
-            error: "Manifest content is required",
-          });
-        }
-
-        // Validate JSON format
-        let parsedManifest;
-        try {
-          parsedManifest = JSON.parse(manifestContent);
-        } catch (error) {
-          return reply.code(400).send({
-            success: false,
-            error: "Invalid JSON format in manifestContent",
-          });
-        }
-
-        // Check if dashboard exists
-        const dashboardResponse = await DashboardService.getDashboard(
-          dashboardId,
-          tenantId
-        );
-
-        if (!dashboardResponse.success || !dashboardResponse.data) {
-          return reply.code(404).send({
-            success: false,
-            error: "Dashboard not found",
-          });
-        }
-
-        // Update manifest config
-        const response = await DashboardService.updateDashboardManifestConfig(
-          tenantId,
-          dashboardId,
-          parsedManifest,
-          "system"
-        );
-
-        if (!response.success) {
-          return reply.code(500).send({
-            success: false,
-            error: "Failed to update manifest config",
-          });
-        }
-
-        return reply.code(200).send({
-          success: true,
-          data: response.data,
-        });
-      } catch (error) {
-        console.error("Error updating dashboard manifest:", error);
-        return reply.code(500).send({
-          success: false,
-          error: "Failed to update dashboard manifest",
-        });
-      }
-    }
-  );
-
-  /**
    * PUT /api/manifest/tenants/:tenantId/dashboards/:dashboardId
    * Update dashboard manifest
    */
@@ -345,158 +262,60 @@ export default async function dashboardManifestRoutes(
       }
 
       // Check if dashboard exists and belongs to tenant
-      const existingResponse = await DashboardService.getDashboard(
-        dashboardId,
-        tenantId
-      );
-
-      let dashboardData;
+      const existingResponse = await DashboardService.getDashboard(dashboardId);
 
       if (!existingResponse.success || !existingResponse.data) {
-        // Dashboard doesn't exist, create it
-        const defaultDashboard = {
-          name: name || "New Dashboard",
-          slug: (name || "new-dashboard")
-            .toLowerCase()
-            .replace(/\s+/g, "-")
-            .replace(/[^\w-]/g, ""),
-          description: description || "",
-          tenantId: tenantId,
-          isPublic: false,
-          settings: {
-            refreshInterval: 300000, // 5 minutes
-            theme: "light" as const,
-            autoRefresh: true,
-          },
-          status: "draft" as const,
-          tags: targetTeams || ["default"],
-          manifestContent:
-            manifestContent ||
-            JSON.stringify(
-              DashboardService.generateDefaultManifest(dashboardId, name),
-              null,
-              2
-            ),
-        };
-
-        const createResponse = await DashboardService.createDashboard(
-          defaultDashboard,
-          "system",
-          dashboardId
-        );
-
-        if (!createResponse.success) {
-          return reply.code(500).send({
-            success: false,
-            error: "Failed to create dashboard",
-          });
-        }
-
-        dashboardData = createResponse.data;
-
-        // Save manifest config to the new structure
-        if (manifestContent) {
-          try {
-            const manifestConfigResponse =
-              await DashboardService.updateDashboardManifestConfig(
-                tenantId,
-                dashboardId,
-                manifestContent,
-                "system"
-              );
-
-            if (!manifestConfigResponse.success) {
-              console.error(
-                "Failed to save manifest config after creation:",
-                manifestConfigResponse.error
-              );
-            }
-          } catch (manifestError) {
-            console.error(
-              "Error saving manifest config after creation:",
-              manifestError
-            );
-          }
-        }
-      } else {
-        // Dashboard exists, check tenant ownership
-        if (existingResponse.data.tenantId !== tenantId) {
-          return reply.code(404).send({
-            success: false,
-            error: "Dashboard not found",
-          });
-        }
-
-        // Update existing dashboard
-        const updateData: any = {};
-
-        if (name) updateData.name = name;
-        if (description !== undefined) updateData.description = description;
-        if (targetTeams) updateData.tags = targetTeams;
-
-        if (manifestContent) {
-          // Validate JSON format
-          try {
-            const parsedManifest = JSON.parse(manifestContent);
-            // Ensure dashboardId is set
-            parsedManifest.dashboardId = dashboardId;
-            updateData.manifestContent = JSON.stringify(
-              parsedManifest,
-              null,
-              2
-            );
-          } catch (error) {
-            return reply.code(400).send({
-              success: false,
-              error: "Invalid JSON format in manifestContent",
-            });
-          }
-        }
-
-        // Update using DashboardService
-        const updateResponse = await DashboardService.updateDashboard(
-          dashboardId,
-          updateData,
-          "system"
-        );
-
-        if (!updateResponse.success) {
-          return reply.code(500).send({
-            success: false,
-            error: "Failed to update dashboard",
-          });
-        }
-
-        dashboardData = updateResponse.data;
+        return reply.code(404).send({
+          success: false,
+          error: "Dashboard not found",
+        });
       }
 
-      // Save manifest config to the new structure if manifestContent is provided
-      if (manifestContent) {
-        try {
-          const manifestConfigResponse =
-            await DashboardService.updateDashboardManifestConfig(
-              tenantId,
-              dashboardId,
-              manifestContent,
-              "system" // userId
-            );
+      if (existingResponse.data.tenantId !== tenantId) {
+        return reply.code(404).send({
+          success: false,
+          error: "Dashboard not found",
+        });
+      }
 
-          if (!manifestConfigResponse.success) {
-            console.error(
-              "Failed to save manifest config:",
-              manifestConfigResponse.error
-            );
-            // Don't fail the whole request, just log the error
-          }
-        } catch (manifestError) {
-          console.error("Error saving manifest config:", manifestError);
-          // Don't fail the whole request, just log the error
+      const updateData: any = {};
+
+      if (name) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (targetTeams) updateData.tags = targetTeams;
+
+      if (manifestContent) {
+        // Validate JSON format
+        try {
+          const parsedManifest = JSON.parse(manifestContent);
+          // Ensure dashboardId is set
+          parsedManifest.dashboardId = dashboardId;
+          updateData.manifestContent = JSON.stringify(parsedManifest, null, 2);
+        } catch (error) {
+          return reply.code(400).send({
+            success: false,
+            error: "Invalid JSON format in manifestContent",
+          });
         }
+      }
+
+      // Update using DashboardService
+      const updateResponse = await DashboardService.updateDashboard(
+        dashboardId,
+        updateData,
+        "system"
+      );
+
+      if (!updateResponse.success) {
+        return reply.code(500).send({
+          success: false,
+          error: "Failed to update dashboard",
+        });
       }
 
       return reply.code(200).send({
         success: true,
-        data: dashboardData,
+        data: updateResponse.data,
       });
     } catch (error) {
       console.error("Error updating dashboard:", error);
@@ -525,10 +344,7 @@ export default async function dashboardManifestRoutes(
       }
 
       // Check if dashboard exists and belongs to tenant
-      const existingResponse = await DashboardService.getDashboard(
-        dashboardId,
-        tenantId
-      );
+      const existingResponse = await DashboardService.getDashboard(dashboardId);
 
       if (!existingResponse.success || !existingResponse.data) {
         return reply.code(404).send({
@@ -597,10 +413,8 @@ export default async function dashboardManifestRoutes(
         }
 
         // Check if dashboard exists and belongs to tenant
-        const existingResponse = await DashboardService.getDashboard(
-          dashboardId,
-          tenantId
-        );
+        const existingResponse =
+          await DashboardService.getDashboard(dashboardId);
 
         if (!existingResponse.success || !existingResponse.data) {
           return reply.code(404).send({
@@ -641,121 +455,6 @@ export default async function dashboardManifestRoutes(
         return reply.code(500).send({
           success: false,
           error: "Failed to toggle dashboard status",
-        });
-      }
-    }
-  );
-
-  /**
-   * GET /api/manifest/tenants/:tenantId/dashboards/:dashboardId/columns
-   * Get dashboard columns metadata
-   */
-  fastify.get<{
-    Params: DashboardManifestParams;
-  }>(
-    "/tenants/:tenantId/dashboards/:dashboardId/columns",
-    async (request, reply) => {
-      try {
-        const { tenantId, dashboardId } = request.params;
-
-        if (!dashboardId) {
-          return reply.code(400).send({
-            success: false,
-            error: "Dashboard ID is required",
-          });
-        }
-
-        const response = await DashboardService.getDashboardColumns(
-          tenantId,
-          dashboardId
-        );
-
-        if (!response.success) {
-          return reply.code(500).send({
-            success: false,
-            error: "Failed to fetch columns",
-          });
-        }
-
-        return reply.code(200).send({
-          success: true,
-          data: response.data,
-        });
-      } catch (error) {
-        console.error("Error fetching dashboard columns:", error);
-        return reply.code(500).send({
-          success: false,
-          error: "Failed to fetch dashboard columns",
-        });
-      }
-    }
-  );
-
-  /**
-   * PUT /api/manifest/tenants/:tenantId/dashboards/:dashboardId/columns
-   * Update dashboard columns metadata
-   */
-  fastify.put<{
-    Params: DashboardManifestParams;
-    Body: { columns: any[] };
-  }>(
-    "/tenants/:tenantId/dashboards/:dashboardId/columns",
-    async (request, reply) => {
-      try {
-        const { tenantId, dashboardId } = request.params;
-        const { columns } = request.body;
-
-        if (!dashboardId) {
-          return reply.code(400).send({
-            success: false,
-            error: "Dashboard ID is required",
-          });
-        }
-
-        if (!Array.isArray(columns)) {
-          return reply.code(400).send({
-            success: false,
-            error: "Columns must be an array",
-          });
-        }
-
-        // Check if dashboard exists
-        const dashboardResponse = await DashboardService.getDashboard(
-          dashboardId,
-          tenantId
-        );
-
-        if (!dashboardResponse.success || !dashboardResponse.data) {
-          return reply.code(404).send({
-            success: false,
-            error: "Dashboard not found",
-          });
-        }
-
-        // Update columns
-        const response = await DashboardService.updateDashboardColumns(
-          tenantId,
-          dashboardId,
-          columns,
-          "system"
-        );
-
-        if (!response.success) {
-          return reply.code(500).send({
-            success: false,
-            error: "Failed to update columns",
-          });
-        }
-
-        return reply.code(200).send({
-          success: true,
-          data: response.data,
-        });
-      } catch (error) {
-        console.error("Error updating dashboard columns:", error);
-        return reply.code(500).send({
-          success: false,
-          error: "Failed to update dashboard columns",
         });
       }
     }
