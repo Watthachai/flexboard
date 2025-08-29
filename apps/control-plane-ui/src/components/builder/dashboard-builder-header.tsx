@@ -15,7 +15,7 @@ interface Dashboard {
 }
 
 interface DashboardBuilderHeaderProps {
-  dashboard: Dashboard;
+  dashboard: Dashboard | null;
   tenantId: string;
   dashboardId: string;
   onSaveDraft: () => void;
@@ -52,11 +52,11 @@ export default function DashboardBuilderHeader({
             href={`/tenants/${tenantId}`}
             className="hover:text-blue-600 dark:hover:text-blue-400 text-gray-600 dark:text-gray-400"
           >
-            {dashboard?.tenant.name}
+            {dashboard?.tenant?.name || "Loading..."}
           </Link>
           <span className="text-gray-400 dark:text-gray-500">/</span>
           <span className="text-gray-900 dark:text-gray-100 font-medium">
-            {dashboard?.name}
+            {dashboard?.name || "Loading..."}
           </span>
           <span className="text-gray-400 dark:text-gray-500"> / </span>
           <span className="text-blue-600 dark:text-blue-400 font-medium">

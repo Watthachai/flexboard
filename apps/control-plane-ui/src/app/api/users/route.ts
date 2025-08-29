@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const queryString = searchParams.toString();
 
     const response = await fetch(
-      `${envConfig.apiUrl}/users${queryString ? `?${queryString}` : ""}`,
+      `${envConfig.apiUrl}/api/users${queryString ? `?${queryString}` : ""}`,
       {
         method: "GET",
         headers: {
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const response = await fetch(`${envConfig.apiUrl}/users`, {
+    const response = await fetch(`${envConfig.apiUrl}/api/users`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

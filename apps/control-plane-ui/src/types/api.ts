@@ -125,6 +125,7 @@ export interface FilterConfig {
 export interface CreateUserRequest {
   email: string;
   name: string;
+  password: string;
   role: "admin" | "editor" | "viewer";
   tenantId?: string;
 }

@@ -25,11 +25,13 @@ import { Settings, Palette, Database, Code, X } from "lucide-react";
 interface WidgetPropertiesPanelProps {
   widget?: Widget;
   onUpdateWidget: (updates: Partial<Widget>) => void;
+  onClose?: () => void;
 }
 
 export default function WidgetPropertiesPanel({
   widget,
   onUpdateWidget,
+  onClose,
 }: WidgetPropertiesPanelProps) {
   if (!widget) return null;
 
@@ -40,21 +42,18 @@ export default function WidgetPropertiesPanel({
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
             Properties
           </h2>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="w-4 h-4" />
           </Button>
         </div>
 
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="general">
               <Settings className="w-4 h-4" />
             </TabsTrigger>
             <TabsTrigger value="style">
               <Palette className="w-4 h-4" />
-            </TabsTrigger>
-            <TabsTrigger value="data">
-              <Database className="w-4 h-4" />
             </TabsTrigger>
             <TabsTrigger value="code">
               <Code className="w-4 h-4" />
@@ -199,83 +198,6 @@ export default function WidgetPropertiesPanel({
             </div>
           </TabsContent>
 
-          {/* Data Properties */}
-          <TabsContent value="data" className="space-y-4">
-            <div>
-              <Label htmlFor="data-source">Data Source</Label>
-              <Select
-                value={(widget.config.dataSource as string) || "none"}
-                onValueChange={(value) =>
-                  onUpdateWidget({
-                    config: { ...widget.config, dataSource: value },
-                  })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  <SelectItem value="api">API Endpoint</SelectItem>
-                  <SelectItem value="database">Database Query</SelectItem>
-                  <SelectItem value="static">Static Data</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {widget.config.dataSource === "api" && (
-              <div>
-                <Label htmlFor="api-endpoint">API Endpoint</Label>
-                <Input
-                  id="api-endpoint"
-                  value={(widget.config.apiEndpoint as string) || ""}
-                  onChange={(e) =>
-                    onUpdateWidget({
-                      config: { ...widget.config, apiEndpoint: e.target.value },
-                    })
-                  }
-                  placeholder="https://api.example.com/data"
-                />
-              </div>
-            )}
-
-            {widget.config.dataSource === "database" && (
-              <div>
-                <Label htmlFor="sql-query">SQL Query</Label>
-                <Textarea
-                  id="sql-query"
-                  value={(widget.config.sqlQuery as string) || ""}
-                  onChange={(e) =>
-                    onUpdateWidget({
-                      config: { ...widget.config, sqlQuery: e.target.value },
-                    })
-                  }
-                  placeholder="SELECT * FROM table_name"
-                  rows={4}
-                />
-              </div>
-            )}
-
-            <div>
-              <Label htmlFor="refresh-interval">
-                Refresh Interval (seconds)
-              </Label>
-              <Input
-                id="refresh-interval"
-                type="number"
-                value={(widget.config.refreshInterval as number) || 30}
-                onChange={(e) =>
-                  onUpdateWidget({
-                    config: {
-                      ...widget.config,
-                      refreshInterval: parseInt(e.target.value) || 30,
-                    },
-                  })
-                }
-              />
-            </div>
-          </TabsContent>
-
           {/* Code Properties */}
           <TabsContent value="code" className="space-y-4">
             <div>
@@ -367,7 +289,15 @@ function WidgetSpecificProperties({
               value={(widget.config.chartType as string) || "line"}
               onValueChange={(value) =>
                 onUpdateWidget({
-                  config: { ...widget.config, chartType: value },
+                  config: {
+                    ...widget.config,
+                    chartType: value as
+                      | "line"
+                      | "bar"
+                      | "pie"
+                      | "area"
+                      | "doughnut",
+                  },
                 })
               }
             >

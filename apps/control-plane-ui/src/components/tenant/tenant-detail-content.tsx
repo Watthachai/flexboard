@@ -259,20 +259,12 @@ export default function TenantDetailContent() {
 
                 <div className="flex items-center space-x-2">
                   <Link
-                    href={`/tenants/${tenantId}/dashboards/${dashboard.slug}`}
+                    href={`/tenants/${tenantId}/dashboards/${dashboard.id}`}
                     className="flex-1"
                   >
-                    <Button variant="outline" size="sm" className="w-full">
-                      <span className="mr-2">⚙️</span>
-                      Configure
-                    </Button>
-                  </Link>
-                  <Link
-                    href={`/tenants/${tenantId}/dashboards/${dashboard.slug}/builder`}
-                  >
-                    <Button size="sm">
-                      <span className="mr-2">🎨</span>
-                      Builder
+                    <Button size="sm" className="w-full">
+                      <span className="mr-2">✏️</span>
+                      Edit Dashboard
                     </Button>
                   </Link>
                 </div>
@@ -287,7 +279,7 @@ export default function TenantDetailContent() {
         <h2 className="text-xl font-semibold mb-4 text-foreground">
           Quick Actions
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <Link href={`/tenants/${tenantId}/dashboards/new`}>
             <Button
               variant="outline"
@@ -295,6 +287,16 @@ export default function TenantDetailContent() {
             >
               <span className="text-2xl mb-2">📊</span>
               <span className="text-sm">New Dashboard</span>
+            </Button>
+          </Link>
+
+          <Link href={`/tenants/${tenantId}/onprem-licenses`}>
+            <Button
+              variant="outline"
+              className="w-full h-24 flex flex-col items-center justify-center border-border dark:border-border hover:bg-accent dark:hover:bg-accent"
+            >
+              <span className="text-2xl mb-2">🔐</span>
+              <span className="text-sm">OnPrem Licenses</span>
             </Button>
           </Link>
 

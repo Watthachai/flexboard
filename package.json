@@ -10,18 +10,22 @@
     "check-types": "turbo run check-types",
     "env:setup": "cp .env.development apps/control-plane-api/.env && cp .env.development apps/onprem-agent-api/.env",
     "env:validate": "node scripts/validate-env.js",
+    "validate:configs": "cd packages/schema && pnpm build && cd ../.. && node scripts/validate-configs.js",
     "start:all": "concurrently \"cd apps/control-plane-api && npm run dev\" \"cd apps/onprem-agent-api && npm run dev\" \"cd apps/control-plane-ui && npm run dev\" \"cd apps/onprem-viewer-ui && npm run dev\"",
     "docker:dev": "docker-compose -f docker-compose.dev.yml up --build",
     "docker:prod": "docker-compose up --build"
   },
   "devDependencies": {
+    "@types/node": "^24.0.14",
     "concurrently": "^9.1.0",
     "dotenv-cli": "^7.4.2",
     "prettier": "^3.6.2",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
     "turbo": "^2.5.4",
     "typescript": "5.8.3"
   },
-  "packageManager": "pnpm@10.12.4",
+  "packageManager": "pnpm@10.13.1",
   "engines": {
     "node": ">=18"
   }

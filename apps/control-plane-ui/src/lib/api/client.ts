@@ -19,6 +19,8 @@ class ApiClient {
     this.baseURL = baseURL;
     this.defaultHeaders = {
       "Content-Type": "application/json",
+      // Set default auth token for onprem API
+      Authorization: "Bearer test-license-key",
     };
   }
 
@@ -175,8 +177,8 @@ class ApiError extends Error {
   }
 }
 
-// Export singleton instance
-export const apiClient = new ApiClient();
+// Export singleton instance with onprem API URL
+export const apiClient = new ApiClient("http://localhost:3001");
 
 // Export types
 export { ApiError };

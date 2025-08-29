@@ -23,6 +23,15 @@ export async function GET(
     }
 
     const data = await response.json();
+
+    // Transform response to match expected format
+    if (data.success && data.data) {
+      return NextResponse.json({
+        success: true,
+        tenant: data.data, // Rename 'data' to 'tenant' for frontend compatibility
+      });
+    }
+
     return NextResponse.json(data);
   } catch (error) {
     console.error("Error fetching tenant:", error);
