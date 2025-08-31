@@ -1,7 +1,7 @@
 substitutions:
   _REGION: asia-southeast1
   _REPO: flexboard
-  _SERVICE: control-plane-ui
+  _SERVICE: control-plane-ui-staging
   _DIR: apps/control-plane-ui
 
 steps:
@@ -14,7 +14,7 @@ steps:
       - '-t'
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
       - '-t'
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:staging-latest'
       - '.'
 
   # Push the Docker image to Artifact Registry
@@ -26,9 +26,9 @@ steps:
   - name: gcr.io/cloud-builders/docker
     args: 
       - 'push'
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:staging-latest'
 
-  # Deploy to Cloud Run
+  # Deploy to Cloud Run (Staging)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -51,18 +51,18 @@ steps:
       - '--min-instances'
       - '0'
       - '--max-instances'
-      - '5'
+      - '3'
       - '--concurrency'
       - '80'
       - '--timeout'
       - '300'
       - '--set-env-vars'
-      - 'NODE_ENV=production,PORT=8080,ENVIRONMENT=production'
+      - 'NODE_ENV=staging,PORT=8080,ENVIRONMENT=staging'
 
 # Store the built images
 images:
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
-  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:staging-latest'
 
 options:
   logging: CLOUD_LOGGING_ONLY
