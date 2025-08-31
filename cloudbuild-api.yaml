@@ -57,7 +57,7 @@ steps:
       - '--timeout'
       - '300'
       - '--set-env-vars'
-      - 'NODE_ENV=production,PORT=8080'
+      - 'NODE_ENV=production,PORT=8080,ENVIRONMENT=production'
 
 # Store the built images
 images:
