@@ -325,7 +325,6 @@ const start = async () => {
     console.log(
       `📱 Dashboards API: http://${serverConfig.host}:${serverConfig.port}/api/dashboards`
     );
-    console.log(`🔑 Demo API Key: demo-api-key-123`);
 
     if (envConfig.isProduction) {
       console.log(`🌐 Production mode enabled`);

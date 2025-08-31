@@ -1,8 +1,8 @@
-# FlexBoard Cloud Run Deployment Guide
+# FlexBoard Cloud Run Deployment Guide (Bitbucket Edition)
 
 ## Environment Separation
 
-FlexBoard ใช้สองสภาพแวดล้อมหลัก:
+FlexBoard ใช้สองสภาพแวดล้อมหลัก พร้อม Bitbucket Pipelines สำหรับ CI/CD:
 
 ### 🧪 Staging Environment
 
@@ -33,22 +33,37 @@ gcloud services enable run.googleapis.com
 gcloud services enable artifactregistry.googleapis.com
 ```
 
-### 2. ตั้งค่า GitHub Integration
+### 2. ตั้งค่า Bitbucket Integration
 
 ```bash
-# Connect GitHub repository กับ Cloud Build
-gcloud builds triggers connect --region=asia-southeast1
+# สร้าง Service Account สำหรับ Bitbucket Pipelines
+gcloud iam service-accounts create bitbucket-pipelines \
+  --description="Service account for Bitbucket Pipelines" \
+  --display-name="Bitbucket Pipelines"
+
+# ให้สิทธิ์ที่จำเป็น
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:bitbucket-pipelines@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/run.admin"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+  --member="serviceAccount:bitbucket-pipelines@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/artifactregistry.admin"
+
+# สร้าง Service Account Key
+gcloud iam service-accounts keys create bitbucket-key.json \
+  --iam-account=bitbucket-pipelines@$PROJECT_ID.iam.gserviceaccount.com
+
+# แปลงเป็น base64 สำหรับเก็บใน Bitbucket Repository Variables
+base64 -i bitbucket-key.json
 ```
 
-### 3. สร้าง Cloud Build Triggers
+### 3. ตั้งค่า Bitbucket Repository Variables
 
-```bash
-# แก้ไขค่าใน script ก่อน
-nano setup-cloud-build.sh
+ไปที่ Bitbucket Repository → Settings → Repository variables และเพิ่ม:
 
-# รันคำสั่งสร้าง triggers
-./setup-cloud-build.sh
-```
+- **GOOGLE_CLOUD_KEY**: ค่า base64 ของ service account key
+- **PROJECT_ID**: GCP Project ID ของคุณ
 
 ### 4. ตั้งค่า Environment Variables
 
@@ -68,7 +83,7 @@ PROJECT_ID="your-production-project-id"
 
 ## Deployment Workflow
 
-### Automatic Deployment (ผ่าน Git)
+### Automatic Deployment (ผ่าน Bitbucket Pipelines)
 
 1. **Deploy to Staging**:
 
@@ -79,7 +94,7 @@ PROJECT_ID="your-production-project-id"
    git push origin dev
    ```
 
-   → Cloud Build จะ deploy ไปยัง Staging อัตโนมัติ
+   → Bitbucket Pipelines จะ deploy ไปยัง Staging อัตโนมัติ
 
 2. **Deploy to Production**:
    ```bash
@@ -87,9 +102,25 @@ PROJECT_ID="your-production-project-id"
    git merge dev
    git push origin main
    ```
-   → Cloud Build จะ deploy ไปยัง Production อัตโนมัติ
+   → Bitbucket Pipelines จะ deploy ไปยัง Production อัตโนมัติ
 
-### Manual Deployment
+### Manual Deployment (ผ่าน Bitbucket UI)
+
+1. **Deploy Staging**:
+   - ไปที่ Bitbucket Repository → Pipelines
+   - เลือก "Run pipeline"
+   - เลือก branch: `dev`
+   - เลือก pipeline: `staging`
+   - คลิก "Run"
+
+2. **Deploy Production**:
+   - ไปที่ Bitbucket Repository → Pipelines
+   - เลือก "Run pipeline"
+   - เลือก branch: `main`
+   - เลือก pipeline: `production`
+   - คลิก "Run"
+
+### Manual Deployment (ผ่าน Scripts)
 
 1. **Deploy Staging**:
 
@@ -150,7 +181,13 @@ PORT=8080
 
 ## การ Monitor และ Troubleshooting
 
-### 1. ดู Logs
+### 1. ดู Bitbucket Pipelines Logs
+
+```bash
+# ไปที่ Bitbucket Repository → Pipelines → เลือก build ที่ต้องการดู
+```
+
+### 2. ดู Cloud Run Logs
 
 ```bash
 # Staging
@@ -162,7 +199,7 @@ gcloud run logs tail control-plane-api --region=asia-southeast1
 gcloud run logs tail control-plane-ui --region=asia-southeast1
 ```
 
-### 2. ดู Service Status
+### 3. ดู Service Status
 
 ```bash
 # Staging
@@ -174,10 +211,10 @@ gcloud run services describe control-plane-api --region=asia-southeast1
 gcloud run services describe control-plane-ui --region=asia-southeast1
 ```
 
-### 3. ดู Build History
+### 4. ดู Bitbucket Pipelines History
 
 ```bash
-gcloud builds list --limit=10
+# ไปที่ Bitbucket Repository → Pipelines → ดู history ของ builds ทั้งหมด
 ```
 
 ## Security และ Best Practices

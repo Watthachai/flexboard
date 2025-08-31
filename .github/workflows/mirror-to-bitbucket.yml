@@ -1,0 +1,22 @@
+name: Mirror dev & main to Bitbucket
+
+on:
+  push:
+    branches: [main, dev]
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Add Bitbucket remote
+        run: |
+          git remote add bitbucket https://${{ secrets.BB_USERNAME }}:${{ secrets.BB_APP_PASSWORD }}@bitbucket.org/digitalvalueth/flexboard.git
+
+      - name: Push same branch to Bitbucket
+        run: |
+          git push bitbucket ${{ github.ref_name }}:${{ github.ref_name }} --follow-tags
