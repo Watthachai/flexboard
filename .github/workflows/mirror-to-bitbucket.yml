@@ -5,6 +5,8 @@ on:
     branches: [main, dev]
     paths:
       - "apps/onprem-viewer/**"
+      - ".github/workflows/mirror-to-bitbucket.yml"
+  workflow_dispatch: {}
 
 jobs:
   mirror-onprem:
@@ -15,23 +17,43 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Debug context
+        run: |
+          echo "ref_name: $GITHUB_REF_NAME"
+          ls -la
+          ls -la apps || true
+          ls -la apps/onprem-viewer || true
+
+      - name: Validate secrets
+        env:
+          U: ${{ secrets.BB_USERNAME }}
+          P: ${{ secrets.BB_APP_PASSWORD }}
+        run: |
+          test -n "$U" && test -n "$P" || (echo "Missing BB secrets" && exit 1)
+
       - name: Configure Git
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
+          git fetch --all --tags
 
       - name: Create split branch from apps/onprem-viewer
+        id: split
         run: |
           git branch -D onprem-split || true
-          git subtree split --prefix=apps/onprem-viewer -b onprem-split
+          COMMIT=$(git subtree split --prefix=apps/onprem-viewer)
+          test -n "$COMMIT" || (echo "subtree split returned empty. Check path." && exit 1)
+          git branch onprem-split "$COMMIT"
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "Subtree commit: $COMMIT"
 
       - name: Push split branch to flexboard-onprem
         env:
           BB_USERNAME: ${{ secrets.BB_USERNAME }}
           BB_APP_PASSWORD: ${{ secrets.BB_APP_PASSWORD }}
         run: |
+          TARGET=https://bitbucket.org/digitalvalueth/flexboard-onprem.git
           git remote remove bitbucket 2>/dev/null || true
-          git remote add bitbucket https://${BB_USERNAME}:${BB_APP_PASSWORD}@bitbucket.org/digitalvalueth/flexboard-onprem.git
-
-          # Push ไปที่ branch เดียวกับที่ trigger (main หรือ dev)
-          git push --force bitbucket onprem-split:${{ github.ref_name }}
+          git remote add bitbucket https://${BB_USERNAME}:${BB_APP_PASSWORD}@${TARGET#https://}
+          echo "Pushing onprem-split -> ${GITHUB_REF_NAME}"
+          git push --force bitbucket onprem-split:${GITHUB_REF_NAME}
