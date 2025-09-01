@@ -1,0 +1,159 @@
+image: node:21
+
+definitions:
+  services:
+    docker:
+      memory: 4096
+
+  steps:
+    - step: &build-and-deploy-staging
+        name: Build and Deploy to Staging
+        services:
+          - docker
+        caches:
+          - docker
+        script:
+          # Set up environment
+          - export PROJECT_ID="your-gcp-project-id"  # แก้เป็น Project ID จริง
+          - export REGION="asia-southeast1"
+          - export REPO="flexboard"
+          - export COMMIT=$BITBUCKET_COMMIT
+          - export REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}"
+          
+          # Authenticate with Google Cloud
+          - echo $GOOGLE_CLOUD_KEY | base64 -d > gcloud-key.json
+          - gcloud auth activate-service-account --key-file gcloud-key.json
+          - gcloud config set project $PROJECT_ID
+          - gcloud auth configure-docker ${REGION}-docker.pkg.dev
+          
+          # Create Artifact Registry if not exists
+          - gcloud artifacts repositories create ${REPO} --repository-format=docker --location=${REGION} --description="FlexBoard monorepo containers" || echo "Repository already exists"
+          
+          # Build and push Control Plane API (Staging)
+          - echo "🔨 Building Control Plane API (Staging)..."
+          - docker build -f apps/control-plane-api/Dockerfile -t ${REGISTRY}/control-plane-api-staging:${COMMIT} .
+          - docker push ${REGISTRY}/control-plane-api-staging:${COMMIT}
+          
+          # Deploy Control Plane API to Cloud Run (Staging)
+          - echo "🚀 Deploying Control Plane API to Cloud Run (Staging)..."
+          - gcloud run deploy control-plane-api-staging
+            --image ${REGISTRY}/control-plane-api-staging:${COMMIT}
+            --region ${REGION}
+            --platform managed
+            --allow-unauthenticated
+            --port 8080
+            --memory 1Gi
+            --cpu 1
+            --min-instances 0
+            --max-instances 5
+            --set-env-vars NODE_ENV=staging,PORT=8080,ENVIRONMENT=staging
+          
+          # Build and push Control Plane UI (Staging)
+          - echo "🔨 Building Control Plane UI (Staging)..."
+          - docker build -f apps/control-plane-ui/Dockerfile -t ${REGISTRY}/control-plane-ui-staging:${COMMIT} .
+          - docker push ${REGISTRY}/control-plane-ui-staging:${COMMIT}
+          
+          # Deploy Control Plane UI to Cloud Run (Staging)
+          - echo "🚀 Deploying Control Plane UI to Cloud Run (Staging)..."
+          - gcloud run deploy control-plane-ui-staging
+            --image ${REGISTRY}/control-plane-ui-staging:${COMMIT}
+            --region ${REGION}
+            --platform managed
+            --allow-unauthenticated
+            --port 8080
+            --memory 512Mi
+            --cpu 1
+            --min-instances 0
+            --max-instances 3
+            --set-env-vars NODE_ENV=staging,PORT=8080,ENVIRONMENT=staging
+          
+          # Output URLs
+          - echo "✅ Staging deployment completed!"
+          - echo "🌐 STAGING URLs:"
+          - API_URL=$(gcloud run services describe control-plane-api-staging --region=${REGION} --format="value(status.url)" 2>/dev/null || echo "Not deployed yet")
+          - UI_URL=$(gcloud run services describe control-plane-ui-staging --region=${REGION} --format="value(status.url)" 2>/dev/null || echo "Not deployed yet")
+          - echo "API: ${API_URL}"
+          - echo "UI: ${UI_URL}"
+
+    - step: &build-and-deploy-production
+        name: Build and Deploy to Production
+        services:
+          - docker
+        caches:
+          - docker
+        script:
+          # Set up environment
+          - export PROJECT_ID="your-gcp-project-id"  # แก้เป็น Project ID จริง
+          - export REGION="asia-southeast1"
+          - export REPO="flexboard"
+          - export COMMIT=$BITBUCKET_COMMIT
+          - export REGISTRY="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}"
+          
+          # Authenticate with Google Cloud
+          - echo $GOOGLE_CLOUD_KEY | base64 -d > gcloud-key.json
+          - gcloud auth activate-service-account --key-file gcloud-key.json
+          - gcloud config set project $PROJECT_ID
+          - gcloud auth configure-docker ${REGION}-docker.pkg.dev
+          
+          # Create Artifact Registry if not exists
+          - gcloud artifacts repositories create ${REPO} --repository-format=docker --location=${REGION} --description="FlexBoard monorepo containers" || echo "Repository already exists"
+          
+          # Build and push Control Plane API (Production)
+          - echo "🔨 Building Control Plane API (Production)..."
+          - docker build -f apps/control-plane-api/Dockerfile -t ${REGISTRY}/control-plane-api:${COMMIT} .
+          - docker push ${REGISTRY}/control-plane-api:${COMMIT}
+          
+          # Deploy Control Plane API to Cloud Run (Production)
+          - echo "🚀 Deploying Control Plane API to Cloud Run (Production)..."
+          - gcloud run deploy control-plane-api
+            --image ${REGISTRY}/control-plane-api:${COMMIT}
+            --region ${REGION}
+            --platform managed
+            --allow-unauthenticated
+            --port 8080
+            --memory 2Gi
+            --cpu 2
+            --min-instances 1
+            --max-instances 10
+            --set-env-vars NODE_ENV=production,PORT=8080,ENVIRONMENT=production
+          
+          # Build and push Control Plane UI (Production)
+          - echo "🔨 Building Control Plane UI (Production)..."
+          - docker build -f apps/control-plane-ui/Dockerfile -t ${REGISTRY}/control-plane-ui:${COMMIT} .
+          - docker push ${REGISTRY}/control-plane-ui:${COMMIT}
+          
+          # Deploy Control Plane UI to Cloud Run (Production)
+          - echo "🚀 Deploying Control Plane UI to Cloud Run (Production)..."
+          - gcloud run deploy control-plane-ui
+            --image ${REGISTRY}/control-plane-ui:${COMMIT}
+            --region ${REGION}
+            --platform managed
+            --allow-unauthenticated
+            --port 8080
+            --memory 1Gi
+            --cpu 1
+            --min-instances 1
+            --max-instances 5
+            --set-env-vars NODE_ENV=production,PORT=8080,ENVIRONMENT=production
+          
+          # Output URLs
+          - echo "✅ Production deployment completed!"
+          - echo "🌐 PRODUCTION URLs:"
+          - API_URL=$(gcloud run services describe control-plane-api --region=${REGION} --format="value(status.url)" 2>/dev/null || echo "Not deployed yet")
+          - UI_URL=$(gcloud run services describe control-plane-ui --region=${REGION} --format="value(status.url)" 2>/dev/null || echo "Not deployed yet")
+          - echo "API: ${API_URL}"
+          - echo "UI: ${UI_URL}"
+
+pipelines:
+  branches:
+    dev:
+      - step: *build-and-deploy-staging
+    main:
+      - step: *build-and-deploy-production
+  
+  # Manual deployments
+  custom:
+    staging:
+      - step: *build-and-deploy-staging
+    production:
+      - step: *build-and-deploy-production

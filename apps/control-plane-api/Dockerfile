@@ -1,55 +1,42 @@
-# Flexboard Control Plane API Dockerfile
-FROM node:24-alpine AS base
+# ---- prune (ตัดของที่ไม่เกี่ยวให้อิมเมจเล็ก) ----
+FROM node:20 AS prune
+WORKDIR /repo
+COPY . .
+RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN pnpm i -g turbo
+RUN turbo prune --scope=control-plane-api --docker
 
-# Install pnpm
-RUN npm install -g pnpm
+# ---- deps ----
+FROM node:20 AS deps
+WORKDIR /repo
+COPY --from=prune /repo/out/json/ .
+RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN pnpm i --frozen-lockfile
 
-# Set working directory
+# ---- build ----
+FROM node:20 AS build
+WORKDIR /repo
+COPY --from=prune /repo/out/full/ .
+COPY --from=deps  /repo/node_modules ./node_modules
+RUN pnpm --filter control-plane-api... build
+
+# ---- runtime ----
+FROM node:20-alpine AS runner
 WORKDIR /app
+ENV NODE_ENV=production
 
-# Copy package files
-COPY package.json pnpm-lock.yaml* ./
-COPY prisma ./prisma/
+# Copy built application
+COPY --from=build /repo/apps/control-plane-api/dist ./dist
+COPY --from=build /repo/apps/control-plane-api/package.json ./
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
-
-# Copy source code
-COPY src ./src/
-COPY tsconfig.json ./
-
-# Generate Prisma client and build TypeScript
-RUN pnpm run build
-
-# Production stage
-FROM node:22-alpine AS production
-
-# Install pnpm
-RUN npm install -g pnpm
-
-WORKDIR /app
-
-# Copy package files and install production dependencies
-COPY package.json pnpm-lock.yaml* ./
-RUN pnpm install --prod --frozen-lockfile
-
-# Copy built application and Prisma files
-COPY --from=base /app/dist ./dist/
-COPY --from=base /app/src/generated ./src/generated/
-COPY prisma ./prisma/
+# Install production dependencies
+RUN corepack enable && corepack prepare pnpm@9 --activate \
+  && pnpm i --prod --ignore-scripts
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs
 RUN adduser -S flexboard -u 1001
-
 USER flexboard
 
-# Expose port
-EXPOSE 3000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"
-
-# Start application
-CMD ["pnpm", "start"]
+EXPOSE 8080
+CMD ["node", "dist/server-firebase.js"]
