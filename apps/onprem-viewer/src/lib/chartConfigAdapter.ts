@@ -10,6 +10,28 @@ import {
   sortLimit,
 } from "./engine";
 
+// Type definitions for dynamic data
+interface Transform {
+  as: string;
+  expr: string;
+}
+
+interface Measure {
+  field: string;
+  agg: string;
+  as?: string;
+}
+
+interface AgingBucket {
+  name: string;
+  condition: string;
+  key: string;
+}
+
+// Dynamic record type for data that varies by source
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DynamicRecord = Record<string, any>;
+
 export interface ChartConfig {
   data: any[];
   chartType: "bar" | "line" | "pie" | "kpi" | "table";
@@ -52,6 +74,69 @@ export interface TableConfig {
     pageSize?: number;
     stickyHeader?: boolean;
   };
+}
+
+/**
+ * Generate aging bucket configuration based on business rules
+ */
+function generateAgingBuckets(dashboardId?: string): AgingBucket[] {
+  // Default aging buckets for inventory management
+  const defaultBuckets: AgingBucket[] = [
+    { name: "Expired", condition: "DaysAge < 0", key: "Expired" },
+    { name: "0-90", condition: "AgeBucket = '0-90'", key: "0_90" },
+    { name: "91-180", condition: "AgeBucket = '91-180'", key: "91_180" },
+    { name: "181-365", condition: "AgeBucket = '181-365'", key: "181_365" },
+    { name: ">365", condition: "AgeBucket = '>365'", key: "365_plus" },
+  ];
+
+  // Could be extended to support different bucket configurations per dashboard
+  const customBuckets: Record<string, AgingBucket[]> = {
+    // Example: Different buckets for financial aging
+    "accounts-receivable": [
+      { name: "Current", condition: "DaysAge <= 30", key: "current" },
+      {
+        name: "30-60",
+        condition: "DaysAge > 30 AND DaysAge <= 60",
+        key: "30_60",
+      },
+      {
+        name: "60-90",
+        condition: "DaysAge > 60 AND DaysAge <= 90",
+        key: "60_90",
+      },
+      { name: "90+", condition: "DaysAge > 90", key: "90_plus" },
+    ],
+  };
+
+  return customBuckets[dashboardId || ""] || defaultBuckets;
+}
+
+/**
+ * Generate aging transforms for given buckets and field mappings
+ */
+function generateAgingTransforms(
+  buckets: AgingBucket[],
+  qtyField: string = "QtyFromThisDoc",
+  costField: string = "AverageCost"
+): Transform[] {
+  const transforms: Transform[] = [];
+
+  buckets.forEach((bucket) => {
+    transforms.push(
+      // Quantity field
+      {
+        as: `Qty_${bucket.key}_row`,
+        expr: `case( ${bucket.condition}, ${qtyField}, true, 0 )`,
+      },
+      // Value field
+      {
+        as: `Val_${bucket.key}_row`,
+        expr: `case( ${bucket.condition}, ${qtyField} * ${costField}, true, 0 )`,
+      }
+    );
+  });
+
+  return transforms;
 }
 
 /**
@@ -244,58 +329,16 @@ export function processWidgetData(
             });
           }
 
-          // Add aging bucket quantity and value fields for summary table
-          configTransforms.push(
-            // Expired items (example - adjust logic as needed)
-            {
-              as: "Qty_Expired_row",
-              expr: "case( DaysAge < 0, QtyFromThisDoc, true, 0 )",
-            },
-            {
-              as: "Val_Expired_row",
-              expr: "case( DaysAge < 0, QtyFromThisDoc * AverageCost, true, 0 )",
-            },
-
-            // 0-90 days
-            {
-              as: "Qty_0_90_row",
-              expr: "case( AgeBucket = '0-90', QtyFromThisDoc, true, 0 )",
-            },
-            {
-              as: "Val_0_90_row",
-              expr: "case( AgeBucket = '0-90', QtyFromThisDoc * AverageCost, true, 0 )",
-            },
-
-            // 91-180 days
-            {
-              as: "Qty_91_180_row",
-              expr: "case( AgeBucket = '91-180', QtyFromThisDoc, true, 0 )",
-            },
-            {
-              as: "Val_91_180_row",
-              expr: "case( AgeBucket = '91-180', QtyFromThisDoc * AverageCost, true, 0 )",
-            },
-
-            // 181-365 days
-            {
-              as: "Qty_181_365_row",
-              expr: "case( AgeBucket = '181-365', QtyFromThisDoc, true, 0 )",
-            },
-            {
-              as: "Val_181_365_row",
-              expr: "case( AgeBucket = '181-365', QtyFromThisDoc * AverageCost, true, 0 )",
-            },
-
-            // >365 days
-            {
-              as: "Qty_365_plus_row",
-              expr: "case( AgeBucket = '>365', QtyFromThisDoc, true, 0 )",
-            },
-            {
-              as: "Val_365_plus_row",
-              expr: "case( AgeBucket = '>365', QtyFromThisDoc * AverageCost, true, 0 )",
-            }
+          // Generate aging bucket transforms dynamically
+          const agingBuckets = generateAgingBuckets(manifest?.dashboardId);
+          const agingTransforms = generateAgingTransforms(
+            agingBuckets,
+            "QtyFromThisDoc",
+            "AverageCost"
           );
+
+          // Add aging transforms to config
+          configTransforms.push(...agingTransforms);
 
           configSource = "auto-detected-aging";
         }
@@ -306,7 +349,9 @@ export function processWidgetData(
       console.log("🔄 Applying fallback transforms from config...", {
         source: configSource,
         transformsCount: configTransforms.length,
-        transforms: configTransforms.map((t) => `${t.as} = ${t.expr}`),
+        transforms: configTransforms.map(
+          (t: Transform) => `${t.as} = ${t.expr}`
+        ),
       });
 
       const manifestWithTransforms = {
@@ -326,14 +371,14 @@ export function processWidgetData(
 
       // Debug: Check computed field values
       if (processedData.length > 0) {
-        const computedFields = configTransforms.map((t) => t.as);
+        const computedFields = configTransforms.map((t: Transform) => t.as);
         console.log("🎯 Computed fields created:", computedFields);
 
-        // Sample the first few rows for each computed field
-        computedFields.forEach((field) => {
+        // Sample the first few rows for each computed field - dynamic field access
+        computedFields.forEach((field: string) => {
           const values = processedData
             .slice(0, 5)
-            .map((row) => row[field])
+            .map((row: DynamicRecord) => row[field])
             .filter((v) => v !== undefined && v !== null);
           console.log(`🎯 Sample ${field} values:`, values);
         });
@@ -376,17 +421,17 @@ export function processWidgetData(
       const sampleRow = processedData[0];
       const availableFields = Object.keys(sampleRow);
       const missingDimensions = dimensions.filter(
-        (dim) => !availableFields.includes(dim)
+        (dim: string) => !availableFields.includes(dim)
       );
       const availableMeasureFields = measures
-        .map((m) => m.field)
-        .filter((field) => field && availableFields.includes(field));
+        .map((m: Measure) => m.field)
+        .filter((field: string) => field && availableFields.includes(field));
 
       console.log("📊 Field availability check:", {
         availableFields,
         requestedDimensions: dimensions,
         missingDimensions,
-        requestedMeasureFields: measures.map((m) => m.field),
+        requestedMeasureFields: measures.map((m: Measure) => m.field),
         availableMeasureFields,
       });
     }
