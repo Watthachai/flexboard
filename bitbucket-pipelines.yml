@@ -8,7 +8,6 @@ pipelines:
     dev:
       - step:
           name: Control Plane UI → Cloud Run (DEV)
-          deployment: dev
           caches: []
           script:
             # Check if UI files changed
@@ -34,11 +33,10 @@ pipelines:
                 --max-instances 10 \
                 --memory 1Gi \
                 --cpu 1 \
-                --set-env-vars "NODE_ENV=production,NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_DEV}"
+                --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID_DEV},FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY_DEV},FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL_DEV},JWT_SECRET=${JWT_SECRET_DEV},CORS_ORIGINS=${CORS_ORIGINS_DEV},NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_DEV}"
 
       - step:
           name: Control Plane API → Cloud Run (DEV)
-          deployment: dev
           caches: []
           script:
             # Check if API files changed
@@ -64,14 +62,13 @@ pipelines:
                 --max-instances 10 \
                 --memory 1Gi \
                 --cpu 1 \
-                --set-env-vars "NODE_ENV=production,DATABASE_URL=${DATABASE_URL_DEV},JWT_SECRET=${JWT_SECRET_DEV},CORS_ORIGIN=${CORS_ORIGIN_DEV}"
+                --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID_DEV},FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY_DEV},FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL_DEV},JWT_SECRET=${JWT_SECRET_DEV},CORS_ORIGINS=${CORS_ORIGINS_DEV}"
 
 
 
     main:
       - step:
           name: Control Plane UI → Cloud Run (PRODUCTION)
-          deployment: production
           script:
             # GCP Authentication
             - echo "$GCP_SA_KEY_BASE64" | base64 -d > /tmp/key.json
@@ -93,11 +90,10 @@ pipelines:
                 --max-instances 20 \
                 --memory 2Gi \
                 --cpu 2 \
-                --set-env-vars "NODE_ENV=production,NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_PRODUCTION}"
+                --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID_PRODUCTION},FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY_PRODUCTION},FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL_PRODUCTION},JWT_SECRET=${JWT_SECRET_PRODUCTION},CORS_ORIGINS=${CORS_ORIGINS_PRODUCTION},NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_PRODUCTION}"
 
       - step:
           name: Control Plane API → Cloud Run (PRODUCTION)
-          deployment: production
           script:
             # GCP Authentication
             - echo "$GCP_SA_KEY_BASE64" | base64 -d > /tmp/key.json
@@ -119,5 +115,5 @@ pipelines:
                 --max-instances 20 \
                 --memory 2Gi \
                 --cpu 2 \
-                --set-env-vars "NODE_ENV=production,DATABASE_URL=${DATABASE_URL_PRODUCTION},JWT_SECRET=${JWT_SECRET_PRODUCTION},CORS_ORIGIN=${CORS_ORIGIN_PRODUCTION}"
+                --set-env-vars "NODE_ENV=production,FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID_PRODUCTION},FIREBASE_PRIVATE_KEY=${FIREBASE_PRIVATE_KEY_PRODUCTION},FIREBASE_CLIENT_EMAIL=${FIREBASE_CLIENT_EMAIL_PRODUCTION},JWT_SECRET=${JWT_SECRET_PRODUCTION},CORS_ORIGINS=${CORS_ORIGINS_PRODUCTION}"
 

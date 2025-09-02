@@ -42,37 +42,34 @@ This will:
 
 ### 2. Bitbucket Repository Variables
 
-Set these in `Repository settings > Pipelines > Repository variables`:
+Set **ALL** these in `Repository settings > Pipelines > Repository variables`:
 
 ```
+# GCP Configuration
 GCP_PROJECT=your-gcp-project-id
 GCP_REGION=asia-southeast1
 AR_REPO=flexboard
 GCP_SA_EMAIL=bitbucket-deployer@your-project.iam.gserviceaccount.com
 GCP_SA_KEY_BASE64=<base64-encoded-key-from-script>
-```
 
-### 3. Bitbucket Deployment Variables
-
-Set these in `Repository settings > Pipelines > Deployments`:
-
-#### DEV Environment
-
-```
-DATABASE_URL_DEV=postgresql://user:pass@host:port/db_dev
-JWT_SECRET_DEV=your-jwt-secret-for-dev
-CORS_ORIGIN_DEV=https://control-plane-ui-dev-xyz.a.run.app
+# DEV Environment Variables (Firebase + App Config)
+FIREBASE_PROJECT_ID_DEV=flexboard-467509
+FIREBASE_PRIVATE_KEY_DEV="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC2/Xh3jlhHzxxW..."
+FIREBASE_CLIENT_EMAIL_DEV=firebase-adminsdk-fbsvc@flexboard-467509.iam.gserviceaccount.com
+JWT_SECRET_DEV=aaa3e357bac696f1e384f293ab0eebd37eacd951cbe86ee60dd8adbdc8e83b03
+CORS_ORIGINS_DEV=https://control-plane-ui-dev-xyz.a.run.app
 NEXT_PUBLIC_API_URL_DEV=https://control-plane-api-dev-xyz.a.run.app
-```
 
-#### PRODUCTION Environment
-
-```
-DATABASE_URL_PRODUCTION=postgresql://user:pass@host:port/db_production
-JWT_SECRET_PRODUCTION=your-jwt-secret-for-production
-CORS_ORIGIN_PRODUCTION=https://control-plane-ui-xyz.a.run.app
+# PRODUCTION Environment Variables (Firebase + App Config)
+FIREBASE_PROJECT_ID_PRODUCTION=flexboard-466304
+FIREBASE_PRIVATE_KEY_PRODUCTION="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDDJVD748USGxDd..."
+FIREBASE_CLIENT_EMAIL_PRODUCTION=firebase-adminsdk-fbsvc@flexboard-466304.iam.gserviceaccount.com
+JWT_SECRET_PRODUCTION=your-new-production-jwt-secret-here
+CORS_ORIGINS_PRODUCTION=https://control-plane-ui-xyz.a.run.app
 NEXT_PUBLIC_API_URL_PRODUCTION=https://control-plane-api-xyz.a.run.app
 ```
+
+> **Note**: Using Firebase instead of PostgreSQL. All Firebase credentials must be properly set.
 
 ## 🔧 Resource Configuration
 
