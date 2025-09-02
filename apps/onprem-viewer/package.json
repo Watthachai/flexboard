@@ -10,7 +10,6 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@flexboard/schema": "workspace:*",
     "@tanstack/react-table": "^8.21.3",
     "@types/papaparse": "^5.3.16",
     "ajv": "^8.17.1",

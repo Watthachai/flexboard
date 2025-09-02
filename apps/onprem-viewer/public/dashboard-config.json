@@ -145,16 +145,6 @@
           "filter": null
         }
       ]
-    },
-    {
-      "id": "month-filter",
-      "field": "DataDate",
-      "label": "เลือกเดือนเฉพาะ",
-      "type": "month-end-dropdown",
-      "defaultValue": "all",
-      "description": "เลือกข้อมูลเฉพาะเดือนสิ้นเดือน",
-      "monthsBack": 6,
-      "autoGenerate": true
     }
   ],
 
