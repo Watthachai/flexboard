@@ -16,6 +16,8 @@ import {
   groupAgg,
   sortLimit,
   processDataWithManifest,
+  generateMonthEndDates,
+  getMonthEndDatesValues,
 } from "../../lib/engine";
 import {
   adaptKPIWidget,
@@ -41,6 +43,7 @@ import RealParetoChart from "./charts/RealParetoChart";
 import RealStackedBarChart from "./charts/RealStackedBarChart";
 import RealTableWidget from "./charts/RealTableWidget";
 import AdvancedTableWidget from "../../components/AdvancedTableWidget";
+import UserFilters from "../../components/UserFilters";
 import DashboardLayout from "./layout/DashboardLayout";
 import StatsCards from "./StatsCards";
 import {
@@ -216,6 +219,10 @@ export default function DashboardViewer({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [screenWidth, setScreenWidth] = useState<number>(1200); // Default desktop width
+  const [userFilterValues, setUserFilterValues] = useState<
+    Record<string, string>
+  >({});
+  const [dateFilter, setDateFilter] = useState<string>("all"); // New date filter state
 
   // Handle screen resize for responsive behavior
   useEffect(() => {
@@ -402,6 +409,7 @@ export default function DashboardViewer({
       sampleData: uploadedData.slice(0, 2),
       manifestExists: !!manifest,
       manifestTransforms: manifest?.transforms?.length || 0,
+      dateFilter: dateFilter,
     });
 
     if (!uploadedData.length) {
@@ -418,6 +426,28 @@ export default function DashboardViewer({
       );
     }
 
+    // Apply date filter to uploaded data
+    let filteredData = uploadedData;
+    if (dateFilter !== "all" && uploadedData.length > 0) {
+      console.log("🗓️ Date filtering:", {
+        dateFilter,
+        originalDataLength: uploadedData.length,
+      });
+
+      if (dateFilter.startsWith("month-")) {
+        // Filter for specific month-end date
+        const selectedDate = dateFilter.replace("month-", "");
+        filteredData = uploadedData.filter((row) => {
+          return row.DataDate === selectedDate;
+        });
+        console.log(
+          `✅ Filtering for specific date: ${selectedDate}, found ${filteredData.length} rows`
+        );
+      }
+
+      console.log("🗓️ Filtered data length:", filteredData.length);
+    }
+
     // Calculate widget height based on layout
     const widgetHeight =
       widget.layout.height * (manifest?.layout?.rowHeight || 50);
@@ -431,7 +461,7 @@ export default function DashboardViewer({
     // Use chartConfigAdapter to process data and create chart configs
     switch (widget.type) {
       case "kpi": {
-        const kpiConfig = adaptKPIWidget(widget, uploadedData, manifest!);
+        const kpiConfig = adaptKPIWidget(widget, filteredData, manifest!);
         console.log("📊 KPI Config:", kpiConfig);
 
         return (
@@ -448,7 +478,7 @@ export default function DashboardViewer({
 
       case "bar":
       case "line": {
-        const chartConfig = adaptChartWidget(widget, uploadedData, manifest!);
+        const chartConfig = adaptChartWidget(widget, filteredData, manifest!);
         console.log("📊 Chart Config:", chartConfig);
 
         const Component = widget.type === "bar" ? RealBarChart : RealLineChart;
@@ -465,7 +495,7 @@ export default function DashboardViewer({
       }
 
       case "table": {
-        const tableConfig = adaptTableWidget(widget, uploadedData, manifest!);
+        const tableConfig = adaptTableWidget(widget, filteredData, manifest!);
         console.log("📊 Table Config:", tableConfig);
 
         // Use AdvancedTableWidget if columnGroups are defined
@@ -642,6 +672,48 @@ export default function DashboardViewer({
             </div>
           </div>
         </div>
+
+        {/* User Filters */}
+        {manifest?.userFilters && (
+          <UserFilters
+            filters={manifest.userFilters}
+            values={userFilterValues}
+            onChange={(filterId, value) => {
+              setUserFilterValues((prev) => ({
+                ...prev,
+                [filterId]: value,
+              }));
+            }}
+          />
+        )}
+
+        {/* Date Filter */}
+        {uploadedData.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                📅 Filter by Date:
+              </label>
+              <select
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Dates</option>
+                {generateMonthEndDates().map((monthData, index) => (
+                  <option key={index} value={`month-${monthData.value}`}>
+                    {monthData.label}
+                  </option>
+                ))}
+              </select>
+              {dateFilter !== "all" && (
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  Single month selected
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Stats Cards - Show when data is uploaded */}
         {/* Remove this section - let widgets from config handle display instead */}
