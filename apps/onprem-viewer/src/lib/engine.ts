@@ -298,6 +298,11 @@ function dateDiff(a: any, b: any, unit: "days" | "months" | "years") {
     bType: typeof b,
   });
 
+  if (a == null || b == null) {
+    dlog("🔢 dateDiff: null values detected, returning 0");
+    return 0;
+  }
+
   // If already epoch numbers, use fast calculation
   if (typeof a === "number" && typeof b === "number") {
     const result = dateDiffEpoch(a, b, unit);
@@ -307,7 +312,13 @@ function dateDiff(a: any, b: any, unit: "days" | "months" | "years") {
 
   // Fallback to dayjs for non-numeric values
   const result = dayjs(a).diff(dayjs(b), unit);
-  dlog("🔢 dateDiff result (dayjs):", result);
+  dlog("🔢 dateDiff result (dayjs):", {
+    result,
+    aFormatted: dayjs(a).format("YYYY-MM-DD"),
+    bFormatted: dayjs(b).format("YYYY-MM-DD"),
+    aValid: dayjs(a).isValid(),
+    bValid: dayjs(b).isValid(),
+  });
   return result;
 }
 
@@ -315,8 +326,93 @@ function addDays(a: any, days: number) {
   return dayjs(a).add(days, "day");
 }
 
+function addMonths(a: any, months: number) {
+  return dayjs(a).add(months, "month");
+}
+
 function formatDate(a: any, format: string) {
   return dayjs(a).format(format);
+}
+
+function today() {
+  return dayjs().toDate();
+}
+
+function endOfMonth(a: any) {
+  return dayjs(a).endOf("month").toDate();
+}
+
+function generateMonthEndDates() {
+  const dates = [];
+  const now = dayjs();
+
+  // เดือนปัจจุบัน
+  dates.push({
+    value: now.endOf("month").format("YYYY-MM-DD"),
+    label: now.format("MMMM YYYY") + " (ปัจจุบัน)",
+    monthIndex: 0,
+  });
+
+  // 6 เดือนย้อนหลัง
+  for (let i = 1; i <= 6; i++) {
+    const monthDate = now.subtract(i, "month");
+    dates.push({
+      value: monthDate.endOf("month").format("YYYY-MM-DD"),
+      label: monthDate.format("MMMM YYYY"),
+      monthIndex: i,
+    });
+  }
+
+  return dates;
+}
+
+function getMonthEndDatesValues() {
+  return generateMonthEndDates().map((d) => d.value);
+}
+
+export { generateMonthEndDates, getMonthEndDatesValues };
+
+function parseCaseArguments(argsString: string): string[] {
+  const args: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  let quoteChar = "";
+  let parenLevel = 0;
+
+  for (let i = 0; i < argsString.length; i++) {
+    const char = argsString[i];
+
+    if (!inQuotes) {
+      if (char === "'" || char === '"') {
+        inQuotes = true;
+        quoteChar = char;
+        current += char;
+      } else if (char === "(") {
+        parenLevel++;
+        current += char;
+      } else if (char === ")") {
+        parenLevel--;
+        current += char;
+      } else if (char === "," && parenLevel === 0) {
+        args.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    } else {
+      current += char;
+      if (char === quoteChar) {
+        inQuotes = false;
+        quoteChar = "";
+      }
+    }
+  }
+
+  if (current.trim()) {
+    args.push(current.trim());
+  }
+
+  return args;
 }
 
 function lookupDs(
@@ -350,7 +446,8 @@ function evaluateExpression(
     // Handle case expression: case( condition1, value1, condition2, value2, true, defaultValue )
     const caseMatch = expr.match(/case\s*\(\s*(.*)\s*\)/);
     if (caseMatch) {
-      const args = caseMatch[1].split(",").map((s) => s.trim());
+      // Better argument parsing that handles quoted strings
+      const args = parseCaseArguments(caseMatch[1]);
       dlog("case expression args:", args);
 
       // Process pairs of condition, value
@@ -358,7 +455,7 @@ function evaluateExpression(
         const condition = args[i];
         const value = args[i + 1];
 
-        dlog(`evaluating case condition: "${condition}"`);
+        dlog(`evaluating case condition: "${condition}" for value: "${value}"`);
 
         // Special case for 'true' condition (default case)
         if (condition === "true") {
@@ -370,15 +467,21 @@ function evaluateExpression(
 
         // Evaluate the condition
         const conditionResult = evaluateCondition(condition, row, context);
-        dlog("case condition result:", conditionResult);
+        dlog(
+          "case condition result:",
+          conditionResult,
+          "for condition:",
+          condition
+        );
 
         if (conditionResult) {
           const evaluatedValue = evaluateValue(value, row, context);
-          dlog("case value:", evaluatedValue);
+          dlog("case matched! returning value:", evaluatedValue);
           return evaluatedValue;
         }
       }
 
+      dlog("case: no condition matched, returning null");
       return null; // No condition matched
     }
 
@@ -428,6 +531,40 @@ function evaluateExpression(
         context
       );
       return addDays(dateValue, Number(daysValue));
+    }
+
+    // Handle addMonths
+    const addMonthsMatch = expr.match(/addMonths\(([^,]+),\s*([^)]+)\)/);
+    if (addMonthsMatch) {
+      const dateExpr = addMonthsMatch[1].trim();
+      const monthsValue = evaluateExpression(
+        addMonthsMatch[2].trim(),
+        row,
+        context
+      );
+
+      // Handle nested expressions like endOfMonth(today())
+      const dateValue = evaluateExpression(dateExpr, row, context);
+      return addMonths(dateValue, Number(monthsValue));
+    }
+
+    // Handle endOfMonth
+    const endOfMonthMatch = expr.match(/endOfMonth\(([^)]+)\)/);
+    if (endOfMonthMatch) {
+      const dateExpr = endOfMonthMatch[1].trim();
+      // Handle nested expressions like today()
+      const dateValue = evaluateExpression(dateExpr, row, context);
+      return endOfMonth(dateValue);
+    }
+
+    // Handle today
+    if (expr.trim() === "today()") {
+      return today();
+    }
+
+    // Handle generateMonthEndDates
+    if (expr.trim() === "generateMonthEndDates()") {
+      return generateMonthEndDates();
     }
 
     // Handle dateDiff
@@ -566,10 +703,12 @@ function evaluateValue(
 
   // Handle quoted string literals ('text' or "text")
   if (
-    (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
-    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+    (trimmed.startsWith("'") && trimmed.endsWith("'") && trimmed.length > 1) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"') && trimmed.length > 1)
   ) {
-    return trimmed.slice(1, -1);
+    const result = trimmed.slice(1, -1);
+    dlog(`evaluateValue quoted string: "${result}"`);
+    return result;
   }
 
   // Handle numbers
@@ -634,7 +773,12 @@ export function applyTransforms(
     if (DEBUG && index < 2) {
       dlog(`🔄 Row ${index} after transforms:`, {
         newKeys: Object.keys(rr),
-        newData: rr,
+        DaysAge: rr.DaysAge,
+        AgeBucket: rr.AgeBucket,
+        DataDate: rr.DataDate,
+        DocDate: rr.DocDate,
+        QtySafe: rr.QtySafe,
+        TotalValueRow: rr.TotalValueRow,
       });
     }
 
@@ -649,15 +793,36 @@ export function applyTransforms(
   return result;
 }
 
-export function filterRows(rows: Row[], filters?: any[]) {
+export function filterRows(
+  rows: Row[],
+  filters?: any[],
+  context?: EngineContext
+) {
   if (!filters?.length) return rows;
+
+  const ctx = context || { referenceTables: {}, settings: {} };
+
   return rows.filter((r) => {
     return filters.every((f) => {
       const v = r[f.field];
-      if (f.op === "=") return v === f.value;
-      if (f.op === "<") return v < f.value;
-      if (f.op === ">") return v > f.value;
-      if (f.op === "in") return Array.isArray(f.value) && f.value.includes(v);
+
+      // Evaluate value if it's an expression
+      let filterValue = f.value;
+      if (typeof filterValue === "string" && filterValue.includes("()")) {
+        filterValue = evaluateExpression(filterValue, r, ctx);
+      }
+
+      if (f.op === "=") return v === filterValue;
+      if (f.op === "<") return v < filterValue;
+      if (f.op === ">") return v > filterValue;
+      if (f.op === "<=") return v <= filterValue;
+      if (f.op === ">=") return v >= filterValue;
+      if (f.op === "in") {
+        if (Array.isArray(filterValue)) {
+          return filterValue.includes(v);
+        }
+        return false;
+      }
       return true;
     });
   });
@@ -904,6 +1069,12 @@ export function processDataWithManifest(
     referenceTables?: Record<string, ReferenceTable>;
     settings?: Record<string, any>;
     transforms?: { as: string; expr: string }[];
+    globalFilters?: Array<{
+      field: string;
+      op: string;
+      value: any;
+      description?: string;
+    }>;
     dataSources?: Array<{
       id: string;
       fieldTypes?: Record<string, string>;
@@ -920,6 +1091,7 @@ export function processDataWithManifest(
     transformsLength: manifest?.transforms?.length || 0,
     transforms: manifest?.transforms,
     settings: manifest?.settings,
+    globalFilters: manifest?.globalFilters,
   });
 
   // 1. Find data source config
@@ -950,6 +1122,18 @@ export function processDataWithManifest(
   });
 
   processedData = applyTransforms(processedData, manifest.transforms, context);
+
+  // 4. Apply global filters if specified
+  if (manifest.globalFilters && manifest.globalFilters.length > 0) {
+    dlog("🏭 Applying global filters:", manifest.globalFilters);
+    const beforeGlobalFilter = processedData.length;
+    processedData = filterRows(processedData, manifest.globalFilters, context);
+    dlog("🏭 After global filters:", {
+      beforeGlobalFilter,
+      afterGlobalFilter: processedData.length,
+      filtered: beforeGlobalFilter - processedData.length,
+    });
+  }
 
   dlog("🏭 processDataWithManifest completed:", {
     resultLength: processedData.length,

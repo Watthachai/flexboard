@@ -165,6 +165,12 @@ export function processWidgetData(
 
   let processedData = [...rawData];
 
+  // Create context for engine functions
+  const context = {
+    referenceTables: manifest?.referenceTables || {},
+    settings: manifest?.settings || {},
+  };
+
   // Debug manifest structure
   console.log("🔍 Manifest debug:", {
     hasManifest: !!manifest,
@@ -392,7 +398,7 @@ export function processWidgetData(
   if (query.filters) {
     console.log("🔽 Applying filters:", query.filters);
     const beforeFilter = processedData.length;
-    processedData = filterRows(processedData, query.filters);
+    processedData = filterRows(processedData, query.filters, context);
     console.log("✅ Filter result:", {
       beforeFilter,
       afterFilter: processedData.length,
