@@ -7,7 +7,7 @@ This document explains how to set up automatic mirroring from GitHub to Bitbucke
 The GitHub Action automatically mirrors code from GitHub to Bitbucket whenever you push to:
 
 - `main` branch → triggers Bitbucket Pipelines for **PRODUCTION** deployment
-- `dev` branch → triggers Bitbucket Pipelines for **SANDBOX** deployment
+- `dev` branch → triggers Bitbucket Pipelines for **DEV** deployment
 
 ## 🔑 Required GitHub Secrets
 

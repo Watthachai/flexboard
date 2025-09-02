@@ -13,7 +13,7 @@ Our monorepo contains two main applications:
 
 ### Branches
 
-- `dev` → Deploys to **SANDBOX** environment
+- `dev` → Deploys to **DEV** environment
 - `main` → Deploys to **PRODUCTION** environment
 
 ### Smart Deployment
@@ -56,13 +56,13 @@ GCP_SA_KEY_BASE64=<base64-encoded-key-from-script>
 
 Set these in `Repository settings > Pipelines > Deployments`:
 
-#### SANDBOX Environment
+#### DEV Environment
 
 ```
-DATABASE_URL_SANDBOX=postgresql://user:pass@host:port/db_sandbox
-JWT_SECRET_SANDBOX=your-jwt-secret-for-sandbox
-CORS_ORIGIN_SANDBOX=https://control-plane-ui-sandbox-xyz.a.run.app
-NEXT_PUBLIC_API_URL_SANDBOX=https://control-plane-api-sandbox-xyz.a.run.app
+DATABASE_URL_DEV=postgresql://user:pass@host:port/db_dev
+JWT_SECRET_DEV=your-jwt-secret-for-dev
+CORS_ORIGIN_DEV=https://control-plane-ui-dev-xyz.a.run.app
+NEXT_PUBLIC_API_URL_DEV=https://control-plane-api-dev-xyz.a.run.app
 ```
 
 #### PRODUCTION Environment
@@ -76,7 +76,7 @@ NEXT_PUBLIC_API_URL_PRODUCTION=https://control-plane-api-xyz.a.run.app
 
 ## 🔧 Resource Configuration
 
-### SANDBOX (dev branch)
+### DEV (dev branch)
 
 | Service | CPU | Memory | Max Instances |
 | ------- | --- | ------ | ------------- |
@@ -93,8 +93,8 @@ NEXT_PUBLIC_API_URL_PRODUCTION=https://control-plane-api-xyz.a.run.app
 ## 🚦 Deployment Process
 
 1. **Development**: Push to `dev` branch
-   - Triggers sandbox deployment
-   - Services deployed with `-sandbox` suffix
+   - Triggers dev deployment
+   - Services deployed with `-dev` suffix
    - Lower resource allocation
 
 2. **Production**: Merge to `main` branch
@@ -135,7 +135,7 @@ gcloud logging read 'resource.type="cloud_run_revision" AND resource.labels.serv
 
 - **Change Detection**: Only builds apps with modified files
 - **Parallel Steps**: Each service deploys independently
-- **Environment Isolation**: Separate configs for sandbox/production
+- **Environment Isolation**: Separate configs for dev/production
 - **Resource Optimization**: Different allocations per environment
 - **Automatic Scaling**: Based on traffic patterns
 

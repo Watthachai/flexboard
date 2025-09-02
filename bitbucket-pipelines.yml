@@ -7,8 +7,8 @@ pipelines:
   branches:
     dev:
       - step:
-          name: Control Plane UI → Cloud Run (SANDBOX)
-          deployment: sandbox
+          name: Control Plane UI → Cloud Run (DEV)
+          deployment: dev
           caches: []
           script:
             # Check if UI files changed
@@ -25,7 +25,7 @@ pipelines:
             - gcloud builds submit ./apps/control-plane-ui --tag "$UI_IMG"
 
             # Deploy to Cloud Run
-            - gcloud run deploy control-plane-ui-sandbox \
+            - gcloud run deploy control-plane-ui-dev \
                 --image "$UI_IMG" \
                 --region "$GCP_REGION" \
                 --platform managed \
@@ -34,11 +34,11 @@ pipelines:
                 --max-instances 10 \
                 --memory 1Gi \
                 --cpu 1 \
-                --set-env-vars "NODE_ENV=production,NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_SANDBOX}"
+                --set-env-vars "NODE_ENV=production,NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL_DEV}"
 
       - step:
-          name: Control Plane API → Cloud Run (SANDBOX)
-          deployment: sandbox
+          name: Control Plane API → Cloud Run (DEV)
+          deployment: dev
           caches: []
           script:
             # Check if API files changed
@@ -55,7 +55,7 @@ pipelines:
             - gcloud builds submit ./apps/control-plane-api --tag "$API_IMG"
 
             # Deploy to Cloud Run
-            - gcloud run deploy control-plane-api-sandbox \
+            - gcloud run deploy control-plane-api-dev \
                 --image "$API_IMG" \
                 --region "$GCP_REGION" \
                 --platform managed \
@@ -64,7 +64,7 @@ pipelines:
                 --max-instances 10 \
                 --memory 1Gi \
                 --cpu 1 \
-                --set-env-vars "NODE_ENV=production,DATABASE_URL=${DATABASE_URL_SANDBOX},JWT_SECRET=${JWT_SECRET_SANDBOX},CORS_ORIGIN=${CORS_ORIGIN_SANDBOX}"
+                --set-env-vars "NODE_ENV=production,DATABASE_URL=${DATABASE_URL_DEV},JWT_SECRET=${JWT_SECRET_DEV},CORS_ORIGIN=${CORS_ORIGIN_DEV}"
 
 
 
