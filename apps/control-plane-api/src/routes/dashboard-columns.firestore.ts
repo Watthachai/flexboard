@@ -5,11 +5,7 @@
 
 import { FastifyInstance } from "fastify";
 import { TenantService } from "../services/firestore.service";
-import {
-  db,
-  isFirebaseAvailable,
-  getFirebaseUnavailableError,
-} from "../config/firebase-real";
+import { db } from "../config/firebase-real";
 
 interface ColumnSaveRequest {
   columns: string[];
@@ -26,10 +22,6 @@ export default async function dashboardColumnsRoutes(fastify: FastifyInstance) {
     Params: { id: string; dashboardId: string };
   }>("/tenants/:id/dashboards/:dashboardId/columns", async (request, reply) => {
     try {
-      if (!isFirebaseAvailable()) {
-        return reply.code(503).send(getFirebaseUnavailableError());
-      }
-
       const { id: tenantId, dashboardId } = request.params;
 
       // Verify tenant exists
@@ -42,7 +34,7 @@ export default async function dashboardColumnsRoutes(fastify: FastifyInstance) {
       }
 
       // Get saved columns from Firestore
-      const columnsDoc = await db!
+      const columnsDoc = await db
         .collection("tenants")
         .doc(tenantId)
         .collection("dashboards")
@@ -78,10 +70,6 @@ export default async function dashboardColumnsRoutes(fastify: FastifyInstance) {
     Body: ColumnSaveRequest;
   }>("/tenants/:id/dashboards/:dashboardId/columns", async (request, reply) => {
     try {
-      if (!isFirebaseAvailable()) {
-        return reply.code(503).send(getFirebaseUnavailableError());
-      }
-
       const { id: tenantId, dashboardId } = request.params;
       const { columns } = request.body;
 
@@ -105,7 +93,7 @@ export default async function dashboardColumnsRoutes(fastify: FastifyInstance) {
       // Save columns to Firestore
       const now = new Date().toISOString();
 
-      await db!
+      await db
         .collection("tenants")
         .doc(tenantId)
         .collection("dashboards")

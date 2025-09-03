@@ -72,7 +72,9 @@ export class UserService {
       const hashedPassword = await bcrypt.hash(userData.password, 10);
 
       // Generate unique user ID (skip Firebase Auth due to config issues)
-      const userId = `user_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+      const userId = `user_${Date.now()}_${Math.random()
+        .toString(36)
+        .substring(2)}`;
 
       // เตรียมข้อมูลสำหรับ Firestore
       const user: User = {
@@ -116,7 +118,9 @@ export class UserService {
     } catch (error) {
       console.error("Error creating user:", error);
       throw new Error(
-        `Failed to create user: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to create user: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
       );
     }
   }
@@ -161,7 +165,9 @@ export class UserService {
     } catch (error) {
       console.error("Error listing users:", error);
       throw new Error(
-        `Failed to list users: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to list users: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
       );
     }
   }
@@ -195,7 +201,9 @@ export class UserService {
     } catch (error) {
       console.error("Error getting user:", error);
       throw new Error(
-        `Failed to get user: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to get user: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
       );
     }
   }
@@ -238,7 +246,9 @@ export class UserService {
     } catch (error) {
       console.error("Error updating user:", error);
       throw new Error(
-        `Failed to update user: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to update user: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
       );
     }
   }
@@ -255,7 +265,9 @@ export class UserService {
     } catch (error) {
       console.error("Error deleting user:", error);
       throw new Error(
-        `Failed to delete user: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to delete user: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
       );
     }
   }
@@ -281,13 +293,17 @@ export class UserService {
       }
 
       console.log(
-        `Successfully toggled user status for user: ${userId} to ${isActive ? "active" : "inactive"}`
+        `Successfully toggled user status for user: ${userId} to ${
+          isActive ? "active" : "inactive"
+        }`
       );
       return updatedUser;
     } catch (error) {
       console.error("Error toggling user status:", error);
       throw new Error(
-        `Failed to toggle user status: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to toggle user status: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
       );
     }
   }
@@ -311,7 +327,9 @@ export class UserService {
     } catch (error) {
       console.error("Error changing password:", error);
       throw new Error(
-        `Failed to change password: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to change password: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
       );
     }
   }
@@ -335,7 +353,9 @@ export class UserService {
     } catch (error) {
       console.error("Error listing on-premise users:", error);
       throw new Error(
-        `Failed to list on-premise users: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to list on-premise users: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
       );
     }
   }
@@ -390,7 +410,9 @@ export class UserService {
     } catch (error) {
       console.error("Error listing users with hash:", error);
       throw new Error(
-        `Failed to list users with hash: ${error instanceof Error ? error.message : "Unknown error"}`
+        `Failed to list users with hash: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
       );
     }
   }
