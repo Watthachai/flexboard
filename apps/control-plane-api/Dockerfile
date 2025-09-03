@@ -5,19 +5,13 @@ COPY . .
 RUN corepack enable && corepack prepare pnpm@9 --activate \
   && pnpm dlx turbo@2 prune --scope=control-plane-api --docker
 
-# ---- deps (install pruned deps) ----
-FROM node:20 AS deps
-WORKDIR /repo
-COPY --from=prune /repo/out/json/ .
-RUN corepack enable && corepack prepare pnpm@9 --activate
-RUN pnpm install --frozen-lockfile --include-workspace-root
-
 # ---- build ----
 FROM node:20 AS build
 WORKDIR /repo
 COPY --from=prune /repo/out/full/ .
-COPY --from=deps  /repo/node_modules ./node_modules
+COPY --from=prune /repo/out/pnpm-lock.yaml ./pnpm-lock.yaml
 RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN pnpm install --frozen-lockfile
 RUN pnpm --filter control-plane-api... build
 
 # ---- runtime ----
