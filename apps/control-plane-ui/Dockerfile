@@ -1,33 +1,32 @@
-# ---- prune ----
-FROM node:20 AS prune
-WORKDIR /repo
-COPY . .
-RUN corepack enable && corepack prepare pnpm@9 --activate
-RUN pnpm dlx turbo@2 prune --scope=control-plane-ui --docker
-
 # ---- build ----
 FROM node:20 AS build
-WORKDIR /repo
-COPY --from=prune /repo/out/full/ .
-COPY --from=prune /repo/out/pnpm-lock.yaml ./pnpm-lock.yaml
-# ต้องตั้งใน next.config.{js,ts}:  module.exports = { output: 'standalone' }
-RUN corepack enable && corepack prepare pnpm@9 --activate
-RUN pnpm install --frozen-lockfile
-RUN pnpm --filter control-plane-ui... build
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build the application (Next.js with standalone output)
+RUN npm run build
 
 # ---- runtime ----
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production PORT=8080
 
-# copy the Next standalone output
-COPY --from=build /repo/apps/control-plane-ui/.next/standalone ./
-COPY --from=build /repo/apps/control-plane-ui/.next/static ./apps/control-plane-ui/.next/static
-COPY --from=build /repo/apps/control-plane-ui/public ./apps/control-plane-ui/public
+# Copy the Next.js standalone output
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/public ./public
 
-# non-root
+# Create non-root user
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 USER nextjs
 
 EXPOSE 8080
-CMD ["node", "apps/control-plane-ui/server.js"]
+CMD ["node", "server.js"]
