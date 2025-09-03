@@ -144,8 +144,9 @@ export const isFirebaseAvailable = (): boolean => {
 export const getFirebaseUnavailableError = () => {
   return {
     success: false,
-    error: "Firebase is not configured. Please configure Firebase environment variables.",
-    code: "FIREBASE_UNAVAILABLE"
+    error:
+      "Firebase is not configured. Please configure Firebase environment variables.",
+    code: "FIREBASE_UNAVAILABLE",
   };
 };
 

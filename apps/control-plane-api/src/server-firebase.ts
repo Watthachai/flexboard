@@ -135,6 +135,9 @@ fastify.post("/api/license/validate", async (request, reply) => {
     let licenseData = null;
     let tenantId = null;
 
+    if (!db) {
+      throw new Error("Database connection is not initialized");
+    }
     const tenantsSnapshot = await db.collection("tenants").get();
 
     for (const tenantDoc of tenantsSnapshot.docs) {
@@ -214,6 +217,12 @@ async function authenticate(request: any, reply: any) {
     const token = authHeader.replace("Bearer ", "");
 
     // Find tenant by API key in Firestore
+    if (!db) {
+      reply
+        .status(500)
+        .send({ error: "Database connection is not initialized" });
+      return;
+    }
     const tenantsSnapshot = await db
       .collection("tenants")
       .where("apiKey", "==", token)
