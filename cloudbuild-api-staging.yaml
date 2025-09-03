@@ -63,7 +63,7 @@ steps:
       - '--timeout'
       - '300'
       - '--set-env-vars'
-      - 'NODE_ENV=staging,PORT=8080,ENVIRONMENT=staging'
+      - 'NODE_ENV=staging,ENVIRONMENT=staging'
 
   # Optional: Set Firebase environment variables if they are provided
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
