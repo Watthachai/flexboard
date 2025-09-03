@@ -2,7 +2,7 @@ name: Mirror onprem-viewer → Bitbucket Onprem
 
 on:
   push:
-    branches: [main, dev]
+    branches: [api-main, api-dev, ui-main, ui-dev]
     paths:
       - "apps/onprem-viewer/**"
       - ".github/workflows/mirror-to-bitbucket.yml"

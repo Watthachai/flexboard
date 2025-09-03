@@ -1,8 +1,8 @@
-name: Mirror dev & main to Bitbucket
+name: Mirror API & UI branches to Bitbucket
 
 on:
   push:
-    branches: [main, dev]
+    branches: [api-main, api-dev, ui-main, ui-dev]
 
 jobs:
   mirror:
