@@ -7,10 +7,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { tenantId: string } }
+  { params }: { params: Promise<{ tenantId: string }> }
 ) {
   try {
-    const { tenantId } = params;
+    const { tenantId } = await params;
     const { searchParams } = new URL(request.url);
     const columns = searchParams.get("columns"); // comma separated columns
     const limit = parseInt(searchParams.get("limit") || "100");

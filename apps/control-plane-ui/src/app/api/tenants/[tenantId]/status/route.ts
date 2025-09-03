@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { envConfig } from "@/config/env";
 
-export async function PATCH(
+export async function GET(
   request: NextRequest,
-  { params }: { params: { tenantId: string } }
+  { params }: { params: Promise<{ tenantId: string }> }
 ) {
   try {
-    const body = await request.json();
+    const { tenantId } = await params;
 
     const response = await fetch(
-      `${envConfig.apiUrl}/tenants/${params.tenantId}/status`,
+      `${envConfig.apiUrl}/tenants/${tenantId}/status`,
       {
-        method: "PATCH",
+        method: "GET",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
       }
     );
 

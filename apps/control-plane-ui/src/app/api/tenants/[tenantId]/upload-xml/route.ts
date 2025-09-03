@@ -8,10 +8,10 @@ import { UniversalXmlParser } from "../../../../../lib/xml-parser";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { tenantId: string } }
+  { params }: { params: Promise<{ tenantId: string }> }
 ) {
   try {
-    const { tenantId } = params;
+    const { tenantId } = await params;
     const body = await request.json();
     const { xmlContent, fileName } = body;
 
