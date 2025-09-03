@@ -5,10 +5,10 @@ export async function POST(
   request: NextRequest,
   {
     params,
-  }: { params: { tenantId: string; dashboardId: string; metadataId: string } }
+  }: { params: Promise<{ tenantId: string; dashboardId: string; metadataId: string }> }
 ) {
   try {
-    const { tenantId, dashboardId, metadataId } = params;
+    const { metadataId } = await params;
 
     const response = await fetch(
       `${envConfig.apiUrl}/api/metadata/${metadataId}/publish`,

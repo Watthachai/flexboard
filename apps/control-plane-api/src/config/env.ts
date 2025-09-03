@@ -4,7 +4,43 @@ import { FastifyInstance } from "fastify";
 export const envConfig = {
   // Server configuration
   port: parseInt(process.env.PORT || "3001"),
-  host: process.env.HOST || "localhost",
+  host: (() => {
+    // Debug logging
+    console.log("🔍 Environment variables:", {
+      HOST: process.env.HOST,
+      K_SERVICE: process.env.K_SERVICE,
+      NODE_ENV: process.env.NODE_ENV,
+    });
+
+    if (process.env.HOST) {
+      console.log(`📌 Using explicit HOST: ${process.env.HOST}`);
+      return process.env.HOST;
+    }
+
+    // Cloud Run indicators
+    const isCloudRun =
+      process.env.K_SERVICE ||
+      process.env.K_REVISION ||
+      process.env.K_CONFIGURATION ||
+      process.env.CLOUD_RUN_SERVICE ||
+      process.env.GOOGLE_CLOUD_PROJECT;
+
+    if (isCloudRun) {
+      console.log("🌩️  Detected Cloud Run environment, using 0.0.0.0");
+      return "0.0.0.0";
+    }
+
+    if (
+      process.env.NODE_ENV === "production" ||
+      process.env.NODE_ENV === "staging"
+    ) {
+      console.log(`🚀 ${process.env.NODE_ENV} mode, using 0.0.0.0`);
+      return "0.0.0.0";
+    }
+
+    console.log("🏠 Local development, using localhost");
+    return "localhost";
+  })(),
   nodeEnv: process.env.NODE_ENV || "development",
 
   // API configuration

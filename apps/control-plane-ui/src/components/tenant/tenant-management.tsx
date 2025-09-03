@@ -6,7 +6,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useTenantList } from "@/hooks";
+import { useTenantList } from "@/hooks/use-tenant";
 import { CreateTenantRequest } from "@/types";
 import { Button } from "@/components/ui/button";
 import {

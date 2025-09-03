@@ -3,11 +3,11 @@ import { envConfig } from "@/config/env";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const response = await fetch(
-      `${envConfig.apiUrl}/api/users/${params.userId}`,
+      `${envConfig.apiUrl}/api/users/${(await params).userId}`,
       {
         method: "GET",
         headers: {
@@ -33,13 +33,13 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const body = await request.json();
 
     const response = await fetch(
-      `${envConfig.apiUrl}/api/users/${params.userId}`,
+      `${envConfig.apiUrl}/api/users/${(await params).userId}`,
       {
         method: "PUT",
         headers: {
@@ -66,11 +66,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const response = await fetch(
-      `${envConfig.apiUrl}/api/users/${params.userId}`,
+      `${envConfig.apiUrl}/api/users/${(await params).userId}`,
       {
         method: "DELETE",
         headers: {
