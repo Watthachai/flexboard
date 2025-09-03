@@ -3,7 +3,7 @@ import { envConfig } from "@/config/env";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { tenantId: string } }
+  { params }: { params: Promise<{ tenantId: string }> }
 ) {
   try {
     const response = await fetch(

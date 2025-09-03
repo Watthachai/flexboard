@@ -14,10 +14,10 @@ interface WidgetConfig {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { widgetId: string } }
+  { params }: { params: Promise<{ widgetId: string }> }
 ) {
   try {
-    const { widgetId } = params;
+    const { widgetId } = await params;
     const searchParams = request.nextUrl.searchParams;
     const widgetType = searchParams.get("type") || "kpi";
     const tenantId = searchParams.get("tenantId");

@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 import { useDashboardManifestDetail } from "@/hooks/use-dashboard-manifest";
 import { EnhancedWidgetPreview } from "@/components/widget/enhanced-widget-preview";
-import { validateConfigString } from "@flexboard/schema";
+import { validateConfigString, createDefaultConfig } from "@/lib/dashboard-config-validator";
 
 interface DashboardManifestEditorProps {
   tenantId: string;
@@ -91,40 +91,12 @@ export default function DashboardManifestEditor({
       } catch (error) {
         console.error("Invalid manifest content received:", error);
         // Set a default valid template
-        const defaultTemplate = {
-          schemaVersion: "1.0",
-          dashboardId: `${dashboardId}`,
-          dashboardName: "New Dashboard",
-          description: "",
-          version: 1,
-          targetTeams: ["default"],
-          layout: {
-            type: "grid",
-            columns: 12,
-            rowHeight: 50,
-          },
-          widgets: [],
-          dataSources: [],
-        };
+        const defaultTemplate = createDefaultConfig(dashboardId, tenantId);
         setEditorContent(JSON.stringify(defaultTemplate, null, 2));
       }
     } else if (!manifestContent && !isModified) {
       // Set default template if no content exists
-      const defaultTemplate = {
-        schemaVersion: "1.0",
-        dashboardId: `${dashboardId}`,
-        dashboardName: "New Dashboard",
-        description: "",
-        version: 1,
-        targetTeams: ["default"],
-        layout: {
-          type: "grid",
-          columns: 12,
-          rowHeight: 50,
-        },
-        widgets: [],
-        dataSources: [],
-      };
+      const defaultTemplate = createDefaultConfig(dashboardId, tenantId);
       setEditorContent(JSON.stringify(defaultTemplate, null, 2));
     }
   }, [manifestContent, isModified, dashboardId]);
@@ -148,7 +120,7 @@ export default function DashboardManifestEditor({
       console.log("Schema validation passed successfully");
       setValidationResult({ isValid: true, errors: [] });
     } else {
-      const errors = result.errors.map((error) => {
+      const errors = result.errors.map((error: { path?: string; message: string }) => {
         const path = error.path ? `${error.path}: ` : "";
         return `${path}${error.message}`;
       });
