@@ -7,10 +7,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { tenantId: string } }
+  { params }: { params: Promise<{ tenantId: string }> }
 ) {
   try {
-    const { tenantId } = params;
+    const { tenantId } = await params;
 
     // Call Control Plane API to check data status
     const apiUrl = process.env.CONTROL_PLANE_API_URL || "http://localhost:4000";

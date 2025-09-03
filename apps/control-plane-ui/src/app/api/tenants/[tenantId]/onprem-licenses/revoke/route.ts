@@ -5,10 +5,10 @@ const CONTROL_PLANE_API_URL =
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { tenantId: string } }
+  context: { params: Promise<{ tenantId: string }> }
 ) {
   try {
-    const { tenantId } = params;
+    const { tenantId } = await context.params;
     const body = await request.json();
 
     // Forward to Fastify API

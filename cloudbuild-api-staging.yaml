@@ -3,6 +3,14 @@ substitutions:
   _REPO: flexboard
   _SERVICE: control-plane-api-staging
   _DIR: apps/control-plane-api
+  # Firebase configuration - these should be set in Cloud Build trigger
+  _FIREBASE_PROJECT_ID: # Set in Cloud Build trigger
+  _FIREBASE_PRIVATE_KEY_ID: # Set in Cloud Build trigger  
+  _FIREBASE_PRIVATE_KEY: # Set in Cloud Build trigger
+  _FIREBASE_CLIENT_EMAIL: # Set in Cloud Build trigger
+  _FIREBASE_CLIENT_ID: # Set in Cloud Build trigger
+  # JWT Secret for authentication
+  _JWT_SECRET: # Set in Cloud Build trigger
 
 steps:
   # Build and tag the Docker image
@@ -57,7 +65,7 @@ steps:
       - '--timeout'
       - '300'
       - '--set-env-vars'
-      - 'NODE_ENV=staging,PORT=8080,ENVIRONMENT=staging'
+      - 'NODE_ENV=staging,ENVIRONMENT=staging,HOST=0.0.0.0,JWT_SECRET=${_JWT_SECRET},FIREBASE_PROJECT_ID=${_FIREBASE_PROJECT_ID},FIREBASE_PRIVATE_KEY_ID=${_FIREBASE_PRIVATE_KEY_ID},FIREBASE_CLIENT_EMAIL=${_FIREBASE_CLIENT_EMAIL},FIREBASE_CLIENT_ID=${_FIREBASE_CLIENT_ID},FIREBASE_PRIVATE_KEY=${_FIREBASE_PRIVATE_KEY}'
 
 # Store the built images
 images:
