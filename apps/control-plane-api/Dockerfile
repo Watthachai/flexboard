@@ -2,9 +2,8 @@
 FROM node:20 AS prune
 WORKDIR /repo
 COPY . .
-RUN corepack enable && corepack prepare pnpm@9 --activate
-RUN pnpm i -g turbo
-RUN turbo prune --scope=control-plane-api --docker
+RUN corepack enable && corepack prepare pnpm@9 --activate \
+  && pnpm dlx turbo@2 prune --scope=control-plane-api --docker
 
 # ---- deps (install pruned deps) ----
 FROM node:20 AS deps
@@ -14,21 +13,20 @@ RUN corepack enable && corepack prepare pnpm@9 --activate
 RUN pnpm install --frozen-lockfile
 
 # ---- build ----
-FROM node:20 AS build
+FROM node:24.7-alpine AS build
 WORKDIR /repo
 COPY --from=prune /repo/out/full/ .
 COPY --from=deps  /repo/node_modules ./node_modules
 RUN pnpm --filter control-plane-api... build
 
 # ---- runtime ----
-FROM node:20-alpine AS runner
+FROM node:24.7-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production PORT=8080
 
 # copy built files of the app only
 COPY --from=build /repo/apps/control-plane-api/dist ./dist
 COPY --from=build /repo/apps/control-plane-api/package.json ./
-# include lockfile for deterministic install (optional but good)
 COPY --from=build /repo/pnpm-lock.yaml ./pnpm-lock.yaml
 
 RUN corepack enable && corepack prepare pnpm@9 --activate \

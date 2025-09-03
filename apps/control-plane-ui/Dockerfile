@@ -1,20 +1,19 @@
 # ---- prune ----
-FROM node:20 AS prune
+FROM node:24.7-alpine AS prune
 WORKDIR /repo
 COPY . .
-RUN corepack enable && corepack prepare pnpm@9 --activate
-RUN pnpm i -g turbo
-RUN turbo prune --scope=control-plane-ui --docker
+RUN corepack enable && corepack prepare pnpm@9 --activate \
+  && pnpm dlx turbo@2 prune --scope=control-plane-ui --docker
 
 # ---- deps ----
-FROM node:20 AS deps
+FROM node:24.7-alpine AS deps
 WORKDIR /repo
 COPY --from=prune /repo/out/json/ .
 RUN corepack enable && corepack prepare pnpm@9 --activate
 RUN pnpm install --frozen-lockfile
 
 # ---- build ----
-FROM node:20 AS build
+FROM node:24.7-alpine AS build
 WORKDIR /repo
 COPY --from=prune /repo/out/full/ .
 COPY --from=deps  /repo/node_modules ./node_modules
@@ -22,7 +21,7 @@ COPY --from=deps  /repo/node_modules ./node_modules
 RUN pnpm --filter control-plane-ui... build
 
 # ---- runtime ----
-FROM node:20-alpine AS runner
+FROM node:24.7-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production PORT=8080
 
