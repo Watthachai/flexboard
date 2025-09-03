@@ -5,7 +5,11 @@
 
 import { FastifyInstance } from "fastify";
 import { TenantService } from "../services/firestore.service";
-import { db, isFirebaseAvailable, getFirebaseUnavailableError } from "../config/firebase-real";
+import {
+  db,
+  isFirebaseAvailable,
+  getFirebaseUnavailableError,
+} from "../config/firebase-real";
 
 interface ColumnSaveRequest {
   columns: string[];
