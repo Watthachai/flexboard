@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const response = await fetch(
-      `${envConfig.apiUrl}/api/users/${params.userId}`,
+      `${envConfig.apiUrl}/api/users/${(await params).userId}`,
       {
         method: "GET",
         headers: {
@@ -39,7 +39,7 @@ export async function PUT(
     const body = await request.json();
 
     const response = await fetch(
-      `${envConfig.apiUrl}/api/users/${params.userId}`,
+      `${envConfig.apiUrl}/api/users/${(await params).userId}`,
       {
         method: "PUT",
         headers: {
@@ -70,7 +70,7 @@ export async function DELETE(
 ) {
   try {
     const response = await fetch(
-      `${envConfig.apiUrl}/api/users/${params.userId}`,
+      `${envConfig.apiUrl}/api/users/${(await params).userId}`,
       {
         method: "DELETE",
         headers: {
