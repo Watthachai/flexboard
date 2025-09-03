@@ -13,14 +13,15 @@ RUN corepack enable && corepack prepare pnpm@9 --activate
 RUN pnpm install --frozen-lockfile
 
 # ---- build ----
-FROM node:24.7-alpine AS build
+FROM node:20 AS build
 WORKDIR /repo
 COPY --from=prune /repo/out/full/ .
 COPY --from=deps  /repo/node_modules ./node_modules
+RUN corepack enable && corepack prepare pnpm@9 --activate
 RUN pnpm --filter control-plane-api... build
 
 # ---- runtime ----
-FROM node:24.7-alpine AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production PORT=8080
 
