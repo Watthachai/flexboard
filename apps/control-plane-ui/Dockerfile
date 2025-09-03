@@ -2,14 +2,14 @@
 FROM node:20 AS build
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json* ./
+# Copy package files from the app directory
+COPY apps/control-plane-ui/package.json apps/control-plane-ui/package-lock.json* ./
 
 # Install dependencies
 RUN npm ci
 
-# Copy source code
-COPY . .
+# Copy source code from the app directory
+COPY apps/control-plane-ui/ .
 
 # Build the application (Next.js with standalone output)
 RUN npm run build

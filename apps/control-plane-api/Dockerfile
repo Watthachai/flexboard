@@ -2,14 +2,14 @@
 FROM node:20 AS build
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json* ./
+# Copy package files from the app directory
+COPY apps/control-plane-api/package.json apps/control-plane-api/package-lock.json* ./
 
 # Install dependencies
 RUN npm ci
 
-# Copy source code
-COPY . .
+# Copy source code from the app directory
+COPY apps/control-plane-api/ .
 
 # Build the application
 RUN npm run build

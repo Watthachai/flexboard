@@ -1,22 +1,19 @@
 # --- Stage 1: Build Stage ---
 FROM node:22-alpine AS builder
 
-ARG PNPM_VERSION=10
-RUN npm install -g pnpm@${PNPM_VERSION}
-
 WORKDIR /app
 
 # Copy package.json files เพื่อทำ dependency caching
-COPY package.json pnpm-lock.yaml ./
+COPY package.json package-lock.json* ./
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN npm ci
 
 # Copy the rest of the source code
 COPY . .
 
 # Build the Next.js app for production
-RUN pnpm build
+RUN npm run build
 
 # --- Stage 2: Production Stage ---
 FROM node:22-alpine AS production
