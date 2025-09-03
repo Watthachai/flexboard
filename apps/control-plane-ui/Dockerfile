@@ -10,7 +10,7 @@ FROM node:20 AS deps
 WORKDIR /repo
 COPY --from=prune /repo/out/json/ .
 RUN corepack enable && corepack prepare pnpm@9 --activate
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --include-workspace-root
 
 # ---- build ----
 FROM node:20 AS build
@@ -19,8 +19,6 @@ COPY --from=prune /repo/out/full/ .
 COPY --from=deps  /repo/node_modules ./node_modules
 # ต้องตั้งใน next.config.{js,ts}:  module.exports = { output: 'standalone' }
 RUN corepack enable && corepack prepare pnpm@9 --activate
-# Install all dependencies including devDependencies for build
-RUN pnpm install --frozen-lockfile
 RUN pnpm --filter control-plane-ui... build
 
 # ---- runtime ----
