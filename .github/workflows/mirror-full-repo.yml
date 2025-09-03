@@ -1,4 +1,4 @@
-name: Mirror API & UI branches to Bitbucket
+name: Mirror API & UI branches to Bitbucket.
 
 on:
   push:
