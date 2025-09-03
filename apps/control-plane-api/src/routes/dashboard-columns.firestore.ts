@@ -44,16 +44,17 @@ export default async function dashboardColumnsRoutes(fastify: FastifyInstance) {
         .get();
 
       const response: ColumnResponse = {
-        columns: columnsDoc.exists ? columnsDoc.data()?.columns || [] : [],
-        savedAt: columnsDoc.exists ? columnsDoc.data()?.savedAt || "" : "",
+        columns: columnsDoc.exists ? (columnsDoc.data()?.columns as string[]) || [] : [],
+        savedAt: columnsDoc.exists ? (columnsDoc.data()?.savedAt as string) || "" : "",
       };
 
       reply.send(response);
     } catch (error) {
-      fastify.log.error("Error fetching dashboard columns:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      fastify.log.error(`Error fetching dashboard columns: ${errorMessage}`);
       reply.code(500).send({
         error: "Failed to fetch dashboard columns",
-        details: error instanceof Error ? error.message : String(error),
+        details: errorMessage,
       });
     }
   });
@@ -110,10 +111,11 @@ export default async function dashboardColumnsRoutes(fastify: FastifyInstance) {
       );
       reply.send(response);
     } catch (error) {
-      fastify.log.error("Error saving dashboard columns:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      fastify.log.error(`Error saving dashboard columns: ${errorMessage}`);
       reply.code(500).send({
         error: "Failed to save dashboard columns",
-        details: error instanceof Error ? error.message : String(error),
+        details: errorMessage,
       });
     }
   });

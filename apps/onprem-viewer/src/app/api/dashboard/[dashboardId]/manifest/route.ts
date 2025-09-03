@@ -10,10 +10,10 @@ const CONTROL_PLANE_API_URL =
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { dashboardId: string } }
+  context: { params: Promise<{ dashboardId: string }> }
 ) {
   try {
-    const { dashboardId } = params;
+    const { dashboardId } = await context.params;
     const { searchParams } = new URL(request.url);
     const tenantId = searchParams.get("tenantId") || "default";
 
@@ -37,13 +37,21 @@ export async function GET(
     const manifestData = await manifestResponse.json();
 
     // Parse manifestContent if it exists
-    let parsedManifest = {};
+    let parsedManifest: Record<string, unknown> = {};
     if (manifestData.data?.manifestContent) {
       try {
         parsedManifest = JSON.parse(manifestData.data.manifestContent);
         console.log("📋 Parsed manifestContent successfully:", {
-          hasTransforms: !!(parsedManifest as any).transforms,
-          transformsLength: (parsedManifest as any).transforms?.length || 0,
+          hasTransforms: !!(parsedManifest as Record<string, unknown>)
+            .transforms,
+          transformsLength: Array.isArray(
+            (parsedManifest as Record<string, unknown>).transforms
+          )
+            ? (
+                (parsedManifest as Record<string, unknown>)
+                  .transforms as unknown[]
+              ).length
+            : 0,
         });
       } catch (error) {
         console.error("Failed to parse manifestContent:", error);

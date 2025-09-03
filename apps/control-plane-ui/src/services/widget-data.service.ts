@@ -105,7 +105,9 @@ export class WidgetDataService {
     ) {
       try {
         const response = await fetch(
-          `/api/tenants/${config.tenantId}/data?columns=${config.column || config.yAxis || ""}&limit=1000`
+          `/api/tenants/${config.tenantId}/data?columns=${
+            config.column || config.yAxis || ""
+          }&limit=1000`
         );
         if (response.ok) {
           const result = await response.json();
@@ -163,7 +165,9 @@ export class WidgetDataService {
     // Try to fetch from our API first
     try {
       const response = await fetch(
-        `/api/widgets/${config.widgetId || "temp"}/data?type=kpi&tenantId=${config.tenantId || "default"}`
+        `/api/widgets/${config.widgetId || "temp"}/data?type=kpi&tenantId=${
+          config.tenantId || "default"
+        }`
       );
       if (response.ok) {
         const result = await response.json();
@@ -229,7 +233,9 @@ export class WidgetDataService {
     // Try to fetch from our API first
     try {
       const response = await fetch(
-        `/api/widgets/${config.widgetId || "temp"}/data?type=line-chart&tenantId=${config.tenantId || "default"}`
+        `/api/widgets/${
+          config.widgetId || "temp"
+        }/data?type=line-chart&tenantId=${config.tenantId || "default"}`
       );
       if (response.ok) {
         const result = await response.json();
@@ -319,7 +325,9 @@ export class WidgetDataService {
     // Try to fetch from our API first
     try {
       const response = await fetch(
-        `/api/widgets/${config.widgetId || "temp"}/data?type=bar-chart&tenantId=${config.tenantId || "default"}`
+        `/api/widgets/${
+          config.widgetId || "temp"
+        }/data?type=bar-chart&tenantId=${config.tenantId || "default"}`
       );
       if (response.ok) {
         const result = await response.json();
@@ -355,7 +363,9 @@ export class WidgetDataService {
       try {
         const columnsParam = config.columns ? config.columns.join(",") : "";
         const response = await fetch(
-          `/api/tenants/${config.tenantId}/data?columns=${columnsParam}&limit=${config.limit || 100}`
+          `/api/tenants/${config.tenantId}/data?columns=${columnsParam}&limit=${
+            config.limit || 100
+          }`
         );
         if (response.ok) {
           const result = await response.json();
@@ -375,9 +385,9 @@ export class WidgetDataService {
 
             return Object.entries(grouped).map(([key, count]) => ({
               name: key, // Recharts uses 'name' for pie segment labels
-              value: count, // Standard value field
+              value: Number(count), // Ensure value is cast to number
               label: key, // Additional label field
-              count: count, // Keep count for backwards compatibility
+              count: Number(count), // Keep count for backwards compatibility
               timestamp: new Date().toISOString(),
               category: key,
             }));
@@ -391,7 +401,9 @@ export class WidgetDataService {
     // Try to fetch from our API first
     try {
       const response = await fetch(
-        `/api/widgets/${config.widgetId || "temp"}/data?type=pie-chart&tenantId=${config.tenantId || "default"}`
+        `/api/widgets/${
+          config.widgetId || "temp"
+        }/data?type=pie-chart&tenantId=${config.tenantId || "default"}`
       );
       if (response.ok) {
         const result = await response.json();
@@ -427,7 +439,9 @@ export class WidgetDataService {
       try {
         const columnsParam = config.columns ? config.columns.join(",") : "";
         const response = await fetch(
-          `/api/tenants/${config.tenantId}/data?columns=${columnsParam}&limit=${config.limit || 100}`
+          `/api/tenants/${config.tenantId}/data?columns=${columnsParam}&limit=${
+            config.limit || 100
+          }`
         );
         if (response.ok) {
           const result = await response.json();
@@ -443,7 +457,9 @@ export class WidgetDataService {
     // Try to fetch from our API first
     try {
       const response = await fetch(
-        `/api/widgets/${config.widgetId || "temp"}/data?type=table&tenantId=${config.tenantId || "default"}`
+        `/api/widgets/${config.widgetId || "temp"}/data?type=table&tenantId=${
+          config.tenantId || "default"
+        }`
       );
       if (response.ok) {
         const result = await response.json();

@@ -1,18 +1,22 @@
+// src/app/api/tenants/[tenantId]/stats/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { envConfig } from "@/config/env";
 
+type RouteParams = { tenantId: string };
+
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ tenantId: string }> }
+  _request: NextRequest,
+  { params }: { params: Promise<RouteParams> } // 👈 เปลี่ยนเป็น Promise
 ) {
   try {
+    const { tenantId } = await params; // 👈 await ก่อนใช้
+
     const response = await fetch(
-      `${envConfig.apiUrl}/tenants/${params.tenantId}/stats`,
+      `${envConfig.apiUrl}/tenants/${tenantId}/stats`,
       {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
+        // (ถ้าต้องส่ง cookie/header เพิ่ม ใส่ตรงนี้)
       }
     );
 
