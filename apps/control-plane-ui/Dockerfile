@@ -17,7 +17,7 @@ RUN npm run build
 # ---- runtime ----
 FROM node:20-alpine AS runner
 WORKDIR /app
-ENV NODE_ENV=production PORT=8080
+ENV NODE_ENV=production
 
 # Copy the Next.js standalone output
 COPY --from=build /app/.next/standalone ./

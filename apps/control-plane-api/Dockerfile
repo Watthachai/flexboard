@@ -17,10 +17,10 @@ RUN npm run build
 # ---- runtime ----
 FROM node:20-alpine AS runner
 WORKDIR /app
-ENV NODE_ENV=production PORT=8080
+ENV NODE_ENV=production
 
-# Copy package files and install production dependencies
-COPY package.json package-lock.json* ./
+# Copy package files from the app directory and install production dependencies
+COPY apps/control-plane-api/package.json apps/control-plane-api/package-lock.json* ./
 RUN npm ci --only=production && npm cache clean --force
 
 # Copy built application
