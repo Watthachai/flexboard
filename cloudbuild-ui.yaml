@@ -28,7 +28,7 @@ steps:
       - 'push'
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest'
 
-  # Deploy to Cloud Run
+  # Deploy to Cloud Run (Production)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -57,7 +57,7 @@ steps:
       - '--timeout'
       - '300'
       - '--set-env-vars'
-      - 'NODE_ENV=production,ENVIRONMENT=production'
+      - 'NODE_ENV=production,ENVIRONMENT=production,HOST=0.0.0.0'
 
 # Store the built images
 images:
