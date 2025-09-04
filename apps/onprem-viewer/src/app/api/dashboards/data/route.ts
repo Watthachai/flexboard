@@ -3,7 +3,30 @@
  * Fetches dashboard data based on user's license permissions
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { envConfig } from "@/config/env";
+
+// Type definitions
+interface Dashboard {
+  id: string;
+  title: string;
+  description?: string;
+  widgets: Widget[];
+  visualConfig?: {
+    widgets: Widget[];
+    layout?: unknown;
+  };
+  [key: string]: unknown;
+}
+
+interface Widget {
+  id: string;
+  type: string;
+  title?: string;
+  config?: Record<string, unknown>;
+  data?: unknown;
+  [key: string]: unknown;
+}
 
 export async function GET(request: Request) {
   try {
@@ -22,14 +45,11 @@ export async function GET(request: Request) {
     }
 
     // Parse cookies
-    const cookies = cookieHeader.split(";").reduce(
-      (acc, cookie) => {
-        const [key, value] = cookie.trim().split("=");
-        acc[key] = value;
-        return acc;
-      },
-      {} as Record<string, string>
-    );
+    const cookies = cookieHeader.split(";").reduce((acc, cookie) => {
+      const [key, value] = cookie.trim().split("=");
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
 
     const tenantId = cookies["tenant-id"];
     console.log("🏢 Tenant ID from cookies:", tenantId);
@@ -44,7 +64,9 @@ export async function GET(request: Request) {
 
     // Fetch dashboard data from Control Plane API
     console.log(`🌐 Fetching dashboards for tenant: ${tenantId}`);
-    const controlPlaneUrl = `http://localhost:3000/api/tenants/${tenantId}/dashboards`;
+    const controlPlaneUrl = envConfig.getControlPlaneApiUrl(
+      `/tenants/${tenantId}/dashboards`
+    );
     console.log("📡 Control Plane URL:", controlPlaneUrl);
 
     const response = await fetch(controlPlaneUrl);
@@ -71,14 +93,14 @@ export async function GET(request: Request) {
 
     // Transform dashboards for OnPrem Viewer
     const transformedDashboards = controlPlaneData.data.map(
-      (dashboard: any) => {
+      (dashboard: Dashboard) => {
         console.log(`🔄 Transforming dashboard: ${dashboard.name}`);
 
         // Extract widgets from visualConfig
         const widgets = dashboard.visualConfig?.widgets || [];
         console.log(`📊 Found ${widgets.length} widgets in dashboard`);
 
-        const transformedWidgets = widgets.map((widget: any) => {
+        const transformedWidgets = widgets.map((widget: Widget) => {
           console.log(`🔧 Transforming widget: ${widget.title || widget.id}`);
 
           // Handle different widget types
@@ -199,18 +221,4 @@ export async function GET(request: Request) {
       error: error instanceof Error ? error.message : "Unknown error",
     });
   }
-}
-
-// Transform widgets from Control Plane format to OnPrem Viewer format
-function transformWidgetsForViewer(widgets: any[]): any[] {
-  return widgets.map((widget) => ({
-    id: widget.id || `widget-${Date.now()}`,
-    type: widget.config?.type || "chart",
-    title: widget.config?.title || "Untitled Widget",
-    data: [], // No sample data - return empty array
-    config: {
-      chartType: widget.config?.chartType || "line",
-      ...widget.config,
-    },
-  }));
 }

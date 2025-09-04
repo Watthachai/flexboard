@@ -38,6 +38,8 @@ const fastify = Fastify({
 fastify.register(require("@fastify/cors"), {
   origin: envConfig.corsOrigins,
   credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
 });
 
 // Register Cookie plugin for session management
