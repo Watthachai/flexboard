@@ -2,6 +2,8 @@
  * Manifest Sync Service - Handles dashboard configuration synchronization
  */
 
+import { envConfig } from "@/config/env";
+
 export interface DashboardManifest {
   schemaVersion: string;
   dashboardId: string;
@@ -53,8 +55,8 @@ class ManifestSyncService {
 
   private async getCurrentConfig(): Promise<SyncConfig> {
     // Start with saved config or defaults
-    let config = this.config || {
-      controlPlaneUrl: "http://localhost:3000",
+    const config = this.config || {
+      controlPlaneUrl: envConfig.controlPlaneApiUrl,
       licenseKey: "demo-license-key",
       tenantId: "test-company", // Default fallback
       syncInterval: 15,
@@ -94,11 +96,12 @@ class ManifestSyncService {
             parsed.controlPlaneUrl.includes("your-control-plane.com")
           ) {
             console.warn("Fixing old incorrect Control Plane URL");
-            parsed.controlPlaneUrl = "http://localhost:3000";
+            parsed.controlPlaneUrl = envConfig.controlPlaneApiUrl;
           }
 
           this.config = {
-            controlPlaneUrl: parsed.controlPlaneUrl || "http://localhost:3000",
+            controlPlaneUrl:
+              parsed.controlPlaneUrl || envConfig.controlPlaneApiUrl,
             licenseKey: parsed.licenseKey || "demo-license-key",
             tenantId: parsed.tenantId || "test-company", // Changed default
             syncInterval: parsed.syncInterval || 15,
@@ -432,7 +435,7 @@ class ManifestSyncService {
 
     // Reset to defaults
     this.config = {
-      controlPlaneUrl: "http://localhost:3000",
+      controlPlaneUrl: envConfig.controlPlaneApiUrl,
       licenseKey: "demo-license-key",
       tenantId: "test-company",
       syncInterval: 15,

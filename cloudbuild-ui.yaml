@@ -5,28 +5,18 @@ substitutions:
   _DIR: apps/control-plane-ui
 
 steps:
-  # Build and tag the Docker image
-  - name: gcr.io/cloud-builders/docker
-    args: 
-      - 'build'
-      - '-f'
-      - '${_DIR}/Dockerfile'
-      - '-t'
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
-      - '-t'
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest'
-      - '.'
-
-  # Push the Docker image to Artifact Registry
-  - name: gcr.io/cloud-builders/docker
-    args: 
-      - 'push'
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
-
-  - name: gcr.io/cloud-builders/docker
-    args: 
-      - 'push'
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest'
+  # Build and tag the Docker image with Kaniko + Cache
+  - name: gcr.io/kaniko-project/executor:latest
+    args:
+      - '--dockerfile=${_DIR}/Dockerfile'
+      - '--context=.'
+      - '--destination=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
+      - '--destination=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest'
+      - '--cache=true'
+      - '--cache-ttl=168h'
+      - '--cache-repo=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/cache'
+      - '--use-new-run'
+      - '--snapshot-mode=redo'
 
   # Deploy to Cloud Run (Production)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
@@ -57,7 +47,7 @@ steps:
       - '--timeout'
       - '300'
       - '--set-env-vars'
-      - 'NODE_ENV=production,ENVIRONMENT=production,HOST=0.0.0.0'
+      - 'NODE_ENV=production,ENVIRONMENT=production,HOST=0.0.0.0,NEXT_PUBLIC_ENVIRONMENT=production,NEXT_PUBLIC_API_URL=https://api-flexboard.fittcoreai.com'
 
 # Store the built images
 images:
@@ -66,4 +56,3 @@ images:
 
 options:
   logging: CLOUD_LOGGING_ONLY
-  machineType: 'E2_HIGHCPU_8'
