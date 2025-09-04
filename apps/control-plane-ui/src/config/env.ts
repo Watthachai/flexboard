@@ -1,13 +1,20 @@
 // Environment configuration for Control Plane UI
 export const envConfig = {
-  // API Configuration - ชี้ไปที่ Control Plane API (port 3000)
-  apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000",
+  // API Configuration - Default to Sandbox Environment
+  apiUrl:
+    process.env.NEXT_PUBLIC_API_URL ||
+    (process.env.NEXT_PUBLIC_ENVIRONMENT === "production"
+      ? "https://api-flexboard.fittcoreai.com"
+      : "https://sandbox.api-flexboard.fittcoreai.com"),
   apiPrefix: process.env.NEXT_PUBLIC_API_PREFIX || "/api",
   apiVersion: process.env.NEXT_PUBLIC_API_VERSION || "v1",
 
-  // Service URLs
+  // Service URLs - Default to Sandbox Environment
   controlPlaneApiUrl:
-    process.env.NEXT_PUBLIC_CONTROL_PLANE_API_URL || "http://localhost:3000",
+    process.env.NEXT_PUBLIC_CONTROL_PLANE_API_URL ||
+    (process.env.NEXT_PUBLIC_ENVIRONMENT === "production"
+      ? "https://api-flexboard.fittcoreai.com"
+      : "https://sandbox.api-flexboard.fittcoreai.com"),
   onpremAgentApiUrl:
     process.env.NEXT_PUBLIC_ONPREM_AGENT_API_URL || "http://localhost:3001",
   onpremViewerUiUrl:
@@ -33,9 +40,11 @@ export const envConfig = {
   isDevelopment: process.env.NEXT_PUBLIC_ENVIRONMENT === "development",
   isProduction: process.env.NEXT_PUBLIC_ENVIRONMENT === "production",
 
-  // API URL builder
+  // External API URL builder
   getApiUrl: (endpoint: string) => {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+    const baseUrl =
+      process.env.NEXT_PUBLIC_API_URL ||
+      "https://sandbox.api-flexboard.fittcoreai.com";
     const prefix = process.env.NEXT_PUBLIC_API_PREFIX || "/api";
     return `${baseUrl}${prefix}${endpoint}`;
   },

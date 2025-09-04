@@ -58,13 +58,16 @@ export default function NewTenantPage() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:3000/api/tenants", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+      const response = await fetch(
+        "https://sandbox.api-flexboard.fittcoreai.com/api/tenants",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData),
+        }
+      );
 
       if (response.ok) {
         const result = await response.json();

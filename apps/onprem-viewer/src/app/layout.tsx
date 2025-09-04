@@ -26,7 +26,6 @@ export default function RootLayout({
   const [session, setSession] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(true);
-  const pathname = usePathname();
 
   useEffect(() => {
     checkSession();
@@ -163,7 +162,11 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
   const [licenseKey, setLicenseKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [userInfo, setUserInfo] = useState<any>(null);
+  interface UserInfo {
+    email: string;
+  }
+
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
   // Step 1: Firebase Email/Password Login
   const handleEmailLogin = async (e: React.FormEvent) => {

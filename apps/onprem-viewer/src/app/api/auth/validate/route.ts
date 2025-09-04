@@ -1,9 +1,12 @@
 /**
- * OnPrem Viewer - Authentication Validation API Route
+ * OnPrem Viewer - Authenticat    // Validate with Control Plane API
+    const controlPlaneUrl = envConfig.getControlPlaneApiUrl("/auth/validate");
+    const controlPlaneResponse = await fetch(controlPlaneUrl, {Validation API Route
  * Validates current user session
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { envConfig } from "@/config/env";
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,20 +35,18 @@ export async function GET(request: NextRequest) {
     }
 
     // Validate session with Control Plane API
-    const controlPlaneResponse = await fetch(
-      "http://localhost:3000/api/auth/validate",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${sessionToken}`,
-        },
-        body: JSON.stringify({
-          sessionToken,
-          userId,
-        }),
-      }
-    );
+    const controlPlaneUrl = envConfig.getControlPlaneApiUrl("/auth/validate");
+    const controlPlaneResponse = await fetch(controlPlaneUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sessionToken}`,
+      },
+      body: JSON.stringify({
+        sessionToken,
+        userId,
+      }),
+    });
 
     const result = await controlPlaneResponse.json();
 

@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { envConfig } from "@/config/env";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +14,9 @@ export async function POST(request: NextRequest) {
     // If we have a session token, notify Control Plane API about logout
     if (sessionToken) {
       try {
-        await fetch("http://localhost:3000/api/auth/logout", {
+        // Forward logout request to Control Plane API
+        const controlPlaneUrl = envConfig.getControlPlaneApiUrl("/auth/logout");
+        await fetch(controlPlaneUrl, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${sessionToken}`,
