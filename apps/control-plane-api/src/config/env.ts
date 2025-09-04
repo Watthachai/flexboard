@@ -60,6 +60,8 @@ export const envConfig = {
   corsOrigins: process.env.CORS_ORIGINS?.split(",") || [
     "http://localhost:3001", // control-plane-ui
     "http://localhost:3002", // onprem-viewer
+    "https://flexboard.fittcoreai.com", // production UI
+    "https://sandbox.flexboard.fittcoreai.com", // staging UI
   ],
 
   // Rate limiting
