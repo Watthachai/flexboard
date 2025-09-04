@@ -192,7 +192,10 @@ export default function OnPremViewer() {
             🚀 Getting Started
           </h3>
           <div className="text-blue-800 dark:text-blue-200 space-y-2">
-            <p>1. Click "Open Dashboard Viewer" to access the main dashboard</p>
+            <p>
+              1. Click &quot;Open Dashboard Viewer&quot; to access the main
+              dashboard
+            </p>
             <p>2. Upload your data file (CSV, JSON, or XML format)</p>
             <p>
               3. View charts generated according to the manifest configuration

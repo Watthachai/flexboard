@@ -178,7 +178,9 @@ class ApiError extends Error {
 }
 
 // Export singleton instance with onprem API URL
-export const apiClient = new ApiClient("http://localhost:3001");
+export const apiClient = new ApiClient(
+  "https://sandbox.api-flexboard.fittcoreai.com"
+);
 
 // Export types
 export { ApiError };

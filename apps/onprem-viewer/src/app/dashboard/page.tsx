@@ -8,6 +8,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useState, useEffect } from "react";
 import DashboardViewer from "../components/DashboardViewer";
+import { envConfig } from "@/config/env";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
@@ -22,9 +23,10 @@ function DashboardContent() {
   useEffect(() => {
     const fetchDashboards = async () => {
       try {
-        const response = await fetch(
-          `http://localhost:3000/api/tenants/${tenantId}/dashboards`
+        const apiUrl = envConfig.getControlPlaneApiUrl(
+          `/tenants/${tenantId}/dashboards`
         );
+        const response = await fetch(apiUrl);
         const result = await response.json();
 
         if (result.success && result.data) {
@@ -77,7 +79,7 @@ function DashboardContent() {
             No dashboards available for tenant: {tenantId}
           </p>
           <a
-            href={`http://localhost:3001/tenants/${tenantId}/dashboards/new`}
+            href={`https://sandbox.api-flexboard.fittcoreai.com/tenants/${tenantId}/dashboards/new`}
             className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             target="_blank"
             rel="noopener noreferrer"
@@ -127,7 +129,7 @@ function DashboardContent() {
                 ))}
               </select>
               <a
-                href={`http://localhost:3001/tenants/${tenantId}/dashboards/new`}
+                href={`https://sandbox.api-flexboard.fittcoreai.com/tenants/${tenantId}/dashboards/new`}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
                 target="_blank"
                 rel="noopener noreferrer"
