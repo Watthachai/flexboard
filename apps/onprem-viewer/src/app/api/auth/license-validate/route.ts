@@ -1,9 +1,12 @@
 /**
- * OnPrem Viewer - License Validation API Route
+ * OnPrem Viewer - License Validation AP    // Forward license validation to Control Plane API
+    const controlPlaneUrl = envConfig.getControlPlaneApiUrl("/auth/license-validate");
+    const controlPlaneResponse = await fetch(controlPlaneUrl, {ute
  * Validates license key for authenticated user
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { envConfig } from "@/config/env";
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,21 +45,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Forward license validation request to Control Plane API
-    const controlPlaneResponse = await fetch(
-      "http://localhost:3000/api/auth/license-validate",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${sessionToken}`,
-        },
-        body: JSON.stringify({
-          licenseKey,
-          email,
-          userId,
-        }),
-      }
+    const controlPlaneUrl = envConfig.getControlPlaneApiUrl(
+      "/auth/license-validate"
     );
+    const controlPlaneResponse = await fetch(controlPlaneUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sessionToken}`,
+      },
+      body: JSON.stringify({
+        licenseKey,
+        email,
+        userId,
+      }),
+    });
 
     const result = await controlPlaneResponse.json();
 

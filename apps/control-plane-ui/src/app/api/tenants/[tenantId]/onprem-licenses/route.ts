@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const CONTROL_PLANE_API_URL =
-  process.env.CONTROL_PLANE_API_URL || "http://localhost:3000";
+const CONTROL_PLANE_BASE_URL =
+  process.env.CONTROL_PLANE_API_URL ||
+  "https://sandbox.api-flexboard.fittcoreai.com";
 
 export async function GET(
   request: NextRequest,
@@ -12,7 +13,7 @@ export async function GET(
 
     // Forward to Fastify API
     const response = await fetch(
-      `${CONTROL_PLANE_API_URL}/api/tenants/${tenantId}/onprem-licenses`,
+      `${CONTROL_PLANE_BASE_URL}/api/tenants/${tenantId}/onprem-licenses`,
       {
         method: "GET",
         headers: {
@@ -50,7 +51,7 @@ export async function POST(
 
     // Forward to Fastify API
     const response = await fetch(
-      `${CONTROL_PLANE_API_URL}/api/tenants/${tenantId}/onprem-licenses`,
+      `${CONTROL_PLANE_BASE_URL}/api/tenants/${tenantId}/onprem-licenses`,
       {
         method: "POST",
         headers: {
