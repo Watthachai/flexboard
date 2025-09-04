@@ -4,9 +4,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { envConfig } from "@/config/env";
 
-const CONTROL_PLANE_API_URL =
-  process.env.CONTROL_PLANE_API_URL || "http://localhost:3000";
+const CONTROL_PLANE_BASE_URL = envConfig.controlPlaneApiUrl;
 
 export async function GET(
   request: NextRequest,
@@ -19,7 +19,7 @@ export async function GET(
 
     // Fetch manifest from control plane API
     const manifestResponse = await fetch(
-      `${CONTROL_PLANE_API_URL}/api/manifest/tenants/${tenantId}/dashboards/${dashboardId}/manifest`,
+      `${CONTROL_PLANE_BASE_URL}/api/manifest/tenants/${tenantId}/dashboards/${dashboardId}/manifest`,
       {
         headers: {
           "Content-Type": "application/json",
