@@ -3,14 +3,25 @@
   "version": "5.15.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack --port 3002",
+    "dev": "next dev --turbopack -H 0.0.0.0 -p 3002",
     "build": "next build",
-    "start": "next start --port 3002",
+    "start": "next start -H 0.0.0.0 -p 3002",
+    "start:onprem": "NODE_ENV=production next start -H 0.0.0.0 -p 3002",
     "lint": "next lint",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:reset": "prisma migrate reset",
+    "ingest": "tsx src/lib/ingest/ingest-job.ts",
+    "ingest:watch": "nodemon --watch data --ext xml --exec \"npm run ingest\"",
+    "cron:dev": "tsx scripts/cron-worker.ts",
+    "cron:prod": "node dist/cron-worker.js",
+    "setup:onprem": "node scripts/setup-onprem.js"
   },
   "dependencies": {
+    "@prisma/client": "^6.15.0",
     "@tanstack/react-table": "^8.21.3",
+    "@types/node-cron": "^3.0.11",
     "@types/papaparse": "^5.3.16",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
@@ -19,6 +30,8 @@
     "lucide-react": "^0.469.0",
     "mysql2": "^3.14.3",
     "next": "15.3.5",
+    "node-cron": "^4.2.1",
+    "nodemon": "^3.1.10",
     "papaparse": "^5.5.3",
     "pg": "^8.16.3",
     "react": "^19.0.0",
@@ -26,6 +39,7 @@
     "recharts": "^3.1.0",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7",
+    "tsx": "^4.20.5",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -38,6 +52,7 @@
     "@types/xlsx": "^0.0.36",
     "eslint": "^9",
     "eslint-config-next": "15.3.5",
+    "prisma": "^6.15.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

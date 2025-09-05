@@ -15,6 +15,14 @@ export const envConfig = {
     process.env.NEXT_PUBLIC_REFRESH_INTERVAL || "30000"
   ),
 
+  // OnPrem Network Configuration
+  xmlDataPath: process.env.XML_DATA_PATH || getDefaultXmlPath(),
+  hostname: process.env.HOSTNAME || "0.0.0.0",
+  port: parseInt(process.env.PORT || "3002"),
+  allowExternalAccess: true,
+  syncIntervalMs: 5 * 60 * 1000, // 5 minutes
+  isOnPrem: true,
+
   // Debug Configuration
   debugMode: process.env.NEXT_PUBLIC_DEBUG_MODE === "true",
   logLevel: process.env.NEXT_PUBLIC_LOG_LEVEL || "info",
@@ -34,6 +42,13 @@ export const envConfig = {
     return `${baseUrl}/api${endpoint}`;
   },
 };
+
+// Platform-specific XML data paths
+function getDefaultXmlPath(): string {
+  return process.platform === "win32"
+    ? "C:\\flexboard\\xml-data"
+    : "/opt/flexboard/xml-data";
+}
 
 // Helper function to determine API URL based on environment
 function getApiUrl(): string {

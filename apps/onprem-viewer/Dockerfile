@@ -1,35 +1,55 @@
-# --- Stage 1: Build Stage ---
-FROM node:22-alpine AS builder
+# Multi-stage build for OnPrem Viewer
+FROM node:20 AS build
 
 WORKDIR /app
 
-# Copy package.json files เพื่อทำ dependency caching
+# Copy package files
 COPY package.json package-lock.json* ./
-
-# Install dependencies
 RUN npm ci
 
-# Copy the rest of the source code
+# Copy source code  
 COPY . .
 
-# Build the Next.js app for production
+# Generate Prisma client
+RUN npx prisma generate
+
+# Build Next.js application
 RUN npm run build
 
-# --- Stage 2: Production Stage ---
-FROM node:22-alpine AS production
+# Build TypeScript scripts
+RUN npx tsc scripts/cron-worker.ts --outDir dist --target es2020 --module commonjs --moduleResolution node --esModuleInterop --allowSyntheticDefaultImports
+
+# Production stage
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Set NODE_ENV to production
+# Create app user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nextjs -u 1001
+
+# Create directories
+RUN mkdir -p /app/data /app/dist
+RUN chown -R nextjs:nodejs /app
+
+# Copy built application
+COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=build --chown=nextjs:nodejs /app/public ./public
+COPY --from=build --chown=nextjs:nodejs /app/dist ./dist
+COPY --from=build --chown=nextjs:nodejs /app/prisma ./prisma
+
+# Install only required dependencies for scripts
+COPY --from=build --chown=nextjs:nodejs /app/node_modules ./node_modules
+
+# Environment variables
 ENV NODE_ENV=production
+ENV PORT=3002
+ENV HOSTNAME="0.0.0.0"
 
-# Copy the built app from the builder stage
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+USER nextjs
 
-# Expose port 3000
-EXPOSE 3000
+EXPOSE 3002
 
-# Command to run the app
-CMD ["node", "server.js"]
+# Start both Next.js server and cron worker
+CMD ["sh", "-c", "npx prisma db push && node server.js & node dist/cron-worker.js & wait"]
