@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack -H 0.0.0.0 -p 3002",
+    "dev:show-ip": "node scripts/show-network-info.js && next dev --turbopack -H 0.0.0.0 -p 3002",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3002",
-    "start:onprem": "NODE_ENV=production next start -H 0.0.0.0 -p 3002",
+    "start:onprem": "node scripts/show-network-info.js && NODE_ENV=production next start -H 0.0.0.0 -p 3002",
+    "show-ip": "node scripts/show-network-info.js",
     "lint": "next lint",
     "check-types": "tsc --noEmit",
     "db:generate": "prisma generate",
