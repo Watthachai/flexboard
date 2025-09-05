@@ -90,7 +90,28 @@ const formatValue = (
       const num = Number(value);
       if (isNaN(num)) return String(value);
 
-      let formatted = num.toFixed(formatterConfig.precision || 0);
+      // Handle floating point precision issues more aggressively
+      const precision = formatterConfig.precision || 0;
+
+      // For very small numbers with floating point errors, use parseFloat to clean up
+      let cleanNum = num;
+      if (Math.abs(num) < 1 && num.toString().includes("e")) {
+        // Handle scientific notation
+        cleanNum = parseFloat(num.toPrecision(10));
+      } else if (num.toString().length > 15) {
+        // Handle very long decimal numbers
+        cleanNum = parseFloat(num.toPrecision(12));
+      }
+
+      const multiplier = Math.pow(10, precision);
+      const roundedNum =
+        Math.round((cleanNum + Number.EPSILON) * multiplier) / multiplier;
+      let formatted = roundedNum.toFixed(precision);
+
+      // Remove unnecessary trailing zeros for better display
+      if (precision > 0 && formatted.includes(".")) {
+        formatted = formatted.replace(/\.?0+$/, "");
+      }
 
       if (formatterConfig.thousandsSep) {
         const parts = formatted.split(".");
@@ -408,16 +429,146 @@ export default function AdvancedTableWidget({
     onPaginationChange: setPagination,
   });
 
-  // Export to Excel function
+  // Export to Excel function with column groups support
   const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(aggregatedData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
 
+    // Get export options from display config
+    const exportOptions = display.exportExcelOptions || {};
     const filename =
-      display.exportFilename ||
+      exportOptions.filename ||
       `table-export-${new Date().toISOString().split("T")[0]}.xlsx`;
+    const worksheetName = exportOptions.worksheetName || "Data";
+
+    // Create worksheet with column groups if available
+    let worksheet: XLSX.WorkSheet;
+
+    if (display.columnGroups && display.columnGroups.length > 0) {
+      // Create worksheet with custom headers for column groups
+      worksheet = createWorksheetWithColumnGroups(
+        aggregatedData,
+        display.columnGroups,
+        display.columnLabels || {},
+        display.columnFormatters || {},
+        formatters
+      );
+    } else {
+      // Fallback to simple export
+      worksheet = XLSX.utils.json_to_sheet(aggregatedData);
+    }
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, worksheetName);
     XLSX.writeFile(workbook, filename);
+  };
+
+  // Helper function to create worksheet with column groups
+  const createWorksheetWithColumnGroups = (
+    data: any[],
+    columnGroups: ColumnGroup[],
+    columnLabels: Record<string, string>,
+    columnFormatters: Record<string, string>,
+    formatters: Record<string, any>
+  ): XLSX.WorkSheet => {
+    if (data.length === 0) return XLSX.utils.json_to_sheet([]);
+
+    // Prepare header rows
+    const groupHeaderRow: string[] = [];
+    const columnHeaderRow: string[] = [];
+    const columnKeys: string[] = [];
+
+    // Build headers from column groups
+    columnGroups.forEach((group) => {
+      const groupColumns = group.columns.filter(
+        (col) => data.length > 0 && data[0].hasOwnProperty(col)
+      );
+
+      if (groupColumns.length > 0) {
+        // Add group title spanning multiple columns
+        groupHeaderRow.push(group.title);
+        // Add empty cells for remaining columns in this group
+        for (let i = 1; i < groupColumns.length; i++) {
+          groupHeaderRow.push("");
+        }
+
+        // Add individual column headers
+        groupColumns.forEach((col) => {
+          columnHeaderRow.push(columnLabels[col] || col);
+          columnKeys.push(col);
+        });
+      }
+    });
+
+    // Create data rows with proper formatting
+    const dataRows = data.map((row) => {
+      const formattedRow: any[] = [];
+      columnKeys.forEach((key) => {
+        let value = row[key];
+
+        // Apply formatting if specified
+        const formatterKey = columnFormatters[key];
+        if (formatterKey && formatters[formatterKey]) {
+          const formatter = formatters[formatterKey];
+          if (formatter.kind === "number") {
+            // For Excel, keep numbers as numbers but format appropriately
+            if (typeof value === "number") {
+              formattedRow.push(value);
+            } else {
+              formattedRow.push(parseFloat(value) || 0);
+            }
+          } else if (formatter.kind === "date") {
+            // Convert dates for Excel
+            formattedRow.push(value);
+          } else {
+            formattedRow.push(value);
+          }
+        } else {
+          formattedRow.push(value);
+        }
+      });
+      return formattedRow;
+    });
+
+    // Combine all rows
+    const allRows = [groupHeaderRow, columnHeaderRow, ...dataRows];
+
+    // Create worksheet from array of arrays
+    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
+
+    // Merge cells for group headers
+    if (!worksheet["!merges"]) worksheet["!merges"] = [];
+
+    let colIndex = 0;
+    columnGroups.forEach((group) => {
+      const groupColumns = group.columns.filter(
+        (col) => data.length > 0 && data[0].hasOwnProperty(col)
+      );
+
+      if (groupColumns.length > 1) {
+        // Merge cells for group header (row 0)
+        const startCol = XLSX.utils.encode_col(colIndex);
+        const endCol = XLSX.utils.encode_col(
+          colIndex + groupColumns.length - 1
+        );
+        worksheet["!merges"].push({
+          s: { r: 0, c: colIndex },
+          e: { r: 0, c: colIndex + groupColumns.length - 1 },
+        });
+      }
+
+      colIndex += groupColumns.length;
+    });
+
+    // Set column widths based on content
+    const columnWidths = columnKeys.map((key) => {
+      const maxLength = Math.max(
+        (columnLabels[key] || key).length,
+        ...data.map((row) => String(row[key] || "").length)
+      );
+      return { wch: Math.min(Math.max(maxLength + 2, 10), 50) };
+    });
+    worksheet["!cols"] = columnWidths;
+
+    return worksheet;
   };
 
   return (
@@ -496,7 +647,11 @@ export default function AdvancedTableWidget({
                         className={`
                           border border-gray-200 p-2 text-left font-medium text-gray-700 text-sm bg-gray-50
                           ${isSticky ? "sticky z-40" : ""}
-                          ${header.column.getCanSort() ? "cursor-pointer hover:bg-gray-100" : ""}
+                          ${
+                            header.column.getCanSort()
+                              ? "cursor-pointer hover:bg-gray-100"
+                              : ""
+                          }
                         `}
                         style={{
                           ...(isSticky

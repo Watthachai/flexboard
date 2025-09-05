@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from "react";
 import { manifestSyncService } from "../../services/manifestSync";
+import { localDataService } from "../../services/localDataService";
 import { UniversalXmlParser } from "../../lib/xml-parser";
 import { loadLocalFile } from "../../lib/loadLocalFile";
 import {
@@ -217,6 +218,8 @@ export default function DashboardViewer({
   const [manifest, setManifest] = useState<DashboardManifest | null>(null);
   const [uploadedData, setUploadedData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [screenWidth, setScreenWidth] = useState<number>(1200); // Default desktop width
   const [userFilterValues, setUserFilterValues] = useState<
@@ -249,9 +252,41 @@ export default function DashboardViewer({
       try {
         setLoading(true);
 
-        // Use manifestSyncService to fetch dashboard with license validation
-        const result =
-          await manifestSyncService.fetchDashboardManifest(dashboardId);
+        // Try override manifest first (for debugging without global filters)
+        try {
+          console.log("🔧 Trying override manifest for debugging...");
+          const overrideResponse = await fetch(
+            `/api/dashboard/${dashboardId}/manifest-override?tenantId=${tenantId}&debug=true&loadAll=true`
+          );
+
+          if (overrideResponse.ok) {
+            const overrideResult = await overrideResponse.json();
+            if (overrideResult.success && overrideResult.data) {
+              console.log("✅ Using override manifest:", {
+                dashboardId,
+                hasGlobalFilters: !!overrideResult.data.globalFilters?.length,
+                dataSource: overrideResult.data.dataSources?.[0],
+                transforms: overrideResult.data.transforms?.length || 0,
+              });
+
+              const adaptedManifest = adaptLayoutFromSchema(
+                overrideResult.data
+              );
+              setManifest(adaptedManifest);
+              return;
+            }
+          }
+        } catch (overrideError) {
+          console.log(
+            "⚠️ Override manifest failed, falling back to original:",
+            overrideError
+          );
+        }
+
+        // Fallback to original manifest
+        const result = await manifestSyncService.fetchDashboardManifest(
+          dashboardId
+        );
 
         if (result.success && result.manifest) {
           console.log("🔍 Loaded manifest from API:", {
@@ -286,12 +321,21 @@ export default function DashboardViewer({
     }
   }, [tenantId, dashboardId]);
 
-  // Helper function to convert snake_case to PascalCase
+  // Helper function to convert camelCase/snake_case to PascalCase
   const toPascalCase = (str: string): string => {
-    return str
-      .split("_")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join("");
+    // Handle camelCase: dataDate -> DataDate
+    if (str.includes("_")) {
+      // Handle snake_case: data_date -> DataDate
+      return str
+        .split("_")
+        .map(
+          (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+        )
+        .join("");
+    } else {
+      // Handle camelCase: dataDate -> DataDate
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    }
   };
 
   // Helper function to transform data keys to PascalCase
@@ -306,47 +350,74 @@ export default function DashboardViewer({
     });
   };
 
-  // Load uploaded data from localStorage
+  // Load data from API or localStorage fallback
   useEffect(() => {
-    console.log("🔍 Loading data from localStorage...");
-    const savedData = localStorage.getItem("uploadedData");
-    const savedFileName = localStorage.getItem("uploadedFileName");
-    const savedTimestamp = localStorage.getItem("uploadedDataTimestamp");
+    const loadData = async () => {
+      console.log("� Loading data from API...");
 
-    console.log("📦 localStorage contents:", {
-      hasData: !!savedData,
-      hasFileName: !!savedFileName,
-      hasTimestamp: !!savedTimestamp,
-      dataLength: savedData ? savedData.length : 0,
-      fileName: savedFileName,
-      timestamp: savedTimestamp,
-    });
-
-    if (savedData) {
       try {
-        const parsedData = JSON.parse(savedData);
-
-        // Transform field names from snake_case to PascalCase
-        const transformedData = transformDataToPascalCase(parsedData);
-        setUploadedData(transformedData);
-
-        // Debug: Log data structure
-        console.log("✅ Successfully loaded data from localStorage:", {
-          recordCount: transformedData.length,
-          firstRecord: transformedData[0],
-          availableColumns:
-            transformedData.length > 0 ? Object.keys(transformedData[0]) : [],
-          sampleData: transformedData.slice(0, 3),
-          originalKeys: parsedData.length > 0 ? Object.keys(parsedData[0]) : [],
-          transformedKeys:
-            transformedData.length > 0 ? Object.keys(transformedData[0]) : [],
+        // Try to load from API first - with ALL data for accuracy
+        const apiData = await localDataService.fetchData({
+          id: "uploaded-xml",
+          type: "api",
+          url: "/api/inventory/raw?noPagination=true", // Force load all data
+          method: "GET",
         });
+
+        if (apiData && apiData.length > 0) {
+          // Transform field names from snake_case to PascalCase
+          const transformedData = transformDataToPascalCase(apiData);
+          setUploadedData(transformedData);
+
+          console.log("✅ Successfully loaded data from API:", {
+            recordCount: transformedData.length,
+            originalSample: apiData[0],
+            transformedSample: transformedData[0],
+            availableColumns:
+              transformedData.length > 0 ? Object.keys(transformedData[0]) : [],
+          });
+          return;
+        }
       } catch (error) {
-        console.error("❌ Failed to load saved data:", error);
+        console.error("❌ Failed to load data from API:", error);
+        console.log("🔄 Falling back to localStorage...");
       }
-    } else {
-      console.log("⚠️ No data found in localStorage");
-    }
+
+      // Fallback to localStorage
+      try {
+        const savedData = localStorage.getItem("uploadedData");
+        const savedFileName = localStorage.getItem("uploadedFileName");
+        const savedTimestamp = localStorage.getItem("uploadedDataTimestamp");
+
+        console.log("📦 localStorage contents:", {
+          hasData: !!savedData,
+          hasFileName: !!savedFileName,
+          hasTimestamp: !!savedTimestamp,
+          dataLength: savedData ? savedData.length : 0,
+          fileName: savedFileName,
+          timestamp: savedTimestamp,
+        });
+
+        if (savedData) {
+          const parsedData = JSON.parse(savedData);
+          const transformedData = transformDataToPascalCase(parsedData);
+          setUploadedData(transformedData);
+
+          console.log("✅ Successfully loaded data from localStorage:", {
+            recordCount: transformedData.length,
+            firstRecord: transformedData[0],
+            availableColumns:
+              transformedData.length > 0 ? Object.keys(transformedData[0]) : [],
+          });
+        } else {
+          console.log("⚠️ No data found in localStorage or API");
+        }
+      } catch (fallbackError) {
+        console.error("❌ Failed to load fallback data:", fallbackError);
+      }
+    };
+
+    loadData();
   }, []);
 
   // Simple CSV parser (kept for backwards compatibility)
@@ -389,7 +460,9 @@ export default function DashboardViewer({
     } catch (err) {
       console.error("XML parsing error:", err);
       throw new Error(
-        `Failed to parse XML file: ${err instanceof Error ? err.message : String(err)}`
+        `Failed to parse XML file: ${
+          err instanceof Error ? err.message : String(err)
+        }`
       );
     }
   };
@@ -438,10 +511,17 @@ export default function DashboardViewer({
         // Filter for specific month-end date
         const selectedDate = dateFilter.replace("month-", "");
         filteredData = uploadedData.filter((row) => {
-          return row.DataDate === selectedDate;
+          // Extract date part from ISO datetime string (YYYY-MM-DD)
+          const dataDateOnly = row.DataDate ? row.DataDate.split("T")[0] : "";
+          // Extract year-month from both dates for comparison
+          const selectedYearMonth = selectedDate.substring(0, 7); // "2025-07"
+          const dataYearMonth = dataDateOnly.substring(0, 7); // "2025-07"
+          return dataYearMonth === selectedYearMonth;
         });
         console.log(
-          `✅ Filtering for specific date: ${selectedDate}, found ${filteredData.length} rows`
+          `✅ Filtering for month: ${selectedDate.substring(0, 7)}, found ${
+            filteredData.length
+          } rows`
         );
       }
 
@@ -584,8 +664,26 @@ export default function DashboardViewer({
       <DashboardLayout title="Loading Dashboard">
         <div className="h-full flex items-center justify-center">
           <div className="text-center">
-            <div className="text-2xl animate-pulse mb-4">⏳</div>
-            <p className="text-gray-600">Loading dashboard configuration...</p>
+            <div className="text-2xl animate-pulse mb-4">📊</div>
+            <p className="text-gray-600 mb-2">
+              Loading dashboard configuration...
+            </p>
+            {dataLoading && (
+              <div className="mt-4">
+                <p className="text-sm text-blue-600 mb-2">
+                  Loading all {10726} records for accurate calculations...
+                </p>
+                <div className="w-64 bg-gray-200 rounded-full h-2 mx-auto">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${processingProgress}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  This may take a moment for accuracy
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </DashboardLayout>
@@ -645,9 +743,9 @@ export default function DashboardViewer({
         { label: manifest?.dashboardName || "Dashboard" },
       ]}
     >
-      <div className="h-full p-6 space-y-6">
+      <div className="h-full p-6 space-y-4">
         {/* Dashboard Header Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -689,7 +787,7 @@ export default function DashboardViewer({
 
         {/* Date Filter */}
         {uploadedData.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-3 mb-4">
             <div className="flex items-center gap-4">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 📅 Filter by Date:
@@ -715,12 +813,9 @@ export default function DashboardViewer({
           </div>
         )}
 
-        {/* Stats Cards - Show when data is uploaded */}
-        {/* Remove this section - let widgets from config handle display instead */}
-
         {/* Show upload prompt if no data */}
         {uploadedData.length === 0 && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6 mb-6 text-center">
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4 text-center">
             <div className="text-blue-600 dark:text-blue-400 mb-2">
               📊 No data uploaded yet
             </div>
@@ -738,7 +833,7 @@ export default function DashboardViewer({
 
         {/* Desktop Dashboard Grid */}
         <div
-          className="hidden md:grid gap-4"
+          className="hidden md:grid gap-3"
           style={generateGridStyles(
             manifest?.layout || { type: "grid", columns: 12, rowHeight: 50 },
             screenWidth
@@ -768,7 +863,7 @@ export default function DashboardViewer({
 
         {/* Mobile Dashboard Layout */}
         <div className="block md:hidden">
-          <div className="space-y-4">
+          <div className="space-y-3">
             {convertToMobileLayout(
               manifest?.widgets || [],
               manifest?.layout?.rowHeight || 50

@@ -1,0 +1,34 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./data/flexboard.sqlite"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model ImportLog {
+  filename         String   @id
+  lastMtime        BigInt
+  processedAt      DateTime @default(now())
+  recordsProcessed Int      @default(0)
+  status           String   @default("SUCCESS") // SUCCESS, ERROR
+}
+
+model InventoryRaw {
+  id             Int      @id // <ID> จาก XML (unique ตามไฟล์จริง)
+  dataDate       DateTime
+  corp           String
+  branch         String
+  prod           String
+  unitName       String
+  docNumber      String
+  docDate        DateTime
+  qtyFromThisDoc Float
+  averageCost    Float
+
+  @@index([dataDate])
+  @@index([branch])
+  @@index([prod])
+  @@index([docNumber])
+}
