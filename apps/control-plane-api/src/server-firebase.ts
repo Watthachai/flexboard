@@ -34,9 +34,9 @@ const fastify = Fastify({
   logger: envConfig.isProduction ? true : { level: "info" },
 });
 
-// Register CORS with environment configuration
+// Register CORS with environment configuration - Allow all origins for development
 fastify.register(require("@fastify/cors"), {
-  origin: envConfig.corsOrigins,
+  origin: envConfig.corsOrigins, // This will be true if CORS_ORIGINS=*, or specific origins array
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
