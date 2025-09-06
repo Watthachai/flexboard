@@ -1058,54 +1058,130 @@ export default function AdvancedTableWidget({
                 </tr>
               ))}
 
-              {/* Filter Row ใต้ header */}
+              {/* Filter Row ใต้ header (Dropdown ต่อคอลัมน์) */}
               <tr className="bg-gray-50 dark:bg-gray-700">
-                {table.getAllColumns().map((column: any) => {
-                  const columnId = column.id;
+                {table.getAllLeafColumns().map((column: any) => {
+                  const columnId = column.id as string;
 
-                  // เช็คว่า column นี้สามารถ filter ได้หรือไม่
+                  // เลือกว่าจะให้คอลัมน์ไหนมี dropdown filter บ้าง
+                  // ถ้าไม่กำหนด จะเปิดให้ทุกคอลัมน์ที่มี unique values ไม่เยอะ
+                  const filterableWhitelist = new Set<string>([
+                    "Corp",
+                    "บริษัท",
+                    "Company",
+                    "Prod",
+                    "สินค้า",
+                    "Product",
+                    "Branch",
+                    "สาขา",
+                    "documentMonth", // สำหรับกรองตามเดือน (จาก Document Date/Data Date)
+                  ]);
+
+                  // ถ้าคุณอยาก "เปิดทุกคอลัมน์" ให้คอมเมนต์บรรทัด isFilterableColumn ด้านล่าง แล้วตั้งเป็น true
                   const isFilterableColumn =
-                    columnId === "Corp" ||
-                    columnId === "บริษัท" ||
-                    columnId === "Company" ||
-                    columnId === "Prod" ||
-                    columnId === "สินค้า" ||
-                    columnId === "Product" ||
-                    columnId === "Branch" ||
-                    columnId === "สาขา";
+                    filterableWhitelist.has(columnId) ||
+                    // เปิดออโต้เมื่อจำนวนค่าซ้ำไม่เกิน 300 (กัน dropdown ยาวเกิน)
+                    (new Set(
+                      aggregatedData
+                        .map((r) => r[columnId])
+                        .filter(
+                          (v) => v !== undefined && v !== null && v !== ""
+                        )
+                    ).size <= 300 &&
+                      // ไม่เปิดกับคอลัมน์ตัวเลขยาว/amount/price โดยดีฟอลต์
+                      !/amount|price|value|total|qty|quantity|cost/i.test(
+                        columnId
+                      ));
+
+                  if (!isFilterableColumn) {
+                    return (
+                      <th
+                        key={`filter-${columnId}`}
+                        className="border border-gray-200 dark:border-gray-600 p-1 bg-gray-50 dark:bg-gray-700"
+                        style={{ minWidth: "120px" }}
+                      >
+                        <div className="h-6" />
+                      </th>
+                    );
+                  }
+
+                  // กรณีพิเศษ: documentMonth (กรองเดือนจาก Document Date / Data Date)
+                  if (columnId === "documentMonth") {
+                    return (
+                      <th
+                        key={`filter-${columnId}`}
+                        className="border border-gray-200 dark:border-gray-600 p-1 bg-gray-50 dark:bg-gray-700"
+                        style={{ minWidth: "140px" }}
+                      >
+                        <select
+                          value={columnFilters["documentMonth"] || ""}
+                          onChange={(e) =>
+                            setColumnFilters((prev) => ({
+                              ...prev,
+                              documentMonth: e.target.value,
+                            }))
+                          }
+                          className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="">📅 All Months</option>
+                          {Array.from({ length: 12 }, (_, i) => {
+                            const label = new Date(2024, i).toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "long",
+                              }
+                            );
+                            return (
+                              <option key={i + 1} value={i + 1}>
+                                {label}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </th>
+                    );
+                  }
+
+                  // ค่าไม่ซ้ำทั้งหมดจาก "ข้อมูลหลัง aggregation" (ให้ dropdown เห็นทุกตัวเลือก)
+                  const uniq = Array.from(
+                    new Set(
+                      aggregatedData
+                        .map((r) => r[columnId])
+                        .filter(
+                          (v) => v !== undefined && v !== null && v !== ""
+                        )
+                    )
+                  )
+                    .map((v) => String(v))
+                    .sort((a, b) =>
+                      a.localeCompare(b, undefined, { numeric: true })
+                    );
 
                   return (
                     <th
                       key={`filter-${columnId}`}
-                      className="border border-gray-200 dark:border-gray-600 p-1 bg-gray-50 dark:bg-gray-700 transition-colors duration-200"
-                      style={{
-                        minWidth: "120px",
-                        width: "auto",
-                      }}
+                      className="border border-gray-200 dark:border-gray-600 p-1 bg-gray-50 dark:bg-gray-700"
+                      style={{ minWidth: "140px" }}
                     >
-                      {isFilterableColumn ? (
-                        <select
-                          value={columnFilters[columnId] || ""}
-                          onChange={(e) => {
-                            setColumnFilters((prev) => ({
-                              ...prev,
-                              [columnId]: e.target.value,
-                            }));
-                          }}
-                          className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="">All</option>
-                          {getUniqueValues(columnId).map((value) => (
-                            <option key={value} value={value}>
-                              {String(value).length > 20
-                                ? String(value).substring(0, 20) + "..."
-                                : value}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <div className="h-6"></div> // Empty space for non-filterable columns
-                      )}
+                      <select
+                        value={columnFilters[columnId] || ""}
+                        onChange={(e) =>
+                          setColumnFilters((prev) => ({
+                            ...prev,
+                            [columnId]: e.target.value,
+                          }))
+                        }
+                        className="w-full pl-2 pr-6 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">All</option>
+                        {uniq.slice(0, 500).map((value) => (
+                          <option key={value} value={value}>
+                            {value.length > 40
+                              ? value.slice(0, 37) + "..."
+                              : value}
+                          </option>
+                        ))}
+                      </select>
                     </th>
                   );
                 })}
@@ -1163,8 +1239,8 @@ export default function AdvancedTableWidget({
                 })
               )}
 
-              {/* Totals Row */}
-              {totalsRow && (
+              {/* Totals Row - Only show if enabled AND has data */}
+              {totalsRow && display.showTotalsRow && (
                 <tr className="bg-gray-100 dark:bg-gray-700 font-semibold transition-colors duration-200">
                   {table.getAllColumns().map((column: any, index: number) => {
                     const value = totalsRow[column.id];
@@ -1186,7 +1262,13 @@ export default function AdvancedTableWidget({
                           lineHeight: "1.4",
                         }}
                       >
-                        {index === 0 ? "Total" : formattedValue || ""}
+                        {index === 0
+                          ? "Total"
+                          : formattedValue !== undefined &&
+                            formattedValue !== null &&
+                            formattedValue !== 0
+                          ? formattedValue
+                          : ""}
                       </td>
                     );
                   })}
