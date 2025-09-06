@@ -1,24 +1,24 @@
+# cloudbuild-ui.yaml  (MAIN / PRODUCTION)
 substitutions:
   _REGION: asia-southeast1
   _REPO: flexboard
-  _SERVICE: control-plane-ui
+  _SERVICE: control-plane-ui            # 👈 ชื่อ service โปรดักชัน (UI main)
   _DIR: apps/control-plane-ui
 
 steps:
-  # Build and tag the Docker image with Kaniko + Cache
+  # 1) Build & Push image ด้วย Kaniko + Cache
   - name: gcr.io/kaniko-project/executor:latest
     args:
       - '--dockerfile=${_DIR}/Dockerfile'
-      - '--context=.'
+      - '--context=.'  # root ของ repo (/workspace)
       - '--destination=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
       - '--destination=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest'
       - '--cache=true'
-      - '--cache-ttl=168h'
-      - '--cache-repo=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/cache'
-      - '--use-new-run'
+      - '--cache-ttl=168h'  # 7 วัน
+      - '--cache-repo=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}-cache'
       - '--snapshot-mode=redo'
 
-  # Deploy to Cloud Run (Production)
+  # 2) Deploy ไป Cloud Run (Production)
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -49,7 +49,7 @@ steps:
       - '--set-env-vars'
       - 'NODE_ENV=production,ENVIRONMENT=production,HOST=0.0.0.0,NEXT_PUBLIC_ENVIRONMENT=production,NEXT_PUBLIC_API_URL=https://api-flexboard.fittcoreai.com'
 
-# Store the built images
+# ให้ Cloud Build บันทึก metadata ของ image ที่สร้าง
 images:
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:latest'

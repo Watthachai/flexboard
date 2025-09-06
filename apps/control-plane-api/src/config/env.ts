@@ -57,12 +57,15 @@ export const envConfig = {
   // Security
   jwtSecret: process.env.JWT_SECRET!,
   sessionSecret: process.env.SESSION_SECRET || process.env.JWT_SECRET!,
-  corsOrigins: process.env.CORS_ORIGINS?.split(",") || [
-    "http://localhost:3001", // control-plane-ui
-    "http://localhost:3002", // onprem-viewer
-    "https://flexboard.fittcoreai.com", // production UI
-    "https://sandbox.flexboard.fittcoreai.com", // staging UI
-  ],
+  corsOrigins:
+    process.env.CORS_ORIGINS === "*"
+      ? true
+      : process.env.CORS_ORIGINS?.split(",") || [
+          "http://localhost:3001", // control-plane-ui
+          "http://localhost:3002", // onprem-viewer
+          "https://flexboard.fittcoreai.com", // production UI
+          "https://sandbox.flexboard.fittcoreai.com", // staging UI
+        ],
 
   // Rate limiting
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || "100"),

@@ -1,36 +1,182 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# OnPrem Viewer - XML Inventory Data Pipeline
 
-## Getting Started
+A complete on-premise deployment solution for processing and viewing XML inventory data with automated ingestion, SQLite storage, and REST API access.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Automated XML Ingestion**: Monitors inventory files every 5 minutes
+- **SQLite Database**: Local data storage with Prisma ORM
+- **REST API**: Query raw inventory data with filtering
+- **Docker Ready**: Production containerization with health checks
+- **Cron Worker**: Background processing for data ingestion
+
+## Quick Start
+
+### Docker Deployment (Recommended)
+
+1. Clone and navigate to the onprem-viewer directory
+2. Create inventory data directory:
+   ```bash
+   mkdir inventory-files
+   ```
+3. Deploy with Docker Compose:
+   ```bash
+   docker-compose up -d
+   ```
+4. Access the application at `http://localhost:3002`
+
+### Manual Development Setup
+
+1. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. Initialize database:
+
+   ```bash
+   npm run db:generate
+   npm run db:push
+   ```
+
+3. Start development server:
+
+   ```bash
+   npm run dev
+   ```
+
+4. Start cron worker (separate terminal):
+   ```bash
+   npm run cron:dev
+   ```
+
+## Data Pipeline
+
+### XML File Structure Expected
+
+Place XML files in the `inventory-files/` directory. The system expects XML with structure like:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<inventory>
+  <item>
+    <id>123</id>
+    <name>Product Name</name>
+    <quantity>50</quantity>
+    <category>Electronics</category>
+  </item>
+</inventory>
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Automated Processing
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **File Monitoring**: Cron worker checks `inventory-files/` every 5 minutes
+- **Change Detection**: Only processes files modified since last import
+- **Data Storage**: Upserts data into SQLite database with import tracking
+- **API Access**: Query processed data via REST endpoints
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## API Endpoints
 
-## Learn More
+### Health Check
 
-To learn more about Next.js, take a look at the following resources:
+```
+GET /api/health
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Raw Inventory Data
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+GET /api/inventory/raw?page=1&limit=100&search=keyword
+```
 
-## Deploy on Vercel
+Query Parameters:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `page`: Page number (default: 1)
+- `limit`: Items per page (default: 100, max: 1000)
+- `search`: Filter by name or category
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Database Schema
+
+### InventoryRaw Table
+
+- `id`: Unique identifier
+- `name`: Item name
+- `category`: Item category
+- `quantity`: Stock quantity
+- `data`: Complete JSON data from XML
+- `sourceFile`: Original XML filename
+- `importedAt`: Import timestamp
+
+### ImportLog Table
+
+- `id`: Log entry ID
+- `fileName`: Processed file name
+- `filePath`: Full file path
+- `lastModified`: File modification time
+- `recordsProcessed`: Number of records imported
+- `status`: Import status (SUCCESS/ERROR)
+- `createdAt`: Log timestamp
+
+## Environment Variables
+
+```env
+# Database
+DATABASE_URL=file:./data/database.db
+
+# Application
+NODE_ENV=production
+PORT=3002
+```
+
+## Scripts
+
+- `npm run dev`: Start development server
+- `npm run build`: Build production application
+- `npm run start`: Start production server
+- `npm run db:generate`: Generate Prisma client
+- `npm run db:push`: Push schema to database
+- `npm run ingest`: Manual data ingestion
+- `npm run cron:dev`: Start cron worker (development)
+- `npm run cron:prod`: Start cron worker (production)
+
+## Production Deployment
+
+The Docker container automatically:
+
+1. Initializes the database schema
+2. Starts the Next.js application server
+3. Starts the background cron worker
+4. Monitors health via `/api/health` endpoint
+
+### Volume Mounts
+
+- `./data:/app/data` - Database storage
+- `./inventory-files:/app/inventory-files` - XML file directory
+
+### Health Monitoring
+
+The container includes health checks that verify the application is responding on port 3002.
+
+## File Structure
+
+```
+apps/onprem-viewer/
+├── src/
+│   ├── app/
+│   │   └── api/
+│   │       ├── health/route.ts      # Health check endpoint
+│   │       └── inventory/raw/route.ts # Raw data API
+│   └── lib/
+│       ├── db/prisma.ts             # Database client
+│       └── ingest/ingest-job.ts     # XML processing logic
+├── scripts/
+│   └── cron-worker.ts               # Automated ingestion worker
+├── prisma/
+│   └── schema.prisma                # Database schema
+├── Dockerfile                       # Container configuration
+├── docker-compose.yml               # Deployment orchestration
+└── package.json                     # Dependencies and scripts
+```
+
+This template provides a complete, production-ready solution for on-premise XML inventory data processing and API access.

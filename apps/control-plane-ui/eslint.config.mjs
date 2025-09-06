@@ -32,7 +32,6 @@ const eslintConfig = [
         },
       ],
       "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/prefer-const": "error",
       "@typescript-eslint/no-non-null-assertion": "warn",
 
       // Next.js specific rules - these are handled by next/core-web-vitals
@@ -54,8 +53,8 @@ const eslintConfig = [
       "prefer-template": "warn",
 
       // Code style rules
-      "eqeqeq": ["error", "always"],
-      "curly": ["error", "all"],
+      eqeqeq: ["error", "always"],
+      curly: ["error", "all"],
 
       // Performance rules
       "react-hooks/rules-of-hooks": "error",
@@ -88,7 +87,11 @@ const eslintConfig = [
   },
   {
     // API routes specific rules
-    files: ["**/api/**/*.{js,ts}", "**/pages/api/**/*.{js,ts}", "**/app/**/route.{js,ts}"],
+    files: [
+      "**/api/**/*.{js,ts}",
+      "**/pages/api/**/*.{js,ts}",
+      "**/app/**/route.{js,ts}",
+    ],
     rules: {
       "no-console": "off", // Console is useful in API routes
       "@typescript-eslint/no-explicit-any": "warn",
