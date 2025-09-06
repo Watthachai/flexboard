@@ -3,7 +3,8 @@ import path from "path";
 import { XMLParser } from "fast-xml-parser";
 import { prisma } from "../db/prisma";
 
-const INBOX = process.env.XML_WATCH_DIR || "./inventory-files";
+const INBOX =
+  process.env.XML_WATCH_DIR || process.env.XML_DATA_PATH || "./inventory-files";
 const parser = new XMLParser({ ignoreAttributes: false });
 
 type XmlRow = {
@@ -143,20 +144,47 @@ export async function ingestOnce() {
       const data = parser.parse(xml);
       const rows = mapXml(data);
 
+      // Collect all IDs from XML file for differential sync
+      const xmlIds = new Set(rows.map((r) => Number(r.ID)));
+      console.log(
+        `[ingest] ${f.name} → Found ${xmlIds.size} unique IDs in XML`
+      );
+
+      // Get existing IDs in database to determine what to delete
+      const existingRecords = await prisma.inventoryRaw.findMany({
+        select: { id: true },
+      });
+      const existingIds = new Set(existingRecords.map((r) => r.id));
+      console.log(
+        `[ingest] Database contains ${existingIds.size} existing records`
+      );
+
+      // Find IDs to delete (exist in DB but not in XML)
+      const idsToDelete = Array.from(existingIds).filter(
+        (id) => !xmlIds.has(id)
+      );
+      console.log(`[ingest] Found ${idsToDelete.length} records to delete`);
+
       // Process in batches to avoid transaction timeout
       const batchSize = 100;
       let processedCount = 0;
+      let createdCount = 0;
+      let updatedCount = 0;
 
+      // First, upsert all records from XML
       for (let i = 0; i < rows.length; i += batchSize) {
         const batch = rows.slice(i, i + batchSize);
 
         await prisma.$transaction(
           async (tx) => {
             for (const r of batch) {
+              const id = Number(r.ID);
+              const wasExisting = existingIds.has(id);
+
               await tx.inventoryRaw.upsert({
-                where: { id: Number(r.ID) },
+                where: { id },
                 create: {
-                  id: Number(r.ID),
+                  id,
                   dataDate: toDateYMD(r.DataDate),
                   corp: toString(r.Corp),
                   branch: toString(r.Branch),
@@ -179,6 +207,12 @@ export async function ingestOnce() {
                   averageCost: toNum(r.AverageCost),
                 },
               });
+
+              if (wasExisting) {
+                updatedCount++;
+              } else {
+                createdCount++;
+              }
             }
           },
           {
@@ -188,7 +222,32 @@ export async function ingestOnce() {
 
         processedCount += batch.length;
         console.log(
-          `[ingest] ${f.name} → ${processedCount}/${rows.length} rows processed`
+          `[ingest] ${f.name} → ${processedCount}/${rows.length} rows processed (${createdCount} new, ${updatedCount} updated)`
+        );
+      }
+
+      // Second, delete records that are no longer in XML
+      let deletedCount = 0;
+      if (idsToDelete.length > 0) {
+        for (let i = 0; i < idsToDelete.length; i += batchSize) {
+          const batch = idsToDelete.slice(i, i + batchSize);
+
+          await prisma.$transaction(
+            async (tx) => {
+              const result = await tx.inventoryRaw.deleteMany({
+                where: {
+                  id: { in: batch },
+                },
+              });
+              deletedCount += result.count;
+            },
+            {
+              timeout: 30000,
+            }
+          );
+        }
+        console.log(
+          `[ingest] ${f.name} → Deleted ${deletedCount} obsolete records`
         );
       }
 
@@ -199,18 +258,24 @@ export async function ingestOnce() {
           filename: full,
           lastMtime: mtime,
           recordsProcessed: rows.length,
+          recordsCreated: createdCount,
+          recordsUpdated: updatedCount,
+          recordsDeleted: deletedCount,
           status: "SUCCESS",
         },
         update: {
           lastMtime: mtime,
           processedAt: new Date(),
           recordsProcessed: rows.length,
+          recordsCreated: createdCount,
+          recordsUpdated: updatedCount,
+          recordsDeleted: deletedCount,
           status: "SUCCESS",
         },
       });
 
       console.log(
-        `[ingest] ${f.name} → ${rows.length} rows processed successfully`
+        `[ingest] ${f.name} → Differential sync completed: ${createdCount} created, ${updatedCount} updated, ${deletedCount} deleted (${rows.length} total from XML)`
       );
     }
   } catch (error) {
@@ -219,8 +284,8 @@ export async function ingestOnce() {
   }
 }
 
-// Auto-run if called directly
-if (require.main === module) {
+// Auto-run if called directly (ES module way)
+if (import.meta.url === `file://${process.argv[1]}`) {
   ingestOnce()
     .then(() => {
       console.log("[ingest] Complete");

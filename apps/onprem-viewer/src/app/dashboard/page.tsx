@@ -8,12 +8,21 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useState, useEffect } from "react";
 import DashboardViewer from "../components/DashboardViewer";
+import DashboardLayout from "../components/layout/DashboardLayout";
+import { LoadingPage } from "../components/ui/LoadingSpinner";
 import { envConfig } from "@/config/env";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [dashboards, setDashboards] = useState<any[]>([]);
+  const [dashboards, setDashboards] = useState<
+    Array<{
+      id: string;
+      name: string;
+      description?: string;
+      tenantId: string;
+    }>
+  >([]);
   const [loading, setLoading] = useState(true);
 
   const tenantId = searchParams.get("tenantId") || "pvs-co-ltd";
@@ -29,19 +38,41 @@ function DashboardContent() {
         const response = await fetch(apiUrl);
         const result = await response.json();
 
-        if (result.success && result.data) {
+        if (result.success && result.data && result.data.length > 0) {
           setDashboards(result.data);
 
           // ถ้ายังไม่ได้เลือก dashboard ให้เลือกอันแรก
-          if (!dashboardId && result.data.length > 0) {
+          if (!dashboardId) {
             const firstDashboardId = result.data[0].id;
             router.push(
               `/dashboard?tenantId=${tenantId}&dashboardId=${firstDashboardId}`
             );
           }
+        } else {
+          throw new Error("No dashboards found from API");
         }
       } catch (error) {
-        console.error("Error fetching dashboards:", error);
+        console.error("Error fetching dashboards from API:", error);
+
+        // Fallback: Use local dashboard configuration
+        console.log("🔄 Falling back to local dashboard...");
+
+        // Auto-redirect to known local dashboard
+        if (!dashboardId) {
+          router.push(
+            `/dashboard?tenantId=${tenantId}&dashboardId=pvs-co-ltd-inventory-aging-report`
+          );
+        }
+
+        // Set a mock dashboard list for UI
+        setDashboards([
+          {
+            id: "pvs-co-ltd-inventory-aging-report",
+            name: "PVS Inventory Aging Analysis",
+            description: "Local dashboard configuration",
+            tenantId: tenantId,
+          },
+        ]);
       } finally {
         setLoading(false);
       }
@@ -57,108 +88,44 @@ function DashboardContent() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-2xl animate-pulse mb-4">⏳</div>
-          <p className="text-gray-600">Loading dashboards...</p>
-        </div>
-      </div>
-    );
+    return <LoadingPage text="Loading dashboards..." />;
   }
 
   if (dashboards.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
           <div className="text-6xl mb-4">📊</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">
             No Dashboards Found
           </h2>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             No dashboards available for tenant: {tenantId}
           </p>
-          <a
-            href={`https://sandbox.api-flexboard.fittcoreai.com/tenants/${tenantId}/dashboards/new`}
-            className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Create New Dashboard
-          </a>
         </div>
       </div>
     );
   }
 
   if (!dashboardId) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-2xl animate-pulse mb-4">⏳</div>
-          <p className="text-gray-600">Redirecting to dashboard...</p>
-        </div>
-      </div>
-    );
+    return <LoadingPage text="Redirecting to dashboard..." />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Dashboard Selector Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Dashboard Viewer
-              </h1>
-              <p className="text-gray-600 text-sm mt-1">
-                Tenant: {tenantId} • {dashboards.length} dashboard(s) available
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <select
-                value={dashboardId}
-                onChange={(e) => handleDashboardChange(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {dashboards.map((dashboard) => (
-                  <option key={dashboard.id} value={dashboard.id}>
-                    {dashboard.name || dashboard.id}
-                  </option>
-                ))}
-              </select>
-              <a
-                href={`https://sandbox.api-flexboard.fittcoreai.com/tenants/${tenantId}/dashboards/new`}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                ➕ New Dashboard
-              </a>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Dashboard Content */}
+    <DashboardLayout
+      dashboards={dashboards}
+      selectedDashboardId={dashboardId}
+      tenantId={tenantId}
+      onDashboardChange={handleDashboardChange}
+    >
       <DashboardViewer tenantId={tenantId} dashboardId={dashboardId} />
-    </div>
+    </DashboardLayout>
   );
 }
 
 export default function DashboardPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-2xl animate-pulse mb-4">⏳</div>
-            <p className="text-gray-600">Loading...</p>
-          </div>
-        </div>
-      }
-    >
+    <Suspense fallback={<LoadingPage text="Initializing dashboard..." />}>
       <DashboardContent />
     </Suspense>
   );

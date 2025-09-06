@@ -15,6 +15,7 @@ import {
   CheckCircle,
   AlertCircle,
   RefreshCw,
+  LogOut,
 } from "lucide-react";
 
 interface IngestionStatus {
@@ -26,9 +27,18 @@ interface IngestionStatus {
   recentFiles: Array<{
     fileName: string;
     recordCount: number;
+    recordsCreated?: number;
+    recordsUpdated?: number;
+    recordsDeleted?: number;
     processedAt: string;
     status: "success" | "error";
   }>;
+}
+
+interface XmlSyncStatus {
+  isRunning: boolean;
+  intervalMs: number;
+  xmlPath: string;
 }
 
 export default function OnPremSettings() {
@@ -40,7 +50,46 @@ export default function OnPremSettings() {
     status: "idle",
     recentFiles: [],
   });
+  const [xmlSyncStatus, setXmlSyncStatus] = useState<XmlSyncStatus>({
+    isRunning: false,
+    intervalMs: 300000,
+    xmlPath: "",
+  });
   const [loading, setLoading] = useState(true);
+  const [customXmlPath, setCustomXmlPath] = useState("");
+  const [isUpdatingPath, setIsUpdatingPath] = useState(false);
+
+  // Real-time clock states
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [countdown, setCountdown] = useState({ minutes: 0, seconds: 0 });
+
+  // Logout function
+  const handleLogout = async () => {
+    if (
+      confirm(
+        "Are you sure you want to logout? You will need to login again with your license key."
+      )
+    ) {
+      try {
+        // Call logout API
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          credentials: "include",
+        });
+
+        // Clear localStorage
+        if (typeof window !== "undefined" && window.localStorage) {
+          localStorage.removeItem("userSession");
+        }
+
+        // Reload page to trigger re-authentication
+        window.location.reload();
+      } catch (error) {
+        console.error("Logout error:", error);
+        alert("Failed to logout. Please try again.");
+      }
+    }
+  };
 
   // Fetch ingestion status from API
   const fetchIngestionStatus = async () => {
@@ -51,6 +100,10 @@ export default function OnPremSettings() {
       const statusResponse = await fetch("/api/ingestion/status");
       const statusData = await statusResponse.json();
 
+      // Get XML sync service status
+      const syncResponse = await fetch("/api/xml-sync");
+      const syncData = await syncResponse.json();
+
       if (statusData.success) {
         setIngestionStatus({
           lastRun: statusData.data.lastRun,
@@ -60,8 +113,14 @@ export default function OnPremSettings() {
           status: statusData.data.status,
           recentFiles: statusData.data.recentFiles,
         });
-      } else {
-        throw new Error(statusData.error || "Failed to fetch status");
+      }
+
+      if (syncData.success) {
+        setXmlSyncStatus({
+          isRunning: syncData.isRunning,
+          intervalMs: syncData.intervalMs,
+          xmlPath: syncData.xmlPath,
+        });
       }
     } catch (error) {
       console.error("Failed to fetch ingestion status:", error);
@@ -76,7 +135,7 @@ export default function OnPremSettings() {
           status: healthData.status === "ok" ? "running" : "error",
           lastRun: healthData.timestamp,
         }));
-      } catch (healthError) {
+      } catch {
         setIngestionStatus((prev) => ({ ...prev, status: "error" }));
       }
     } finally {
@@ -84,14 +143,52 @@ export default function OnPremSettings() {
     }
   };
 
+  // Calculate countdown to next sync
+  const updateCountdown = React.useCallback(() => {
+    if (!ingestionStatus.lastRun) {
+      setCountdown({ minutes: 5, seconds: 0 }); // Default 5 minutes if no last run
+      return;
+    }
+
+    const lastRunTime = new Date(ingestionStatus.lastRun);
+    const nextRunTime = new Date(
+      lastRunTime.getTime() + xmlSyncStatus.intervalMs
+    );
+    const now = new Date();
+    const timeDiff = nextRunTime.getTime() - now.getTime();
+
+    if (timeDiff <= 0) {
+      // Time for next sync has passed, should be running soon
+      setCountdown({ minutes: 0, seconds: 0 });
+    } else {
+      const minutes = Math.floor(timeDiff / (1000 * 60));
+      const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+      setCountdown({ minutes, seconds });
+    }
+  }, [ingestionStatus.lastRun, xmlSyncStatus.intervalMs]);
+
   useEffect(() => {
     fetchIngestionStatus();
 
     // Refresh status every 30 seconds
-    const interval = setInterval(fetchIngestionStatus, 30000);
+    const statusInterval = setInterval(fetchIngestionStatus, 30000);
 
-    return () => clearInterval(interval);
-  }, []);
+    // Update clock every second
+    const clockInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    // Update countdown every second
+    const countdownInterval = setInterval(() => {
+      updateCountdown();
+    }, 1000);
+
+    return () => {
+      clearInterval(statusInterval);
+      clearInterval(clockInterval);
+      clearInterval(countdownInterval);
+    };
+  }, [updateCountdown]);
 
   const getStatusIcon = () => {
     switch (ingestionStatus.status) {
@@ -115,8 +212,95 @@ export default function OnPremSettings() {
     }
   };
 
+  // XML Sync Service Controls
+  const handleXmlSyncAction = async (action: "start" | "stop" | "restart") => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/xml-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        // Update status immediately
+        setXmlSyncStatus(result.status);
+        console.log(`XML sync service ${action}ed successfully`);
+      } else {
+        console.error(`Failed to ${action} XML sync service:`, result.error);
+      }
+    } catch (error) {
+      console.error(`Error ${action}ing XML sync service:`, error);
+    } finally {
+      setLoading(false);
+      // Refresh status after action
+      setTimeout(fetchIngestionStatus, 1000);
+    }
+  };
+
+  // Update XML Path
+  const handleUpdateXmlPath = async () => {
+    if (!customXmlPath.trim()) return;
+
+    try {
+      setIsUpdatingPath(true);
+      const response = await fetch("/api/xml-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "updatePath",
+          xmlPath: customXmlPath.trim(),
+        }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setXmlSyncStatus(result.status);
+        setCustomXmlPath(""); // Clear input
+        console.log(`XML path updated successfully`);
+      } else {
+        console.error(`Failed to update XML path:`, result.error);
+        alert(`Failed to update XML path: ${result.error}`);
+      }
+    } catch (error) {
+      console.error(`Error updating XML path:`, error);
+      alert(`Error updating XML path: ${error}`);
+    } finally {
+      setIsUpdatingPath(false);
+      setTimeout(fetchIngestionStatus, 1000);
+    }
+  };
+
+  // Trigger Manual Sync
+  const handleManualSync = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/xml-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "triggerSync" }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        console.log(`Manual sync completed successfully`);
+        alert("Manual sync completed successfully!");
+      } else {
+        console.error(`Manual sync failed:`, result.error);
+        alert(`Manual sync failed: ${result.error}`);
+      }
+    } catch (error) {
+      console.error(`Error during manual sync:`, error);
+      alert(`Error during manual sync: ${error}`);
+    } finally {
+      setLoading(false);
+      setTimeout(fetchIngestionStatus, 2000); // Give more time for sync to complete
+    }
+  };
+
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-6 space-y-6 bg-gray-50 dark:bg-gray-900 min-h-full transition-colors duration-200">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -127,23 +311,32 @@ export default function OnPremSettings() {
             Manage your data ingestion and system preferences
           </p>
         </div>
-        <button
-          onClick={fetchIngestionStatus}
-          disabled={loading}
-          className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-        >
-          <RefreshCw
-            className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}
-          />
-          Refresh
-        </button>
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-600 rounded-lg text-sm font-medium text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Logout
+          </button>
+          <button
+            onClick={fetchIngestionStatus}
+            disabled={loading}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+          >
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column */}
         <div className="space-y-6">
           {/* Auto-Ingestion Status */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transition-colors duration-200">
             <div className="flex items-center space-x-3 mb-6">
               <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
                 <Activity className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -180,6 +373,47 @@ export default function OnPremSettings() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Clock className="w-4 h-4 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Current Time
+                    </span>
+                  </div>
+                  <p className="text-lg font-mono text-gray-900 dark:text-white">
+                    {currentTime.toLocaleTimeString()}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {currentTime.toLocaleDateString()}
+                  </p>
+                </div>
+
+                <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <RefreshCw
+                      className={`w-4 h-4 ${
+                        countdown.minutes === 0 && countdown.seconds === 0
+                          ? "text-green-500 animate-spin"
+                          : "text-blue-500"
+                      }`}
+                    />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Next Sync In
+                    </span>
+                  </div>
+                  <p className="text-lg font-mono text-gray-900 dark:text-white">
+                    {String(countdown.minutes).padStart(2, "0")}:
+                    {String(countdown.seconds).padStart(2, "0")}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {countdown.minutes === 0 && countdown.seconds === 0
+                      ? "Running..."
+                      : "Minutes:Seconds"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mt-4">
                 <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                   <div className="flex items-center space-x-2 mb-2">
                     <Clock className="w-4 h-4 text-gray-500" />
@@ -221,6 +455,138 @@ export default function OnPremSettings() {
             </div>
           </div>
 
+          {/* XML Sync Service Control */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <RefreshCw className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  XML Sync Service
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Background XML import service control
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      xmlSyncStatus.isRunning ? "bg-green-500" : "bg-red-500"
+                    }`}
+                  />
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    Service Status
+                  </span>
+                </div>
+                <span
+                  className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    xmlSyncStatus.isRunning
+                      ? "bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300"
+                      : "bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300"
+                  }`}
+                >
+                  {xmlSyncStatus.isRunning ? "Running" : "Stopped"}
+                </span>
+              </div>
+
+              <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      <strong>Sync Interval:</strong>
+                    </div>
+                    <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {Math.floor(xmlSyncStatus.intervalMs / 1000 / 60)} minutes
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      <strong>Status:</strong>
+                    </div>
+                    <div
+                      className={`text-lg font-semibold ${
+                        xmlSyncStatus.isRunning
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {xmlSyncStatus.isRunning ? "🟢 Active" : "🔴 Inactive"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  <strong>XML Path:</strong>
+                  <br />
+                  <code className="bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded text-xs break-all">
+                    {xmlSyncStatus.xmlPath || "Not configured"}
+                  </code>
+                </div>
+
+                {/* XML Path Configuration */}
+                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Update XML Path:
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={customXmlPath}
+                      onChange={(e) => setCustomXmlPath(e.target.value)}
+                      placeholder="apps/onprem-viewer/inventory-files/VVPVGS_001_01.xml"
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    />
+                    <button
+                      onClick={handleUpdateXmlPath}
+                      disabled={isUpdatingPath || !customXmlPath.trim()}
+                      className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isUpdatingPath ? "Updating..." : "Update"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex space-x-2 mb-3">
+                  <button
+                    onClick={() => handleXmlSyncAction("start")}
+                    disabled={loading || xmlSyncStatus.isRunning}
+                    className="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Start
+                  </button>
+                  <button
+                    onClick={() => handleXmlSyncAction("stop")}
+                    disabled={loading || !xmlSyncStatus.isRunning}
+                    className="px-3 py-1.5 bg-red-600 text-white rounded text-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Stop
+                  </button>
+                  <button
+                    onClick={() => handleXmlSyncAction("restart")}
+                    disabled={loading}
+                    className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Restart
+                  </button>
+                </div>
+
+                {/* Manual Sync Button */}
+                <button
+                  onClick={handleManualSync}
+                  disabled={loading}
+                  className="w-full px-3 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Syncing..." : "🔄 Trigger Manual Sync"}
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Data Statistics */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center space-x-3 mb-6">
@@ -247,6 +613,9 @@ export default function OnPremSettings() {
                     {ingestionStatus.totalFiles}
                   </span>
                 </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  XML files processed
+                </div>
               </div>
 
               <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -257,6 +626,44 @@ export default function OnPremSettings() {
                   <span className="text-lg font-bold text-gray-900 dark:text-white">
                     {ingestionStatus.totalRecords.toLocaleString()}
                   </span>
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Inventory items in database
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Info */}
+            <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="text-sm text-blue-800 dark:text-blue-300">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Sync Performance:</span>
+                  <span>
+                    {Math.round(
+                      ingestionStatus.totalRecords /
+                        Math.max(ingestionStatus.totalFiles, 1)
+                    ).toLocaleString()}{" "}
+                    records/file avg
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Last Sync Status:</span>
+                  <span
+                    className={
+                      ingestionStatus.status === "running"
+                        ? "text-green-600"
+                        : "text-yellow-600"
+                    }
+                  >
+                    {ingestionStatus.status === "running"
+                      ? "✅ Active"
+                      : "⏸️ Idle"}
+                  </span>
+                </div>
+                <div className="text-xs text-blue-600 dark:text-blue-400 mt-2 p-2 bg-blue-100 dark:bg-blue-900/30 rounded">
+                  <strong>Note:</strong> Database total may differ from XML
+                  record count due to deduplication. Records with duplicate IDs
+                  are updated rather than creating new entries.
                 </div>
               </div>
             </div>
@@ -306,9 +713,31 @@ export default function OnPremSettings() {
                         {file.fileName}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {file.recordCount.toLocaleString()} records •{" "}
+                        {file.recordCount.toLocaleString()} records from XML •{" "}
                         {new Date(file.processedAt).toLocaleString()}
                       </p>
+                      {/* Differential sync statistics */}
+                      {((file.recordsCreated || 0) > 0 ||
+                        (file.recordsUpdated || 0) > 0 ||
+                        (file.recordsDeleted || 0) > 0) && (
+                        <div className="flex items-center space-x-3 mt-1">
+                          {(file.recordsCreated || 0) > 0 && (
+                            <span className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded">
+                              +{file.recordsCreated || 0} new
+                            </span>
+                          )}
+                          {(file.recordsUpdated || 0) > 0 && (
+                            <span className="text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">
+                              ~{file.recordsUpdated || 0} updated
+                            </span>
+                          )}
+                          {(file.recordsDeleted || 0) > 0 && (
+                            <span className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded">
+                              -{file.recordsDeleted || 0} removed
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))

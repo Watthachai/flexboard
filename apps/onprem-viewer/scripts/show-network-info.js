@@ -5,19 +5,19 @@
  * Displays local network IP addresses for OnPrem access
  */
 
-const os = require("os");
+import os from "os";
 
 function getNetworkIPs() {
   const interfaces = os.networkInterfaces();
   const ips = [];
 
   for (const name of Object.keys(interfaces)) {
-    for (const interface of interfaces[name]) {
+    for (const networkInterface of interfaces[name]) {
       // Skip over non-IPv4 and internal addresses
-      if (interface.family === "IPv4" && !interface.internal) {
+      if (networkInterface.family === "IPv4" && !networkInterface.internal) {
         ips.push({
           interface: name,
-          address: interface.address,
+          address: networkInterface.address,
         });
       }
     }

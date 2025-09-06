@@ -12,6 +12,9 @@ model ImportLog {
   lastMtime        BigInt
   processedAt      DateTime @default(now())
   recordsProcessed Int      @default(0)
+  recordsCreated   Int      @default(0) // จำนวนที่เพิ่มใหม่
+  recordsUpdated   Int      @default(0) // จำนวนที่อัพเดท
+  recordsDeleted   Int      @default(0) // จำนวนที่ลบ
   status           String   @default("SUCCESS") // SUCCESS, ERROR
 }
 

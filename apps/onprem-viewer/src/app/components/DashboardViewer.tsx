@@ -45,7 +45,6 @@ import RealStackedBarChart from "./charts/RealStackedBarChart";
 import RealTableWidget from "./charts/RealTableWidget";
 import AdvancedTableWidget from "../../components/AdvancedTableWidget";
 import UserFilters from "../../components/UserFilters";
-import DashboardLayout from "./layout/DashboardLayout";
 import StatsCards from "./StatsCards";
 import {
   validateAndFixLayout,
@@ -661,328 +660,284 @@ export default function DashboardViewer({
 
   if (loading) {
     return (
-      <DashboardLayout title="Loading Dashboard">
-        <div className="h-full flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-2xl animate-pulse mb-4">📊</div>
-            <p className="text-gray-600 mb-2">
-              Loading dashboard configuration...
-            </p>
-            {dataLoading && (
-              <div className="mt-4">
-                <p className="text-sm text-blue-600 mb-2">
-                  Loading all {10726} records for accurate calculations...
-                </p>
-                <div className="w-64 bg-gray-200 rounded-full h-2 mx-auto">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${processingProgress}%` }}
-                  ></div>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  This may take a moment for accuracy
-                </p>
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-2xl animate-pulse mb-4">📊</div>
+          <p className="text-gray-600 mb-2">
+            Loading dashboard configuration...
+          </p>
+          {dataLoading && (
+            <div className="mt-4">
+              <p className="text-sm text-blue-600 mb-2">
+                Loading all {10726} records for accurate calculations...
+              </p>
+              <div className="w-64 bg-gray-200 rounded-full h-2 mx-auto">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${processingProgress}%` }}
+                ></div>
               </div>
-            )}
-          </div>
+              <p className="text-xs text-gray-500 mt-1">
+                This may take a moment for accuracy
+              </p>
+            </div>
+          )}
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <DashboardLayout title="Error">
-        <div className="h-full flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-2xl mb-4">⚠️</div>
-            <p className="text-red-600 mb-4">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-            >
-              Retry
-            </button>
-          </div>
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-2xl mb-4">⚠️</div>
+          <p className="text-red-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Retry
+          </button>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   if (!manifest) {
     return (
-      <DashboardLayout title="Dashboard Not Found">
-        <div className="h-full flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-2xl mb-4">📄</div>
-            <p className="text-gray-600">No dashboard configuration found</p>
-          </div>
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-2xl mb-4">📄</div>
+          <p className="text-gray-600">No dashboard configuration found</p>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   if (!manifest) {
     return (
-      <DashboardLayout title="Dashboard Not Found">
-        <div className="h-full flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-2xl mb-4">📊</div>
-            <p className="text-gray-600">Dashboard manifest not loaded</p>
-          </div>
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-2xl mb-4">📊</div>
+          <p className="text-gray-600">Dashboard manifest not loaded</p>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout
-      title={manifest?.dashboardName || "Dashboard"}
-      breadcrumb={[
-        { label: "Dashboards" },
-        { label: manifest?.dashboardName || "Dashboard" },
-      ]}
-    >
-      <div className="h-full p-6 space-y-4">
-        {/* Dashboard Header Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {manifest?.dashboardName || "Dashboard"}
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 mt-1">
-                {manifest?.description || ""}
-              </p>
-            </div>
+    <div className="h-full p-6 space-y-4">
+      {/* User Filters */}
+      {manifest?.userFilters && (
+        <UserFilters
+          filters={manifest.userFilters}
+          values={userFilterValues}
+          onChange={(filterId, value) => {
+            setUserFilterValues((prev) => ({
+              ...prev,
+              [filterId]: value,
+            }));
+          }}
+        />
+      )}
 
-            <div className="flex items-center gap-4">
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Version {manifest?.version || 1} |{" "}
-                {manifest?.widgets?.length || 0} widgets
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-sm text-green-600 dark:text-green-400">
-                  Active
-                </span>
-              </div>
-            </div>
+      {/* Date Filter */}
+      {uploadedData.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-3 mb-4">
+          <div className="flex items-center gap-4">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              📅 Filter by Date:
+            </label>
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Dates</option>
+              {generateMonthEndDates().map((monthData, index) => (
+                <option key={index} value={`month-${monthData.value}`}>
+                  {monthData.label}
+                </option>
+              ))}
+            </select>
+            {dateFilter !== "all" && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                Single month selected
+              </span>
+            )}
           </div>
         </div>
+      )}
 
-        {/* User Filters */}
-        {manifest?.userFilters && (
-          <UserFilters
-            filters={manifest.userFilters}
-            values={userFilterValues}
-            onChange={(filterId, value) => {
-              setUserFilterValues((prev) => ({
-                ...prev,
-                [filterId]: value,
-              }));
-            }}
-          />
+      {/* Show upload prompt if no data */}
+      {uploadedData.length === 0 && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4 text-center">
+          <div className="text-blue-600 dark:text-blue-400 mb-2">
+            📊 No data uploaded yet
+          </div>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">
+            To view dashboard charts, please upload your data file first.
+          </p>
+          <button
+            onClick={() => (window.location.href = "/settings")}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            📤 Go to Settings to Upload Data
+          </button>
+        </div>
+      )}
+
+      {/* Desktop Dashboard Grid */}
+      <div
+        className="hidden md:grid gap-3"
+        style={generateGridStyles(
+          manifest?.layout || { type: "grid", columns: 12, rowHeight: 50 },
+          screenWidth
         )}
+      >
+        {manifest?.widgets?.map((widget) => {
+          const validatedLayout = validateAndFixLayout(
+            widget.layout,
+            manifest?.layout?.columns || 12,
+            widget.title
+          );
 
-        {/* Date Filter */}
-        {uploadedData.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-3 mb-4">
-            <div className="flex items-center gap-4">
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                📅 Filter by Date:
-              </label>
-              <select
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Dates</option>
-                {generateMonthEndDates().map((monthData, index) => (
-                  <option key={index} value={`month-${monthData.value}`}>
-                    {monthData.label}
-                  </option>
-                ))}
-              </select>
-              {dateFilter !== "all" && (
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  Single month selected
-                </span>
+          return (
+            <div
+              key={widget.id}
+              className="min-h-0"
+              style={getWidgetGridStyles(
+                validatedLayout,
+                manifest?.layout?.columns || 12
               )}
-            </div>
-          </div>
-        )}
-
-        {/* Show upload prompt if no data */}
-        {uploadedData.length === 0 && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4 text-center">
-            <div className="text-blue-600 dark:text-blue-400 mb-2">
-              📊 No data uploaded yet
-            </div>
-            <p className="text-gray-600 dark:text-gray-300 mb-4">
-              To view dashboard charts, please upload your data file first.
-            </p>
-            <button
-              onClick={() => (window.location.href = "/settings")}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              📤 Go to Settings to Upload Data
-            </button>
-          </div>
-        )}
+              {renderWidget(widget)}
+            </div>
+          );
+        }) || []}
+      </div>
 
-        {/* Desktop Dashboard Grid */}
-        <div
-          className="hidden md:grid gap-3"
-          style={generateGridStyles(
-            manifest?.layout || { type: "grid", columns: 12, rowHeight: 50 },
-            screenWidth
-          )}
-        >
-          {manifest?.widgets?.map((widget) => {
-            const validatedLayout = validateAndFixLayout(
-              widget.layout,
-              manifest?.layout?.columns || 12,
-              widget.title
+      {/* Mobile Dashboard Layout */}
+      <div className="block md:hidden">
+        <div className="space-y-3">
+          {convertToMobileLayout(
+            manifest?.widgets || [],
+            manifest?.layout?.rowHeight || 50
+          ).map((mobileWidget) => {
+            const originalWidget = manifest?.widgets?.find(
+              (w) => w.id === mobileWidget.id
             );
+            if (!originalWidget) return null;
 
             return (
               <div
-                key={widget.id}
-                className="min-h-0"
-                style={getWidgetGridStyles(
-                  validatedLayout,
-                  manifest?.layout?.columns || 12
-                )}
+                key={`mobile-${mobileWidget.id}`}
+                style={{
+                  minHeight: `${mobileWidget.mobileHeight}px`,
+                }}
               >
-                {renderWidget(widget)}
+                {renderWidget(originalWidget)}
               </div>
             );
-          }) || []}
+          })}
         </div>
+      </div>
 
-        {/* Mobile Dashboard Layout */}
-        <div className="block md:hidden">
-          <div className="space-y-3">
-            {convertToMobileLayout(
-              manifest?.widgets || [],
-              manifest?.layout?.rowHeight || 50
-            ).map((mobileWidget) => {
-              const originalWidget = manifest?.widgets?.find(
-                (w) => w.id === mobileWidget.id
+      {/* Layout Debug Info (Development only) */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="mt-8 space-y-4">
+          {/* Current Layout Analysis */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 className="text-sm font-medium text-blue-800 mb-2">
+              💡 Layout Optimization Suggestions
+            </h3>
+            {(() => {
+              if (!manifest) return null;
+              const debugInfo = generateLayoutDebugInfo(
+                manifest.widgets,
+                manifest.layout
               );
-              if (!originalWidget) return null;
+              const hasIssues =
+                debugInfo.overlaps.length > 0 ||
+                manifest.widgets.some(
+                  (w) =>
+                    w.layout.x + w.layout.width >
+                    (manifest?.layout?.columns || 12)
+                );
 
               return (
-                <div
-                  key={`mobile-${mobileWidget.id}`}
-                  style={{
-                    minHeight: `${mobileWidget.mobileHeight}px`,
-                  }}
-                >
-                  {renderWidget(originalWidget)}
+                <div className="text-xs text-blue-700 space-y-2">
+                  <div>
+                    Screen: {screenWidth}px | Grid: {debugInfo.gridInfo}
+                  </div>
+
+                  {hasIssues && (
+                    <div className="bg-yellow-100 border border-yellow-300 rounded p-2 mt-2">
+                      <p className="font-medium text-yellow-800">
+                        ⚠️ Layout Issues Detected:
+                      </p>
+                      <div className="mt-1 text-yellow-700">
+                        <p>
+                          • Consider using side-by-side layout: width: 6 each
+                        </p>
+                        <p>• Recommended height: 6-8 rows (300-400px)</p>
+                        <p>
+                          • Ensure x + width ≤ {manifest?.layout?.columns || 12}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-green-100 border border-green-300 rounded p-2 mt-2">
+                    <p className="font-medium text-green-800">
+                      ✅ Recommended Layout:
+                    </p>
+                    <div className="mt-1 text-green-700 font-mono text-xs">
+                      <div>Bar Chart: x:0, y:0, width:6, height:8</div>
+                      <div>Line Chart: x:6, y:0, width:6, height:8</div>
+                    </div>
+                  </div>
+
+                  {debugInfo.overlaps.length > 0 && (
+                    <div className="text-red-600">
+                      ⚠️ Widget Overlaps:
+                      {debugInfo.overlaps.map((overlap, i) => (
+                        <div key={i} className="ml-2">
+                          {overlap.widget1} ↔ {overlap.widget2}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <details className="mt-2">
+                    <summary className="cursor-pointer font-medium">
+                      Current Widget Details
+                    </summary>
+                    <div className="mt-1 ml-2">
+                      {debugInfo.widgetInfo.map((widget) => (
+                        <div key={widget.id} className="font-mono">
+                          {widget.title}: pos{widget.position} size
+                          {widget.size}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
                 </div>
               );
-            })}
+            })()}
           </div>
         </div>
+      )}
 
-        {/* Layout Debug Info (Development only) */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="mt-8 space-y-4">
-            {/* Current Layout Analysis */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-blue-800 mb-2">
-                💡 Layout Optimization Suggestions
-              </h3>
-              {(() => {
-                if (!manifest) return null;
-                const debugInfo = generateLayoutDebugInfo(
-                  manifest.widgets,
-                  manifest.layout
-                );
-                const hasIssues =
-                  debugInfo.overlaps.length > 0 ||
-                  manifest.widgets.some(
-                    (w) =>
-                      w.layout.x + w.layout.width >
-                      (manifest?.layout?.columns || 12)
-                  );
-
-                return (
-                  <div className="text-xs text-blue-700 space-y-2">
-                    <div>
-                      Screen: {screenWidth}px | Grid: {debugInfo.gridInfo}
-                    </div>
-
-                    {hasIssues && (
-                      <div className="bg-yellow-100 border border-yellow-300 rounded p-2 mt-2">
-                        <p className="font-medium text-yellow-800">
-                          ⚠️ Layout Issues Detected:
-                        </p>
-                        <div className="mt-1 text-yellow-700">
-                          <p>
-                            • Consider using side-by-side layout: width: 6 each
-                          </p>
-                          <p>• Recommended height: 6-8 rows (300-400px)</p>
-                          <p>
-                            • Ensure x + width ≤{" "}
-                            {manifest?.layout?.columns || 12}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="bg-green-100 border border-green-300 rounded p-2 mt-2">
-                      <p className="font-medium text-green-800">
-                        ✅ Recommended Layout:
-                      </p>
-                      <div className="mt-1 text-green-700 font-mono text-xs">
-                        <div>Bar Chart: x:0, y:0, width:6, height:8</div>
-                        <div>Line Chart: x:6, y:0, width:6, height:8</div>
-                      </div>
-                    </div>
-
-                    {debugInfo.overlaps.length > 0 && (
-                      <div className="text-red-600">
-                        ⚠️ Widget Overlaps:
-                        {debugInfo.overlaps.map((overlap, i) => (
-                          <div key={i} className="ml-2">
-                            {overlap.widget1} ↔ {overlap.widget2}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <details className="mt-2">
-                      <summary className="cursor-pointer font-medium">
-                        Current Widget Details
-                      </summary>
-                      <div className="mt-1 ml-2">
-                        {debugInfo.widgetInfo.map((widget) => (
-                          <div key={widget.id} className="font-mono">
-                            {widget.title}: pos{widget.position} size
-                            {widget.size}
-                          </div>
-                        ))}
-                      </div>
-                    </details>
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-        )}
-
-        {manifest?.widgets?.length === 0 && (
-          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-            <div className="text-4xl mb-4">📊</div>
-            <p className="text-gray-600">
-              No widgets configured in this dashboard
-            </p>
-          </div>
-        )}
-      </div>
-    </DashboardLayout>
+      {manifest?.widgets?.length === 0 && (
+        <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+          <div className="text-4xl mb-4">📊</div>
+          <p className="text-gray-600">
+            No widgets configured in this dashboard
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
