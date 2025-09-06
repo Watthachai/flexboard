@@ -27,6 +27,9 @@ export async function GET() {
         recentFiles: recentImports.map((log: any) => ({
           fileName: log.filename.split("/").pop() || log.filename,
           recordCount: log.recordsProcessed || 0,
+          recordsCreated: log.recordsCreated || 0,
+          recordsUpdated: log.recordsUpdated || 0,
+          recordsDeleted: log.recordsDeleted || 0,
           processedAt: log.processedAt,
           status: log.status === "SUCCESS" ? "success" : "error",
         })),

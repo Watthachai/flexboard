@@ -3,7 +3,7 @@
   "dashboardId": "pvs-co-ltd-inventory-aging-report",
   "dashboardName": "PVS Inventory Aging Analysis",
   "description": "Clean dashboard with updated data structure",
-  "version": 8,
+  "version": 1,
 
   "theme": {
     "dark": true,
@@ -271,7 +271,6 @@
           }
         },
         "stickyHeader": true,
-        "stickyFirstColumns": 4,
         "horizontalScroll": true,
         "pageSize": 25,
         "pageSizeOptions": [10, 25, 50, 100],
@@ -566,7 +565,7 @@
       {
         "widgetId": "table-raw-aging-matrix",
         "x": 0,
-        "y": 21,
+        "y": 13,
         "width": 12,
         "height": 10
       }

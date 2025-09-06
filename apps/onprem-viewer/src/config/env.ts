@@ -41,6 +41,11 @@ export const envConfig = {
     const baseUrl = getApiUrl();
     return `${baseUrl}/api${endpoint}`;
   },
+
+  // XML Path helper
+  getXmlPath: () => {
+    return process.env.XML_DATA_PATH || getDefaultXmlPath();
+  },
 };
 
 // Platform-specific XML data paths

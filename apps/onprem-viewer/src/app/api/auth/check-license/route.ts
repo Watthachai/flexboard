@@ -1,40 +1,23 @@
 /**
- * OnPrem Viewer - License Validation AP    // Forward license validation to Control Plane API
-    const controlPlaneUrl = envConfig.getControlPlaneApiUrl("/auth/license-validate");
-    const controlPlaneResponse = await fetch(controlPlaneUrl, {ute
- * Validates license key for authenticated user
+ * OnPrem Viewer - Check User License API Route
+ * Checks if user already has a valid license key associated
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { envConfig } from "@/config/env";
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { licenseKey, email } = body;
-
-    if (!licenseKey || !email) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "License key and email are required",
-        },
-        { status: 400 }
-      );
-    }
-
     // Get session token from cookies
     const sessionToken = request.cookies.get("session-token")?.value;
     const userId = request.cookies.get("user-id")?.value;
 
-    console.log("License validation - cookies:", {
+    console.log("Check user license - cookies:", {
       hasSessionToken: !!sessionToken,
       hasUserId: !!userId,
-      sessionTokenLength: sessionToken?.length || 0,
     });
 
     if (!sessionToken || !userId) {
-      console.log("Missing session token or user ID for license validation");
       return NextResponse.json(
         {
           success: false,
@@ -44,32 +27,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Forward license validation request to Control Plane API
-    const controlPlaneUrl = envConfig.getControlPlaneApiUrl(
-      "/auth/license-validate"
-    );
+    // Check if user has associated license in Control Plane
+    const controlPlaneUrl =
+      envConfig.getControlPlaneApiUrl("/auth/user-license");
     const controlPlaneResponse = await fetch(controlPlaneUrl, {
-      method: "POST",
+      method: "GET",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${sessionToken}`,
       },
-      body: JSON.stringify({
-        licenseKey,
-        email,
-        userId,
-        associateWithUser: true, // Flag to save license key with user account
-      }),
     });
 
     const result = await controlPlaneResponse.json();
 
-    if (controlPlaneResponse.ok && result.success) {
-      // License validation successful
+    if (controlPlaneResponse.ok && result.success && result.license) {
+      // User has valid license
       const response = NextResponse.json({
         success: true,
+        hasLicense: true,
         license: result.license,
-        message: "License validation successful",
+        message: "User has valid license",
       });
 
       // Set license information in cookies
@@ -95,16 +72,15 @@ export async function POST(request: NextRequest) {
 
       return response;
     } else {
-      return NextResponse.json(
-        {
-          success: false,
-          message: result.message || "License validation failed",
-        },
-        { status: controlPlaneResponse.status }
-      );
+      // User doesn't have license yet
+      return NextResponse.json({
+        success: true,
+        hasLicense: false,
+        message: "User needs to set license key",
+      });
     }
   } catch (error) {
-    console.error("License validation error:", error);
+    console.error("Check user license error:", error);
     return NextResponse.json(
       {
         success: false,

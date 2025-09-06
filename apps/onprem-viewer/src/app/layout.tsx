@@ -6,9 +6,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
 import { VersionDisplay } from "@/components/VersionDisplay";
+import { ThemeProvider, useTheme } from "@/app/components/context/ThemeContext";
 import "./globals.css";
+import "@/services/autoStartService";
 
 interface UserSession {
   email: string;
@@ -25,32 +26,33 @@ export default function RootLayout({
 }) {
   const [session, setSession] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
-  const [darkMode, setDarkMode] = useState(true);
 
   useEffect(() => {
     checkSession();
-    // Load dark mode preference (only in browser)
+    // Check if we have a saved session as fallback
     if (typeof window !== "undefined" && window.localStorage) {
-      const savedDarkMode = localStorage.getItem("darkMode");
-      if (savedDarkMode !== null) {
-        setDarkMode(JSON.parse(savedDarkMode));
+      const savedSession = localStorage.getItem("userSession");
+      if (savedSession) {
+        try {
+          const sessionData = JSON.parse(savedSession);
+          // Only use saved session if license hasn't expired
+          if (
+            sessionData.expiryDate &&
+            new Date(sessionData.expiryDate) > new Date()
+          ) {
+            setSession(sessionData);
+            setLoading(false);
+          } else {
+            // Remove expired session
+            localStorage.removeItem("userSession");
+          }
+        } catch (error) {
+          console.error("Failed to parse saved session:", error);
+          localStorage.removeItem("userSession");
+        }
       }
     }
   }, []);
-
-  useEffect(() => {
-    // Apply dark mode to document
-    if (darkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-
-    // Save dark mode preference (only in browser)
-    if (typeof window !== "undefined" && window.localStorage) {
-      localStorage.setItem("darkMode", JSON.stringify(darkMode));
-    }
-  }, [darkMode]);
 
   const checkSession = async () => {
     try {
@@ -86,6 +88,11 @@ export default function RootLayout({
   const handleLogin = (newSession: UserSession) => {
     setSession(newSession);
     setLoading(false);
+
+    // Save session to localStorage (excluding sensitive data)
+    if (typeof window !== "undefined" && window.localStorage) {
+      localStorage.setItem("userSession", JSON.stringify(newSession));
+    }
   };
 
   const handleLogout = async () => {
@@ -99,63 +106,67 @@ export default function RootLayout({
       console.error("Logout error:", error);
     }
 
-    // Clear local state
+    // Clear local state and localStorage
     setSession(null);
+    if (typeof window !== "undefined" && window.localStorage) {
+      localStorage.removeItem("userSession");
+    }
   };
 
   if (loading) {
     return (
-      <html lang="en" className={darkMode ? "dark" : ""}>
-        <body className="bg-gray-50 dark:bg-gray-900">
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
-              <p className="text-gray-600 dark:text-gray-300">
-                Checking authentication...
-              </p>
+      <ThemeProvider>
+        <html lang="en">
+          <body className="bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Checking authentication...
+                </p>
+              </div>
             </div>
-          </div>
-        </body>
-      </html>
+          </body>
+        </html>
+      </ThemeProvider>
     );
   }
 
   // Show login screen if not authenticated
   if (!session) {
     return (
-      <html lang="en" className={darkMode ? "dark" : ""}>
-        <body className="bg-gray-50 dark:bg-gray-900">
-          <LoginScreen
-            onLogin={handleLogin}
-            darkMode={darkMode}
-            setDarkMode={setDarkMode}
-          />
-        </body>
-      </html>
+      <ThemeProvider>
+        <html lang="en">
+          <body className="bg-gray-50 dark:bg-gray-900">
+            <LoginScreen onLogin={handleLogin} />
+          </body>
+        </html>
+      </ThemeProvider>
     );
   }
 
   // Show authenticated layout
   return (
-    <html lang="en" className={darkMode ? "dark" : ""}>
-      <body className="bg-gray-50 dark:bg-gray-900">
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-          {/* Main content */}
-          <main className="h-screen">{children}</main>
-        </div>
-      </body>
-    </html>
+    <ThemeProvider>
+      <html lang="en">
+        <body className="bg-gray-50 dark:bg-gray-900">
+          <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+            {/* Main content */}
+            <main className="h-screen">{children}</main>
+          </div>
+        </body>
+      </html>
+    </ThemeProvider>
   );
 }
 
 // Login Screen Component with 2-Step Process
 interface LoginScreenProps {
   onLogin: (session: UserSession) => void;
-  darkMode: boolean;
-  setDarkMode: (dark: boolean) => void;
 }
 
-function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
+function LoginScreen({ onLogin }: LoginScreenProps) {
+  const { darkMode, toggleDarkMode } = useTheme();
   const [step, setStep] = useState<"login" | "license">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -167,6 +178,36 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
   }
 
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+
+  // Check if user already has a license
+  const checkUserLicense = async (user: UserInfo) => {
+    try {
+      const response = await fetch("/api/auth/check-license", {
+        method: "GET",
+        credentials: "include",
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success && result.hasLicense) {
+        // User already has valid license, proceed directly
+        onLogin({
+          email: user.email,
+          tenantId: result.license.tenantId,
+          companyName: result.license.companyName,
+          features: result.license.features,
+          expiryDate: result.license.expiryDate,
+        });
+      } else {
+        // User needs to set license key
+        setStep("license");
+      }
+    } catch (error) {
+      console.error("License check error:", error);
+      // On error, fall back to license step
+      setStep("license");
+    }
+  };
 
   // Step 1: Firebase Email/Password Login
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -193,10 +234,12 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // Email login successful, store user info and move to license step
+        // Email login successful, check if user already has license
         setUserInfo(result.user);
-        setStep("license");
         setError("");
+
+        // Auto-check if user has existing license
+        await checkUserLicense(result.user);
       } else {
         setError(result.message || "Login failed");
       }
@@ -224,7 +267,7 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
         credentials: "include", // Include HTTP-only cookies
         body: JSON.stringify({
           licenseKey,
-          email: userInfo.email,
+          email: userInfo?.email,
         }),
       });
 
@@ -233,7 +276,7 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
       if (response.ok && result.success) {
         // License validation successful
         onLogin({
-          email: userInfo.email,
+          email: userInfo?.email || "",
           tenantId: result.license.tenantId,
           companyName: result.license.companyName,
           features: result.license.features,
@@ -266,7 +309,8 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
               Welcome, {userInfo?.email}
             </h2>
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              Please enter your company license key to access dashboards
+              Please enter your company license key. This will be saved to your
+              account for future logins.
             </p>
           </div>
 
@@ -334,7 +378,7 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
           {/* Dark Mode Toggle */}
           <div className="flex justify-center">
             <button
-              onClick={() => setDarkMode(!darkMode)}
+              onClick={toggleDarkMode}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
@@ -356,9 +400,7 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
               FlexBoard OnPrem
             </h1>
           </div>
-          <h2 className="text-xl text-gray-600 dark:text-gray-300">
-            Dashboard Viewer
-          </h2>
+
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
             Sign in to your account to access dashboards
           </p>
@@ -444,7 +486,7 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
         {/* Dark Mode Toggle */}
         <div className="flex justify-center">
           <button
-            onClick={() => setDarkMode(!darkMode)}
+            onClick={toggleDarkMode}
             className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
