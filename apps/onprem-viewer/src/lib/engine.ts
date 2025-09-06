@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 
 // Debug flag
-const DEBUG = false;
+const DEBUG = false; // Enabled temporarily for debugging
 const dlog = (...args: any[]) => {
   if (DEBUG) console.log(...args);
 };
@@ -429,7 +429,7 @@ function lookupDs(
 
   const keyValue = row[keyField];
   const found = table.rows.find((r) => r[table.key] === keyValue);
-  return found ? found[valueField] : (table.defaultValue ?? null);
+  return found ? found[valueField] : table.defaultValue ?? null;
 }
 
 function coalesce(...values: any[]): any {
@@ -754,11 +754,18 @@ export function applyTransforms(
   const ctx = context || { referenceTables: {}, settings: {} };
 
   const result = rows.map((r, index) => {
+    // Field mapping now handled at API level for better performance
     const rr = { ...r };
+
     if (DEBUG && index < 2) {
       dlog(`🔄 Processing row ${index}:`, {
-        originalKeys: Object.keys(r),
-        originalData: r,
+        availableKeys: Object.keys(r),
+        sampleData: {
+          DataDate: r.DataDate,
+          DocDate: r.DocDate,
+          DocNumber: r.DocNumber,
+          QtyFromThisDoc: r.QtyFromThisDoc,
+        },
       });
     }
 
@@ -833,29 +840,30 @@ export function groupAgg(
   dimensions: string[] | undefined,
   measures: any[]
 ) {
-  console.log("🔍 SUMMARY TABLE AGGREGATION START:", {
-    rowsCount: rows.length,
-    dimensions,
-    measures: measures?.map((m) => ({
-      field: m.field,
-      expr: m.expr,
-      agg: m.agg,
-      as: m.as,
-    })),
-    firstRowKeys: rows.length > 0 ? Object.keys(rows[0]) : [],
-    firstRowSample: rows.length > 0 ? rows[0] : null,
-    hasTransformedFields:
-      rows.length > 0
-        ? {
-            hasQty0_90: "Qty_0_90_row" in rows[0],
-            hasQty91_180: "Qty_91_180_row" in rows[0],
-            hasQty181_365: "Qty_181_365_row" in rows[0],
-            hasQty365Plus: "Qty_365_plus_row" in rows[0],
-            hasAgeBucket: "AgeBucket" in rows[0],
-            hasDaysAge: "DaysAge" in rows[0],
-          }
-        : null,
-  });
+  // Debug logging disabled for performance
+  // console.log("🔍 SUMMARY TABLE AGGREGATION START:", {
+  //   rowsCount: rows.length,
+  //   dimensions,
+  //   measures: measures?.map((m) => ({
+  //     field: m.field,
+  //     expr: m.expr,
+  //     agg: m.agg,
+  //     as: m.as,
+  //   })),
+  //   firstRowKeys: rows.length > 0 ? Object.keys(rows[0]) : [],
+  //   firstRowSample: rows.length > 0 ? rows[0] : null,
+  //   hasTransformedFields:
+  //     rows.length > 0
+  //       ? {
+  //           hasQty0_90: "Qty_0_90_row" in rows[0],
+  //           hasQty91_180: "Qty_91_180_row" in rows[0],
+  //           hasQty181_365: "Qty_181_365_row" in rows[0],
+  //           hasQty365Plus: "Qty_365_plus_row" in rows[0],
+  //           hasAgeBucket: "AgeBucket" in rows[0],
+  //           hasDaysAge: "DaysAge" in rows[0],
+  //         }
+  //       : null,
+  // });
 
   if (!measures?.length) return [];
 
@@ -924,20 +932,21 @@ export function groupAgg(
             const trueValue = iifMatch[2].trim();
             const falseValue = iifMatch[3].trim();
 
-            console.log("🔍 IIF EXPRESSION DEBUG:", {
-              expr,
-              condition,
-              trueValue,
-              falseValue,
-              rowSample: {
-                AgeBucket: r["AgeBucket"],
-                QtyFromThisDoc: r["QtyFromThisDoc"],
-                Qty_0_90_row: r["Qty_0_90_row"],
-              },
-              availableFields: Object.keys(r).filter(
-                (k) => k.startsWith("Qty_") || k.includes("Age")
-              ),
-            });
+            // Debug logging disabled for performance
+            // console.log("🔍 IIF EXPRESSION DEBUG:", {
+            //   expr,
+            //   condition,
+            //   trueValue,
+            //   falseValue,
+            //   rowSample: {
+            //     AgeBucket: r["AgeBucket"],
+            //     QtyFromThisDoc: r["QtyFromThisDoc"],
+            //     Qty_0_90_row: r["Qty_0_90_row"],
+            //   },
+            //   availableFields: Object.keys(r).filter(
+            //     (k) => k.startsWith("Qty_") || k.includes("Age")
+            //   ),
+            // });
 
             // Evaluate condition (e.g., AgeBucket='0-90')
             const conditionResult = evaluateCondition(condition, r, {
@@ -945,10 +954,11 @@ export function groupAgg(
               settings: {},
             });
 
-            console.log("🔍 CONDITION RESULT:", {
-              condition,
-              result: conditionResult,
-            });
+            // Debug logging disabled for performance
+            // console.log("🔍 CONDITION RESULT:", {
+            //   condition,
+            //   result: conditionResult,
+            // });
 
             if (conditionResult) {
               value = Number(r[trueValue] || 0);
@@ -968,11 +978,12 @@ export function groupAgg(
         }
       } else {
         value = Number(r[field] || 0);
-        console.log("🔍 FIELD VALUE:", {
-          field,
-          value,
-          rowFieldValue: r[field],
-        });
+        // Debug logging disabled for performance
+        // console.log("🔍 FIELD VALUE:", {
+        //   field,
+        //   value,
+        //   rowFieldValue: r[field],
+        // });
       }
 
       bucket.counts[idx]++;
@@ -1011,11 +1022,12 @@ export function groupAgg(
     out.push(row);
   }
 
-  console.log("🔍 SUMMARY TABLE AGGREGATION RESULT:", {
-    resultCount: out.length,
-    resultSample: out.slice(0, 3),
-    allResults: out,
-  });
+  // Debug logging disabled for performance
+  // console.log("🔍 SUMMARY TABLE AGGREGATION RESULT:", {
+  //   resultCount: out.length,
+  //   resultSample: out.slice(0, 3),
+  //   allResults: out,
+  // });
 
   return out;
 }

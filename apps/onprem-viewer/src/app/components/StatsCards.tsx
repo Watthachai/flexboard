@@ -6,10 +6,11 @@
 "use client";
 
 import React from "react";
+import { DollarSign, Database, Calculator, Target } from "lucide-react";
 
 interface StatsCardsProps {
-  data: any[];
-  manifest: any;
+  data: Record<string, unknown>[];
+  manifest: Record<string, unknown>;
 }
 
 export default function StatsCards({ data, manifest }: StatsCardsProps) {
@@ -17,11 +18,14 @@ export default function StatsCards({ data, manifest }: StatsCardsProps) {
 
   // Calculate stats from data
   const totalRecords = data.length;
-  const numericColumns =
-    manifest?.availableColumns?.filter((col: string) => {
-      const sampleValue = data[0]?.[col];
-      return !isNaN(Number(sampleValue)) && sampleValue !== "";
-    }) || [];
+  const manifestColumns = (manifest as { availableColumns?: string[] })
+    ?.availableColumns;
+  const numericColumns = Array.isArray(manifestColumns)
+    ? manifestColumns.filter((col: string) => {
+        const sampleValue = data[0]?.[col];
+        return !isNaN(Number(sampleValue)) && sampleValue !== "";
+      })
+    : [];
 
   const totalValue = data.reduce((sum, item) => {
     const firstNumericCol = numericColumns[0];
@@ -37,7 +41,7 @@ export default function StatsCards({ data, manifest }: StatsCardsProps) {
     {
       title: "Total Records",
       value: totalRecords.toLocaleString(),
-      icon: "📊",
+      icon: Database,
       color: "from-blue-500 to-blue-600",
       change: "+12%",
       changeType: "positive" as const,
@@ -46,7 +50,7 @@ export default function StatsCards({ data, manifest }: StatsCardsProps) {
     {
       title: "Total Value",
       value: totalValue.toLocaleString(),
-      icon: "💰",
+      icon: DollarSign,
       color: "from-green-500 to-green-600",
       change: "+8.2%",
       changeType: "positive" as const,
@@ -55,7 +59,7 @@ export default function StatsCards({ data, manifest }: StatsCardsProps) {
     {
       title: "Average",
       value: avgValue.toFixed(0),
-      icon: "📈",
+      icon: Calculator,
       color: "from-purple-500 to-purple-600",
       change: "-2.1%",
       changeType: "negative" as const,
@@ -64,7 +68,7 @@ export default function StatsCards({ data, manifest }: StatsCardsProps) {
     {
       title: "Peak Value",
       value: maxValue.toLocaleString(),
-      icon: "🚀",
+      icon: Target,
       color: "from-orange-500 to-orange-600",
       change: "+15.3%",
       changeType: "positive" as const,
@@ -90,7 +94,7 @@ export default function StatsCards({ data, manifest }: StatsCardsProps) {
               <div
                 className={`w-12 h-12 bg-gradient-to-br ${stat.color} rounded-lg flex items-center justify-center shadow-lg`}
               >
-                <span className="text-white text-xl">{stat.icon}</span>
+                <stat.icon className="text-white w-6 h-6" />
               </div>
               <div
                 className={`px-2 py-1 rounded-full text-xs font-medium ${

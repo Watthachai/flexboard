@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
         licenseKey,
         email,
         userId,
+        associateWithUser: true, // Flag to save license key with user account
       }),
     });
 
