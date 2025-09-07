@@ -21,6 +21,11 @@ import {
 import { ChevronUp, ChevronDown, Download, Search, Filter } from "lucide-react";
 import * as XLSX from "xlsx";
 import { aggregateBy } from "../utils/aggregate";
+import {
+  formatMoney,
+  isMoneyField,
+  EXCEL_MONEY_FORMAT,
+} from "../utils/numberFormat";
 
 // Types for dynamic column configuration
 interface ColumnGroup {
@@ -184,20 +189,9 @@ const generateColumns = (
                 const value = info.getValue();
                 const formatter = display.columnFormatters?.[field];
 
-                // Special handling for Total Value and Value columns (accounting format)
-                if (
-                  field === "Total Value" ||
-                  field === "Value" ||
-                  field.toLowerCase().includes("value")
-                ) {
-                  const numValue = Number(value);
-                  if (!isNaN(numValue)) {
-                    return new Intl.NumberFormat("en-US", {
-                      style: "decimal",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }).format(numValue);
-                  }
+                // Auto-format money columns (improved logic)
+                if (isMoneyField(field)) {
+                  return formatMoney(value);
                 }
 
                 return formatter
@@ -205,12 +199,9 @@ const generateColumns = (
                   : value;
               },
               meta: {
-                align:
-                  field === "Total Value" ||
-                  field === "Value" ||
-                  field.toLowerCase().includes("value")
-                    ? "right"
-                    : display.columnAlignment?.[field] || "left",
+                align: isMoneyField(field)
+                  ? "right"
+                  : display.columnAlignment?.[field] || "left",
                 className: display.rowClassRules ? "dynamic-cell" : undefined,
               },
             })
@@ -240,20 +231,9 @@ const generateColumns = (
                     const value = info.getValue();
                     const formatter = display.columnFormatters?.[field];
 
-                    // Special handling for Total Value and Value columns (accounting format)
-                    if (
-                      field === "Total Value" ||
-                      field === "Value" ||
-                      field.toLowerCase().includes("value")
-                    ) {
-                      const numValue = Number(value);
-                      if (!isNaN(numValue)) {
-                        return new Intl.NumberFormat("en-US", {
-                          style: "decimal",
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        }).format(numValue);
-                      }
+                    // Auto-format money columns (improved logic)
+                    if (isMoneyField(field)) {
+                      return formatMoney(value);
                     }
 
                     return formatter
@@ -261,12 +241,9 @@ const generateColumns = (
                       : value;
                   },
                   meta: {
-                    align:
-                      field === "Total Value" ||
-                      field === "Value" ||
-                      field.toLowerCase().includes("value")
-                        ? "right"
-                        : display.columnAlignment?.[field] || "left",
+                    align: isMoneyField(field)
+                      ? "right"
+                      : display.columnAlignment?.[field] || "left",
                     className: display.rowClassRules
                       ? "dynamic-cell"
                       : undefined,
@@ -296,10 +273,18 @@ const generateColumns = (
         cell: (info: any) => {
           const value = info.getValue();
           const formatter = display.columnFormatters?.[field];
+
+          // Auto-format money columns
+          if (isMoneyField(field)) {
+            return formatMoney(value);
+          }
+
           return formatter ? formatValue(value, formatter, formatters) : value;
         },
         meta: {
-          align: display.columnAlignment?.[field] || "left",
+          align: isMoneyField(field)
+            ? "right"
+            : display.columnAlignment?.[field] || "left",
           className: display.rowClassRules ? "dynamic-cell" : undefined,
         },
       })
@@ -772,16 +757,8 @@ export default function AdvancedTableWidget({
             }
           }
         }
-      } else if (
-        key === "Total Value" ||
-        key === "Value" ||
-        key.toLowerCase().includes("value") ||
-        key.toLowerCase().includes("total") ||
-        key.toLowerCase().includes("amount") ||
-        key.toLowerCase().includes("price") ||
-        key.toLowerCase().includes("cost")
-      ) {
-        // Apply accounting format for monetary columns
+      } else if (isMoneyField(key)) {
+        // Auto-format money columns even without explicit formatter
         for (let rowIndex = 2; rowIndex < allRows.length; rowIndex++) {
           const cellAddress = XLSX.utils.encode_cell({
             r: rowIndex,
@@ -792,8 +769,7 @@ export default function AdvancedTableWidget({
             typeof worksheet[cellAddress].v === "number"
           ) {
             // Use accounting format with currency symbol
-            worksheet[cellAddress].z =
-              '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)';
+            worksheet[cellAddress].z = EXCEL_MONEY_FORMAT;
             // Also add right alignment for numbers
             if (!worksheet[cellAddress].s) {
               worksheet[cellAddress].s = {};
@@ -1088,10 +1064,8 @@ export default function AdvancedTableWidget({
                           (v) => v !== undefined && v !== null && v !== ""
                         )
                     ).size <= 300 &&
-                      // ไม่เปิดกับคอลัมน์ตัวเลขยาว/amount/price โดยดีฟอลต์
-                      !/amount|price|value|total|qty|quantity|cost/i.test(
-                        columnId
-                      ));
+                      // ไม่เปิดกับคอลัมน์ตัวเลขยาว/amount/price โดยดีฟอลต์ และไม่เปิดกับ money fields
+                      !isMoneyField(columnId));
 
                   if (!isFilterableColumn) {
                     return (
@@ -1244,10 +1218,19 @@ export default function AdvancedTableWidget({
                 <tr className="bg-gray-100 dark:bg-gray-700 font-semibold transition-colors duration-200">
                   {table.getAllColumns().map((column: any, index: number) => {
                     const value = totalsRow[column.id];
-                    const formatter = display.columnFormatters?.[column.id];
-                    const formattedValue = formatter
-                      ? formatValue(value, formatter, formatters)
-                      : value;
+                    const formatterKey = display.columnFormatters?.[column.id];
+                    let formattedValue = value;
+
+                    // Apply formatter or auto-format money columns
+                    if (formatterKey) {
+                      formattedValue = formatValue(
+                        value,
+                        formatterKey,
+                        formatters
+                      );
+                    } else if (isMoneyField(column.id)) {
+                      formattedValue = formatMoney(value);
+                    }
 
                     return (
                       <td
@@ -1260,6 +1243,7 @@ export default function AdvancedTableWidget({
                           verticalAlign: "top",
                           padding: "8px 12px",
                           lineHeight: "1.4",
+                          textAlign: isMoneyField(column.id) ? "right" : "left",
                         }}
                       >
                         {index === 0
