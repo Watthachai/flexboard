@@ -5,7 +5,7 @@
 
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -84,13 +84,21 @@ const formatValue = (
   formatter: string,
   formatters: Record<string, any> = {}
 ) => {
+  console.log("🔧 formatValue called:", { value, formatter, formatters });
+
   if (value == null) return "";
 
   const formatterConfig = formatters[formatter];
-  if (!formatterConfig) return String(value);
+  console.log("📝 formatterConfig:", formatterConfig);
+
+  if (!formatterConfig) {
+    console.log("❌ No formatter config found for:", formatter);
+    return String(value);
+  }
 
   switch (formatterConfig.kind) {
     case "number":
+      console.log("🔢 Number formatting:", { value, formatterConfig });
       const num = Number(value);
       if (isNaN(num)) return String(value);
 
@@ -130,6 +138,7 @@ const formatValue = (
       if (formatterConfig.suffix)
         formatted = formatted + formatterConfig.suffix;
 
+      console.log("✅ Number formatted result:", formatted);
       return formatted;
 
     case "date":
@@ -187,21 +196,48 @@ const generateColumns = (
               header: display.columnLabels?.[field] || field,
               cell: (info: any) => {
                 const value = info.getValue();
-                const formatter = display.columnFormatters?.[field];
+                const formatterKey = display.columnFormatters?.[field];
 
-                // Auto-format money columns (improved logic)
+                console.log(`🔍 Format Debug [${field}]:`, {
+                  value,
+                  formatterKey,
+                  availableFormatters: Object.keys(formatters),
+                  isMoneyField: isMoneyField(field),
+                });
+
+                // Use formatter from config first, then fallback to auto-format
+                if (formatterKey) {
+                  const formatted = formatValue(
+                    value,
+                    formatterKey,
+                    formatters
+                  );
+                  console.log(
+                    `✅ Formatted [${field}] with "${formatterKey}":`,
+                    value,
+                    "→",
+                    formatted
+                  );
+                  return formatted;
+                } // Fallback: auto-format money columns if no explicit formatter
                 if (isMoneyField(field)) {
-                  return formatMoney(value);
+                  const formatted = formatMoney(value);
+                  console.log(
+                    `🔄 Auto-formatted [${field}]:`,
+                    value,
+                    "→",
+                    formatted
+                  );
+                  return formatted;
                 }
 
-                return formatter
-                  ? formatValue(value, formatter, formatters)
-                  : value;
+                console.log(`➡️ No formatting [${field}]:`, value);
+                return value;
               },
               meta: {
-                align: isMoneyField(field)
-                  ? "right"
-                  : display.columnAlignment?.[field] || "left",
+                align:
+                  display.columnAlignment?.[field] ||
+                  (isMoneyField(field) ? "right" : "left"),
                 className: display.rowClassRules ? "dynamic-cell" : undefined,
               },
             })
@@ -229,21 +265,48 @@ const generateColumns = (
                   header: display.columnLabels?.[field] || field,
                   cell: (info: any) => {
                     const value = info.getValue();
-                    const formatter = display.columnFormatters?.[field];
+                    const formatterKey = display.columnFormatters?.[field];
 
-                    // Auto-format money columns (improved logic)
+                    console.log(`🔍 Group Format Debug [${field}]:`, {
+                      value,
+                      formatterKey,
+                      availableFormatters: Object.keys(formatters),
+                      isMoneyField: isMoneyField(field),
+                    });
+
+                    // Use formatter from config first, then fallback to auto-format
+                    if (formatterKey) {
+                      const formatted = formatValue(
+                        value,
+                        formatterKey,
+                        formatters
+                      );
+                      console.log(
+                        `✅ Group Formatted [${field}] with "${formatterKey}":`,
+                        value,
+                        "→",
+                        formatted
+                      );
+                      return formatted;
+                    } // Fallback: auto-format money columns if no explicit formatter
                     if (isMoneyField(field)) {
-                      return formatMoney(value);
+                      const formatted = formatMoney(value);
+                      console.log(
+                        `🔄 Group Auto-formatted [${field}]:`,
+                        value,
+                        "→",
+                        formatted
+                      );
+                      return formatted;
                     }
 
-                    return formatter
-                      ? formatValue(value, formatter, formatters)
-                      : value;
+                    console.log(`➡️ Group No formatting [${field}]:`, value);
+                    return value;
                   },
                   meta: {
-                    align: isMoneyField(field)
-                      ? "right"
-                      : display.columnAlignment?.[field] || "left",
+                    align:
+                      display.columnAlignment?.[field] ||
+                      (isMoneyField(field) ? "right" : "left"),
                     className: display.rowClassRules
                       ? "dynamic-cell"
                       : undefined,
@@ -272,19 +335,46 @@ const generateColumns = (
         header: display.columnLabels?.[field] || field,
         cell: (info: any) => {
           const value = info.getValue();
-          const formatter = display.columnFormatters?.[field];
+          const formatterKey = display.columnFormatters?.[field];
 
-          // Auto-format money columns
-          if (isMoneyField(field)) {
-            return formatMoney(value);
+          console.log(`🔍 Flat Format Debug [${field}]:`, {
+            value,
+            formatterKey,
+            availableFormatters: Object.keys(formatters),
+            isMoneyField: isMoneyField(field),
+          });
+
+          // Use formatter from config first, then fallback to auto-format
+          if (formatterKey) {
+            const formatted = formatValue(value, formatterKey, formatters);
+            console.log(
+              `✅ Flat Formatted [${field}] with "${formatterKey}":`,
+              value,
+              "→",
+              formatted
+            );
+            return formatted;
           }
 
-          return formatter ? formatValue(value, formatter, formatters) : value;
+          // Fallback: auto-format money columns if no explicit formatter
+          if (isMoneyField(field)) {
+            const formatted = formatMoney(value);
+            console.log(
+              `🔄 Flat Auto-formatted [${field}]:`,
+              value,
+              "→",
+              formatted
+            );
+            return formatted;
+          }
+
+          console.log(`➡️ Flat No formatting [${field}]:`, value);
+          return value;
         },
         meta: {
-          align: isMoneyField(field)
-            ? "right"
-            : display.columnAlignment?.[field] || "left",
+          align:
+            display.columnAlignment?.[field] ||
+            (isMoneyField(field) ? "right" : "left"),
           className: display.rowClassRules ? "dynamic-cell" : undefined,
         },
       })
@@ -380,12 +470,51 @@ export default function AdvancedTableWidget({
   title,
   preAggregation,
 }: AdvancedTableProps) {
+  // 🔧 Temporary hardcoded formatters as fallback
+  const fallbackFormatters = {
+    money: {
+      kind: "number",
+      precision: 2,
+      thousandsSep: ",",
+      prefix: "฿",
+      roundingMode: "round",
+    },
+    qty: {
+      kind: "number",
+      precision: 0,
+      thousandsSep: ",",
+      roundingMode: "round",
+    },
+    unitCost: {
+      kind: "number",
+      precision: 6,
+      thousandsSep: ",",
+      prefix: "฿",
+      roundingMode: "round",
+    },
+    days: {
+      kind: "number",
+      precision: 0,
+      roundingMode: "round",
+    },
+    date: {
+      kind: "date",
+      timezone: "Asia/Bangkok",
+      pattern: "dd MMM yyyy",
+    },
+  };
+
+  // Merge provided formatters with fallback
+  const mergedFormatters = { ...fallbackFormatters, ...formatters };
+
   // Debug logging
   console.log("🔥 AdvancedTableWidget Props:", {
     dataLength: data?.length || 0,
     dataPreview: data?.slice(0, 2) || [],
     display,
-    formatters,
+    originalFormatters: formatters,
+    fallbackFormatters,
+    mergedFormatters,
     height,
     title,
     preAggregation,
@@ -487,10 +616,14 @@ export default function AdvancedTableWidget({
 
   // Generate columns dynamically
   const columns = useMemo(() => {
-    const generatedColumns = generateColumns(filteredData, display, formatters);
+    const generatedColumns = generateColumns(
+      filteredData,
+      display,
+      mergedFormatters
+    );
     console.log("🔥 Generated Columns:", generatedColumns);
     return generatedColumns;
-  }, [filteredData, display, formatters]);
+  }, [filteredData, display, mergedFormatters]);
 
   // Calculate totals if enabled
   const totalsRow = useMemo(() => {
@@ -556,7 +689,7 @@ export default function AdvancedTableWidget({
         display.columnGroups,
         display.columnLabels || {},
         display.columnFormatters || {},
-        formatters
+        mergedFormatters
       );
     } else {
       // Fallback to simple export
@@ -1226,7 +1359,7 @@ export default function AdvancedTableWidget({
                       formattedValue = formatValue(
                         value,
                         formatterKey,
-                        formatters
+                        mergedFormatters
                       );
                     } else if (isMoneyField(column.id)) {
                       formattedValue = formatMoney(value);
@@ -1243,7 +1376,9 @@ export default function AdvancedTableWidget({
                           verticalAlign: "top",
                           padding: "8px 12px",
                           lineHeight: "1.4",
-                          textAlign: isMoneyField(column.id) ? "right" : "left",
+                          textAlign:
+                            display.columnAlignment?.[column.id] ||
+                            (isMoneyField(column.id) ? "right" : "left"),
                         }}
                       >
                         {index === 0
