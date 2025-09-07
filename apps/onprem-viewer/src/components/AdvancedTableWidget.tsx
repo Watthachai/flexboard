@@ -27,6 +27,137 @@ import {
   EXCEL_MONEY_FORMAT,
 } from "../utils/numberFormat";
 
+// Multi-Select Dropdown Component
+interface MultiSelectProps {
+  options: string[];
+  selectedValues: string[];
+  onChange: (selected: string[]) => void;
+  placeholder: string;
+  maxDisplayItems?: number;
+}
+
+const MultiSelectDropdown: React.FC<MultiSelectProps> = ({
+  options,
+  selectedValues,
+  onChange,
+  placeholder,
+  maxDisplayItems = 3,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const toggleOption = (option: string) => {
+    const newSelected = selectedValues.includes(option)
+      ? selectedValues.filter((v) => v !== option)
+      : [...selectedValues, option];
+    onChange(newSelected);
+  };
+
+  const clearAll = () => {
+    onChange([]);
+  };
+
+  const selectAll = () => {
+    onChange([...options]);
+  };
+
+  const displayText = () => {
+    if (selectedValues.length === 0) return placeholder;
+    if (selectedValues.length === 1) return selectedValues[0];
+    if (selectedValues.length <= maxDisplayItems) {
+      return selectedValues.join(", ");
+    }
+    return `${selectedValues.slice(0, maxDisplayItems).join(", ")} +${
+      selectedValues.length - maxDisplayItems
+    } more`;
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full pl-2 pr-8 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-left"
+        style={{ minHeight: "32px" }}
+        title={displayText()}
+      >
+        <span className="break-words whitespace-normal leading-tight block pr-4 text-left">
+          {displayText()}
+        </span>
+        <span className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400">
+          {isOpen ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full min-w-fit mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg max-h-64 overflow-y-auto">
+          {/* Control buttons */}
+          <div className="p-2 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={selectAll}
+                className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Select All
+              </button>
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+              >
+                Clear All
+              </button>
+              <span className="text-xs text-gray-600 dark:text-gray-400 flex items-center ml-auto">
+                {selectedValues.length}/{options.length}
+              </span>
+            </div>
+          </div>
+
+          {/* Options list */}
+          {options.map((option) => (
+            <label
+              key={option}
+              className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer min-h-[32px]"
+            >
+              <input
+                type="checkbox"
+                checked={selectedValues.includes(option)}
+                onChange={() => toggleOption(option)}
+                className="mr-2 text-blue-500 focus:ring-blue-500 flex-shrink-0"
+              />
+              <span
+                className="text-xs flex-1 break-words whitespace-normal leading-tight py-1 text-left"
+                title={option}
+              >
+                {option}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Types for dynamic column configuration
 interface ColumnGroup {
   title: string;
@@ -141,13 +272,24 @@ const formatValue = (
       console.log("✅ Number formatted result:", formatted);
       return formatted;
 
+    case "days":
+      const numValue = Number(value);
+      if (isNaN(numValue)) return String(value);
+
+      // Format days with proper suffix
+      if (numValue === 1) return "1 day";
+      if (numValue === 0) return "Today";
+      if (numValue < 0) return `${Math.abs(numValue)} days ago`;
+      return `${numValue} days`;
+
     case "date":
       const date = new Date(value);
       if (isNaN(date.getTime())) return String(value);
 
+      // Use more readable date format - Thai friendly DD/MM/YYYY format
       return date.toLocaleDateString("th-TH", {
         day: "2-digit",
-        month: "short",
+        month: "2-digit",
         year: "numeric",
       });
 
@@ -536,9 +678,10 @@ export default function AdvancedTableWidget({
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [columnFilters, setColumnFilters] = useState<Record<string, string>>(
-    {}
-  );
+  // Filter state - now supports multi-select with arrays
+  const [columnFilters, setColumnFilters] = useState<
+    Record<string, string | string[]>
+  >({});
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: display.pageSize || 25,
@@ -561,7 +704,7 @@ export default function AdvancedTableWidget({
     return [...new Set(values)].sort();
   };
 
-  // Apply column filters to data
+  // Apply column filters to data - now supports multi-select
   const filteredData = useMemo(() => {
     console.log("🔍 Filter Debug:", {
       originalDataCount: aggregatedData.length,
@@ -576,16 +719,24 @@ export default function AdvancedTableWidget({
 
     const filtered = aggregatedData.filter((row) => {
       return Object.entries(columnFilters).every(([field, filterValue]) => {
-        if (!filterValue) return true;
+        if (
+          !filterValue ||
+          (Array.isArray(filterValue) && filterValue.length === 0)
+        )
+          return true;
 
         console.log(
-          `🔎 Checking filter: ${field} = ${filterValue} for row:`,
+          `🔎 Checking filter: ${field} = ${JSON.stringify(
+            filterValue
+          )} for row:`,
           row[field]
         );
 
         // Special handling for month filter
         if (field === "documentMonth") {
-          const month = parseInt(filterValue);
+          const month = parseInt(
+            Array.isArray(filterValue) ? filterValue[0] : filterValue
+          );
           const docDate = row["Document Date"] || row["Data Date"];
           if (docDate) {
             const date = new Date(docDate);
@@ -598,11 +749,39 @@ export default function AdvancedTableWidget({
           return false;
         }
 
-        // Regular text filtering - exact match สำหรับ dropdown
+        // Multi-select filtering - check if cell value is in selected values array
         const cellValue = String(row[field] || "");
-        const matches = cellValue === filterValue;
+
+        // Special handling for date fields - format the cell value for comparison
+        let comparisonValue = cellValue;
+        if (
+          field.toLowerCase().includes("date") ||
+          field.toLowerCase().includes("วันที่")
+        ) {
+          const date = new Date(row[field]);
+          if (!isNaN(date.getTime())) {
+            comparisonValue = date.toLocaleDateString("th-TH", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            });
+          }
+        }
+
+        if (Array.isArray(filterValue)) {
+          const matches = filterValue.includes(comparisonValue);
+          console.log(
+            `🏢 Multi-select filter: ${JSON.stringify(
+              filterValue
+            )} contains "${comparisonValue}": ${matches}`
+          );
+          return matches;
+        }
+
+        // Single-select filtering (fallback for backward compatibility)
+        const matches = comparisonValue === filterValue;
         console.log(
-          `🏢 Text filter: "${filterValue}" vs "${cellValue}", matches: ${matches}`
+          `🏢 Single-select filter: "${filterValue}" vs "${comparisonValue}", matches: ${matches}`
         );
         return matches;
       });
@@ -649,7 +828,7 @@ export default function AdvancedTableWidget({
     onPaginationChange: setPagination,
   });
 
-  // Export to Excel function with column groups support and 6-month filter
+  // Export to Excel function with column groups support and filtered data
   const exportToExcel = () => {
     const workbook = XLSX.utils.book_new();
 
@@ -665,18 +844,20 @@ export default function AdvancedTableWidget({
       `inventory-export-${new Date().toISOString().split("T")[0]}.xlsx`;
     const worksheetName = exportOptions.worksheetName || "Filtered Data";
 
-    // Export ALL data (ข้อมูลทั้งหมดไม่จำกัดด้วย pagination)
-    const allData = aggregatedData; // ใช้ข้อมูลทั้งหมดที่ผ่าน aggregation แล้ว
+    // Use FILTERED data instead of all data
+    const exportData = filteredData; // ใช้ข้อมูลที่ filter แล้ว
+
+    // Apply global search filter if exists
     const currentFilteredData = globalFilter
-      ? allData.filter((row) =>
+      ? exportData.filter((row) =>
           Object.values(row).some((value) =>
             String(value).toLowerCase().includes(globalFilter.toLowerCase())
           )
         )
-      : allData;
+      : exportData;
 
     console.log(
-      `📊 Exporting ${currentFilteredData.length} rows (from ${allData.length} total) - ALL DATA EXPORT`
+      `📊 Exporting ${currentFilteredData.length} filtered rows (from ${data.length} total) - FILTERED DATA EXPORT`
     );
 
     // Create worksheet with column groups if available
@@ -1259,7 +1440,23 @@ export default function AdvancedTableWidget({
                         )
                     )
                   )
-                    .map((v) => String(v))
+                    .map((v) => {
+                      // Format date values for better display
+                      if (
+                        columnId.toLowerCase().includes("date") ||
+                        columnId.toLowerCase().includes("วันที่")
+                      ) {
+                        const date = new Date(v);
+                        if (!isNaN(date.getTime())) {
+                          return date.toLocaleDateString("th-TH", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          });
+                        }
+                      }
+                      return String(v);
+                    })
                     .sort((a, b) =>
                       a.localeCompare(b, undefined, { numeric: true })
                     );
@@ -1270,25 +1467,23 @@ export default function AdvancedTableWidget({
                       className="border border-gray-200 dark:border-gray-600 p-1 bg-gray-50 dark:bg-gray-700"
                       style={{ minWidth: "140px" }}
                     >
-                      <select
-                        value={columnFilters[columnId] || ""}
-                        onChange={(e) =>
+                      <MultiSelectDropdown
+                        options={uniq.slice(0, 500)}
+                        selectedValues={
+                          Array.isArray(columnFilters[columnId])
+                            ? (columnFilters[columnId] as string[])
+                            : columnFilters[columnId]
+                            ? [columnFilters[columnId] as string]
+                            : []
+                        }
+                        onChange={(selected) =>
                           setColumnFilters((prev) => ({
                             ...prev,
-                            [columnId]: e.target.value,
+                            [columnId]: selected,
                           }))
                         }
-                        className="w-full pl-2 pr-6 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="">All</option>
-                        {uniq.slice(0, 500).map((value) => (
-                          <option key={value} value={value}>
-                            {value.length > 40
-                              ? value.slice(0, 37) + "..."
-                              : value}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="All"
+                      />
                     </th>
                   );
                 })}
