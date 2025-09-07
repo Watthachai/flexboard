@@ -56,6 +56,12 @@ import {
 
 // Layout adapter for new schema format
 const adaptLayoutFromSchema = (config: any) => {
+  console.log("🔄 adaptLayoutFromSchema input:", {
+    hasFormatters: !!config.formatters,
+    formatters: config.formatters,
+    formatterKeys: config.formatters ? Object.keys(config.formatters) : "none",
+  });
+
   // If config has layout.desktop structure (new schema)
   if (config.layout?.desktop && Array.isArray(config.layout.desktop)) {
     const layoutMap = new Map();
@@ -117,10 +123,21 @@ const adaptLayoutFromSchema = (config: any) => {
         };
       }) || [];
 
-    return {
+    const result = {
       ...config,
       widgets: adaptedWidgets,
+      formatters: config.formatters, // ✅ Keep formatters from original config
     };
+
+    console.log("✅ adaptLayoutFromSchema result:", {
+      hasFormatters: !!result.formatters,
+      formatters: result.formatters,
+      formatterKeys: result.formatters
+        ? Object.keys(result.formatters)
+        : "none",
+    });
+
+    return result;
   }
 
   // Return as-is if already in old format
@@ -579,6 +596,14 @@ export default function DashboardViewer({
 
         // Use AdvancedTableWidget if columnGroups are defined
         if (widget.display?.columnGroups?.length) {
+          console.log("🏗️ DashboardViewer - AdvancedTableWidget formatters:", {
+            manifestFormatters: manifest?.formatters,
+            hasManifest: !!manifest,
+            formatterKeys: manifest?.formatters
+              ? Object.keys(manifest.formatters)
+              : "no formatters",
+          });
+
           return (
             <AdvancedTableWidget
               data={tableConfig.data}
