@@ -5,7 +5,7 @@
 
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -21,6 +21,142 @@ import {
 import { ChevronUp, ChevronDown, Download, Search, Filter } from "lucide-react";
 import * as XLSX from "xlsx";
 import { aggregateBy } from "../utils/aggregate";
+import {
+  formatMoney,
+  isMoneyField,
+  EXCEL_MONEY_FORMAT,
+} from "../utils/numberFormat";
+
+// Multi-Select Dropdown Component
+interface MultiSelectProps {
+  options: string[];
+  selectedValues: string[];
+  onChange: (selected: string[]) => void;
+  placeholder: string;
+  maxDisplayItems?: number;
+}
+
+const MultiSelectDropdown: React.FC<MultiSelectProps> = ({
+  options,
+  selectedValues,
+  onChange,
+  placeholder,
+  maxDisplayItems = 3,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const toggleOption = (option: string) => {
+    const newSelected = selectedValues.includes(option)
+      ? selectedValues.filter((v) => v !== option)
+      : [...selectedValues, option];
+    onChange(newSelected);
+  };
+
+  const clearAll = () => {
+    onChange([]);
+  };
+
+  const selectAll = () => {
+    onChange([...options]);
+  };
+
+  const displayText = () => {
+    if (selectedValues.length === 0) return placeholder;
+    if (selectedValues.length === 1) return selectedValues[0];
+    if (selectedValues.length <= maxDisplayItems) {
+      return selectedValues.join(", ");
+    }
+    return `${selectedValues.slice(0, maxDisplayItems).join(", ")} +${
+      selectedValues.length - maxDisplayItems
+    } more`;
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full pl-2 pr-8 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-left"
+        style={{ minHeight: "32px" }}
+        title={displayText()}
+      >
+        <span className="break-words whitespace-normal leading-tight block pr-4 text-left">
+          {displayText()}
+        </span>
+        <span className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400">
+          {isOpen ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full min-w-fit mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg max-h-64 overflow-y-auto">
+          {/* Control buttons */}
+          <div className="p-2 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={selectAll}
+                className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Select All
+              </button>
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+              >
+                Clear All
+              </button>
+              <span className="text-xs text-gray-600 dark:text-gray-400 flex items-center ml-auto">
+                {selectedValues.length}/{options.length}
+              </span>
+            </div>
+          </div>
+
+          {/* Options list */}
+          {options.map((option) => (
+            <label
+              key={option}
+              className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer min-h-[32px]"
+            >
+              <input
+                type="checkbox"
+                checked={selectedValues.includes(option)}
+                onChange={() => toggleOption(option)}
+                className="mr-2 text-blue-500 focus:ring-blue-500 flex-shrink-0"
+              />
+              <span
+                className="text-xs flex-1 break-words whitespace-normal leading-tight py-1 text-left"
+                title={option}
+              >
+                {option}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Types for dynamic column configuration
 interface ColumnGroup {
@@ -79,13 +215,21 @@ const formatValue = (
   formatter: string,
   formatters: Record<string, any> = {}
 ) => {
+  console.log("🔧 formatValue called:", { value, formatter, formatters });
+
   if (value == null) return "";
 
   const formatterConfig = formatters[formatter];
-  if (!formatterConfig) return String(value);
+  console.log("📝 formatterConfig:", formatterConfig);
+
+  if (!formatterConfig) {
+    console.log("❌ No formatter config found for:", formatter);
+    return String(value);
+  }
 
   switch (formatterConfig.kind) {
     case "number":
+      console.log("🔢 Number formatting:", { value, formatterConfig });
       const num = Number(value);
       if (isNaN(num)) return String(value);
 
@@ -125,15 +269,27 @@ const formatValue = (
       if (formatterConfig.suffix)
         formatted = formatted + formatterConfig.suffix;
 
+      console.log("✅ Number formatted result:", formatted);
       return formatted;
+
+    case "days":
+      const numValue = Number(value);
+      if (isNaN(numValue)) return String(value);
+
+      // Format days with proper suffix
+      if (numValue === 1) return "1 day";
+      if (numValue === 0) return "Today";
+      if (numValue < 0) return `${Math.abs(numValue)} days ago`;
+      return `${numValue} days`;
 
     case "date":
       const date = new Date(value);
       if (isNaN(date.getTime())) return String(value);
 
+      // Use more readable date format - Thai friendly DD/MM/YYYY format
       return date.toLocaleDateString("th-TH", {
         day: "2-digit",
-        month: "short",
+        month: "2-digit",
         year: "numeric",
       });
 
@@ -182,35 +338,48 @@ const generateColumns = (
               header: display.columnLabels?.[field] || field,
               cell: (info: any) => {
                 const value = info.getValue();
-                const formatter = display.columnFormatters?.[field];
+                const formatterKey = display.columnFormatters?.[field];
 
-                // Special handling for Total Value and Value columns (accounting format)
-                if (
-                  field === "Total Value" ||
-                  field === "Value" ||
-                  field.toLowerCase().includes("value")
-                ) {
-                  const numValue = Number(value);
-                  if (!isNaN(numValue)) {
-                    return new Intl.NumberFormat("en-US", {
-                      style: "decimal",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }).format(numValue);
-                  }
+                console.log(`🔍 Format Debug [${field}]:`, {
+                  value,
+                  formatterKey,
+                  availableFormatters: Object.keys(formatters),
+                  isMoneyField: isMoneyField(field),
+                });
+
+                // Use formatter from config first, then fallback to auto-format
+                if (formatterKey) {
+                  const formatted = formatValue(
+                    value,
+                    formatterKey,
+                    formatters
+                  );
+                  console.log(
+                    `✅ Formatted [${field}] with "${formatterKey}":`,
+                    value,
+                    "→",
+                    formatted
+                  );
+                  return formatted;
+                } // Fallback: auto-format money columns if no explicit formatter
+                if (isMoneyField(field)) {
+                  const formatted = formatMoney(value);
+                  console.log(
+                    `🔄 Auto-formatted [${field}]:`,
+                    value,
+                    "→",
+                    formatted
+                  );
+                  return formatted;
                 }
 
-                return formatter
-                  ? formatValue(value, formatter, formatters)
-                  : value;
+                console.log(`➡️ No formatting [${field}]:`, value);
+                return value;
               },
               meta: {
                 align:
-                  field === "Total Value" ||
-                  field === "Value" ||
-                  field.toLowerCase().includes("value")
-                    ? "right"
-                    : display.columnAlignment?.[field] || "left",
+                  display.columnAlignment?.[field] ||
+                  (isMoneyField(field) ? "right" : "left"),
                 className: display.rowClassRules ? "dynamic-cell" : undefined,
               },
             })
@@ -238,35 +407,48 @@ const generateColumns = (
                   header: display.columnLabels?.[field] || field,
                   cell: (info: any) => {
                     const value = info.getValue();
-                    const formatter = display.columnFormatters?.[field];
+                    const formatterKey = display.columnFormatters?.[field];
 
-                    // Special handling for Total Value and Value columns (accounting format)
-                    if (
-                      field === "Total Value" ||
-                      field === "Value" ||
-                      field.toLowerCase().includes("value")
-                    ) {
-                      const numValue = Number(value);
-                      if (!isNaN(numValue)) {
-                        return new Intl.NumberFormat("en-US", {
-                          style: "decimal",
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        }).format(numValue);
-                      }
+                    console.log(`🔍 Group Format Debug [${field}]:`, {
+                      value,
+                      formatterKey,
+                      availableFormatters: Object.keys(formatters),
+                      isMoneyField: isMoneyField(field),
+                    });
+
+                    // Use formatter from config first, then fallback to auto-format
+                    if (formatterKey) {
+                      const formatted = formatValue(
+                        value,
+                        formatterKey,
+                        formatters
+                      );
+                      console.log(
+                        `✅ Group Formatted [${field}] with "${formatterKey}":`,
+                        value,
+                        "→",
+                        formatted
+                      );
+                      return formatted;
+                    } // Fallback: auto-format money columns if no explicit formatter
+                    if (isMoneyField(field)) {
+                      const formatted = formatMoney(value);
+                      console.log(
+                        `🔄 Group Auto-formatted [${field}]:`,
+                        value,
+                        "→",
+                        formatted
+                      );
+                      return formatted;
                     }
 
-                    return formatter
-                      ? formatValue(value, formatter, formatters)
-                      : value;
+                    console.log(`➡️ Group No formatting [${field}]:`, value);
+                    return value;
                   },
                   meta: {
                     align:
-                      field === "Total Value" ||
-                      field === "Value" ||
-                      field.toLowerCase().includes("value")
-                        ? "right"
-                        : display.columnAlignment?.[field] || "left",
+                      display.columnAlignment?.[field] ||
+                      (isMoneyField(field) ? "right" : "left"),
                     className: display.rowClassRules
                       ? "dynamic-cell"
                       : undefined,
@@ -295,11 +477,46 @@ const generateColumns = (
         header: display.columnLabels?.[field] || field,
         cell: (info: any) => {
           const value = info.getValue();
-          const formatter = display.columnFormatters?.[field];
-          return formatter ? formatValue(value, formatter, formatters) : value;
+          const formatterKey = display.columnFormatters?.[field];
+
+          console.log(`🔍 Flat Format Debug [${field}]:`, {
+            value,
+            formatterKey,
+            availableFormatters: Object.keys(formatters),
+            isMoneyField: isMoneyField(field),
+          });
+
+          // Use formatter from config first, then fallback to auto-format
+          if (formatterKey) {
+            const formatted = formatValue(value, formatterKey, formatters);
+            console.log(
+              `✅ Flat Formatted [${field}] with "${formatterKey}":`,
+              value,
+              "→",
+              formatted
+            );
+            return formatted;
+          }
+
+          // Fallback: auto-format money columns if no explicit formatter
+          if (isMoneyField(field)) {
+            const formatted = formatMoney(value);
+            console.log(
+              `🔄 Flat Auto-formatted [${field}]:`,
+              value,
+              "→",
+              formatted
+            );
+            return formatted;
+          }
+
+          console.log(`➡️ Flat No formatting [${field}]:`, value);
+          return value;
         },
         meta: {
-          align: display.columnAlignment?.[field] || "left",
+          align:
+            display.columnAlignment?.[field] ||
+            (isMoneyField(field) ? "right" : "left"),
           className: display.rowClassRules ? "dynamic-cell" : undefined,
         },
       })
@@ -395,12 +612,51 @@ export default function AdvancedTableWidget({
   title,
   preAggregation,
 }: AdvancedTableProps) {
+  // 🔧 Temporary hardcoded formatters as fallback
+  const fallbackFormatters = {
+    money: {
+      kind: "number",
+      precision: 2,
+      thousandsSep: ",",
+      prefix: "฿",
+      roundingMode: "round",
+    },
+    qty: {
+      kind: "number",
+      precision: 0,
+      thousandsSep: ",",
+      roundingMode: "round",
+    },
+    unitCost: {
+      kind: "number",
+      precision: 6,
+      thousandsSep: ",",
+      prefix: "฿",
+      roundingMode: "round",
+    },
+    days: {
+      kind: "number",
+      precision: 0,
+      roundingMode: "round",
+    },
+    date: {
+      kind: "date",
+      timezone: "Asia/Bangkok",
+      pattern: "dd MMM yyyy",
+    },
+  };
+
+  // Merge provided formatters with fallback
+  const mergedFormatters = { ...fallbackFormatters, ...formatters };
+
   // Debug logging
   console.log("🔥 AdvancedTableWidget Props:", {
     dataLength: data?.length || 0,
     dataPreview: data?.slice(0, 2) || [],
     display,
-    formatters,
+    originalFormatters: formatters,
+    fallbackFormatters,
+    mergedFormatters,
     height,
     title,
     preAggregation,
@@ -422,9 +678,10 @@ export default function AdvancedTableWidget({
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [columnFilters, setColumnFilters] = useState<Record<string, string>>(
-    {}
-  );
+  // Filter state - now supports multi-select with arrays
+  const [columnFilters, setColumnFilters] = useState<
+    Record<string, string | string[]>
+  >({});
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: display.pageSize || 25,
@@ -447,7 +704,7 @@ export default function AdvancedTableWidget({
     return [...new Set(values)].sort();
   };
 
-  // Apply column filters to data
+  // Apply column filters to data - now supports multi-select
   const filteredData = useMemo(() => {
     console.log("🔍 Filter Debug:", {
       originalDataCount: aggregatedData.length,
@@ -462,16 +719,24 @@ export default function AdvancedTableWidget({
 
     const filtered = aggregatedData.filter((row) => {
       return Object.entries(columnFilters).every(([field, filterValue]) => {
-        if (!filterValue) return true;
+        if (
+          !filterValue ||
+          (Array.isArray(filterValue) && filterValue.length === 0)
+        )
+          return true;
 
         console.log(
-          `🔎 Checking filter: ${field} = ${filterValue} for row:`,
+          `🔎 Checking filter: ${field} = ${JSON.stringify(
+            filterValue
+          )} for row:`,
           row[field]
         );
 
         // Special handling for month filter
         if (field === "documentMonth") {
-          const month = parseInt(filterValue);
+          const month = parseInt(
+            Array.isArray(filterValue) ? filterValue[0] : filterValue
+          );
           const docDate = row["Document Date"] || row["Data Date"];
           if (docDate) {
             const date = new Date(docDate);
@@ -484,11 +749,39 @@ export default function AdvancedTableWidget({
           return false;
         }
 
-        // Regular text filtering - exact match สำหรับ dropdown
+        // Multi-select filtering - check if cell value is in selected values array
         const cellValue = String(row[field] || "");
-        const matches = cellValue === filterValue;
+
+        // Special handling for date fields - format the cell value for comparison
+        let comparisonValue = cellValue;
+        if (
+          field.toLowerCase().includes("date") ||
+          field.toLowerCase().includes("วันที่")
+        ) {
+          const date = new Date(row[field]);
+          if (!isNaN(date.getTime())) {
+            comparisonValue = date.toLocaleDateString("th-TH", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            });
+          }
+        }
+
+        if (Array.isArray(filterValue)) {
+          const matches = filterValue.includes(comparisonValue);
+          console.log(
+            `🏢 Multi-select filter: ${JSON.stringify(
+              filterValue
+            )} contains "${comparisonValue}": ${matches}`
+          );
+          return matches;
+        }
+
+        // Single-select filtering (fallback for backward compatibility)
+        const matches = comparisonValue === filterValue;
         console.log(
-          `🏢 Text filter: "${filterValue}" vs "${cellValue}", matches: ${matches}`
+          `🏢 Single-select filter: "${filterValue}" vs "${comparisonValue}", matches: ${matches}`
         );
         return matches;
       });
@@ -502,10 +795,14 @@ export default function AdvancedTableWidget({
 
   // Generate columns dynamically
   const columns = useMemo(() => {
-    const generatedColumns = generateColumns(filteredData, display, formatters);
+    const generatedColumns = generateColumns(
+      filteredData,
+      display,
+      mergedFormatters
+    );
     console.log("🔥 Generated Columns:", generatedColumns);
     return generatedColumns;
-  }, [filteredData, display, formatters]);
+  }, [filteredData, display, mergedFormatters]);
 
   // Calculate totals if enabled
   const totalsRow = useMemo(() => {
@@ -531,7 +828,7 @@ export default function AdvancedTableWidget({
     onPaginationChange: setPagination,
   });
 
-  // Export to Excel function with column groups support and 6-month filter
+  // Export to Excel function with column groups support and filtered data
   const exportToExcel = () => {
     const workbook = XLSX.utils.book_new();
 
@@ -547,18 +844,20 @@ export default function AdvancedTableWidget({
       `inventory-export-${new Date().toISOString().split("T")[0]}.xlsx`;
     const worksheetName = exportOptions.worksheetName || "Filtered Data";
 
-    // Export ALL data (ข้อมูลทั้งหมดไม่จำกัดด้วย pagination)
-    const allData = aggregatedData; // ใช้ข้อมูลทั้งหมดที่ผ่าน aggregation แล้ว
+    // Use FILTERED data instead of all data
+    const exportData = filteredData; // ใช้ข้อมูลที่ filter แล้ว
+
+    // Apply global search filter if exists
     const currentFilteredData = globalFilter
-      ? allData.filter((row) =>
+      ? exportData.filter((row) =>
           Object.values(row).some((value) =>
             String(value).toLowerCase().includes(globalFilter.toLowerCase())
           )
         )
-      : allData;
+      : exportData;
 
     console.log(
-      `📊 Exporting ${currentFilteredData.length} rows (from ${allData.length} total) - ALL DATA EXPORT`
+      `📊 Exporting ${currentFilteredData.length} filtered rows (from ${data.length} total) - FILTERED DATA EXPORT`
     );
 
     // Create worksheet with column groups if available
@@ -571,7 +870,7 @@ export default function AdvancedTableWidget({
         display.columnGroups,
         display.columnLabels || {},
         display.columnFormatters || {},
-        formatters
+        mergedFormatters
       );
     } else {
       // Fallback to simple export
@@ -772,16 +1071,8 @@ export default function AdvancedTableWidget({
             }
           }
         }
-      } else if (
-        key === "Total Value" ||
-        key === "Value" ||
-        key.toLowerCase().includes("value") ||
-        key.toLowerCase().includes("total") ||
-        key.toLowerCase().includes("amount") ||
-        key.toLowerCase().includes("price") ||
-        key.toLowerCase().includes("cost")
-      ) {
-        // Apply accounting format for monetary columns
+      } else if (isMoneyField(key)) {
+        // Auto-format money columns even without explicit formatter
         for (let rowIndex = 2; rowIndex < allRows.length; rowIndex++) {
           const cellAddress = XLSX.utils.encode_cell({
             r: rowIndex,
@@ -792,8 +1083,7 @@ export default function AdvancedTableWidget({
             typeof worksheet[cellAddress].v === "number"
           ) {
             // Use accounting format with currency symbol
-            worksheet[cellAddress].z =
-              '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)';
+            worksheet[cellAddress].z = EXCEL_MONEY_FORMAT;
             // Also add right alignment for numbers
             if (!worksheet[cellAddress].s) {
               worksheet[cellAddress].s = {};
@@ -1088,10 +1378,8 @@ export default function AdvancedTableWidget({
                           (v) => v !== undefined && v !== null && v !== ""
                         )
                     ).size <= 300 &&
-                      // ไม่เปิดกับคอลัมน์ตัวเลขยาว/amount/price โดยดีฟอลต์
-                      !/amount|price|value|total|qty|quantity|cost/i.test(
-                        columnId
-                      ));
+                      // ไม่เปิดกับคอลัมน์ตัวเลขยาว/amount/price โดยดีฟอลต์ และไม่เปิดกับ money fields
+                      !isMoneyField(columnId));
 
                   if (!isFilterableColumn) {
                     return (
@@ -1152,7 +1440,23 @@ export default function AdvancedTableWidget({
                         )
                     )
                   )
-                    .map((v) => String(v))
+                    .map((v) => {
+                      // Format date values for better display
+                      if (
+                        columnId.toLowerCase().includes("date") ||
+                        columnId.toLowerCase().includes("วันที่")
+                      ) {
+                        const date = new Date(v);
+                        if (!isNaN(date.getTime())) {
+                          return date.toLocaleDateString("th-TH", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          });
+                        }
+                      }
+                      return String(v);
+                    })
                     .sort((a, b) =>
                       a.localeCompare(b, undefined, { numeric: true })
                     );
@@ -1163,25 +1467,23 @@ export default function AdvancedTableWidget({
                       className="border border-gray-200 dark:border-gray-600 p-1 bg-gray-50 dark:bg-gray-700"
                       style={{ minWidth: "140px" }}
                     >
-                      <select
-                        value={columnFilters[columnId] || ""}
-                        onChange={(e) =>
+                      <MultiSelectDropdown
+                        options={uniq.slice(0, 500)}
+                        selectedValues={
+                          Array.isArray(columnFilters[columnId])
+                            ? (columnFilters[columnId] as string[])
+                            : columnFilters[columnId]
+                            ? [columnFilters[columnId] as string]
+                            : []
+                        }
+                        onChange={(selected) =>
                           setColumnFilters((prev) => ({
                             ...prev,
-                            [columnId]: e.target.value,
+                            [columnId]: selected,
                           }))
                         }
-                        className="w-full pl-2 pr-6 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="">All</option>
-                        {uniq.slice(0, 500).map((value) => (
-                          <option key={value} value={value}>
-                            {value.length > 40
-                              ? value.slice(0, 37) + "..."
-                              : value}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="All"
+                      />
                     </th>
                   );
                 })}
@@ -1244,10 +1546,19 @@ export default function AdvancedTableWidget({
                 <tr className="bg-gray-100 dark:bg-gray-700 font-semibold transition-colors duration-200">
                   {table.getAllColumns().map((column: any, index: number) => {
                     const value = totalsRow[column.id];
-                    const formatter = display.columnFormatters?.[column.id];
-                    const formattedValue = formatter
-                      ? formatValue(value, formatter, formatters)
-                      : value;
+                    const formatterKey = display.columnFormatters?.[column.id];
+                    let formattedValue = value;
+
+                    // Apply formatter or auto-format money columns
+                    if (formatterKey) {
+                      formattedValue = formatValue(
+                        value,
+                        formatterKey,
+                        mergedFormatters
+                      );
+                    } else if (isMoneyField(column.id)) {
+                      formattedValue = formatMoney(value);
+                    }
 
                     return (
                       <td
@@ -1260,6 +1571,9 @@ export default function AdvancedTableWidget({
                           verticalAlign: "top",
                           padding: "8px 12px",
                           lineHeight: "1.4",
+                          textAlign:
+                            display.columnAlignment?.[column.id] ||
+                            (isMoneyField(column.id) ? "right" : "left"),
                         }}
                       >
                         {index === 0

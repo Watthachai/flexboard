@@ -49,30 +49,14 @@ function DashboardContent() {
             );
           }
         } else {
-          throw new Error("No dashboards found from API");
+          console.warn("No dashboards found from API");
+          // ไม่ต้องสร้าง mock data หรือ auto-redirect
+          // ให้แสดงหน้าว่างแทน
         }
       } catch (error) {
         console.error("Error fetching dashboards from API:", error);
-
-        // Fallback: Use local dashboard configuration
-        console.log("🔄 Falling back to local dashboard...");
-
-        // Auto-redirect to known local dashboard
-        if (!dashboardId) {
-          router.push(
-            `/dashboard?tenantId=${tenantId}&dashboardId=pvs-co-ltd-inventory-aging-report`
-          );
-        }
-
-        // Set a mock dashboard list for UI
-        setDashboards([
-          {
-            id: "pvs-co-ltd-inventory-aging-report",
-            name: "PVS Inventory Aging Analysis",
-            description: "Local dashboard configuration",
-            tenantId: tenantId,
-          },
-        ]);
+        // ไม่ต้องสร้าง fallback dashboard
+        // ให้แสดงข้อความ error แทน
       } finally {
         setLoading(false);
       }

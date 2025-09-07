@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"next dev --turbopack -H 0.0.0.0 -p 3002\" \"tsx scripts/cron-worker.ts\" --names \"UI,SYNC\" --prefix-colors \"cyan,magenta\"",
+    "dev:setup": "prisma generate && prisma db push && npm run dev",
     "dev:ui-only": "next dev --turbopack -H 0.0.0.0 -p 3002",
-    "dev:show-ip": "node scripts/show-network-info.js && concurrently \"next dev --turbopack -H 0.0.0.0 -p 3002\" \"tsx scripts/cron-worker.ts\" --names \"UI,SYNC\" --prefix-colors \"cyan,magenta\"",
+    "dev:show-ip": "prisma generate && prisma db push && node scripts/show-network-info.js && concurrently \"next dev --turbopack -H 0.0.0.0 -p 3002\" \"tsx scripts/cron-worker.ts\" --names \"UI,SYNC\" --prefix-colors \"cyan,magenta\"",
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3002",
     "start:onprem": "node scripts/show-network-info.js && NODE_ENV=production next start -H 0.0.0.0 -p 3002",
