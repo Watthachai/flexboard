@@ -299,6 +299,37 @@ export default function OnPremSettings() {
     }
   };
 
+  // Clear Import Cache
+  const handleClearCache = async () => {
+    if (!confirm("Are you sure you want to clear the import cache? This will force all files to be re-processed.")) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch("/api/ingestion/clear-cache", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}), // Clear all logs
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        console.log(`Import cache cleared successfully`);
+        alert("Import cache cleared successfully! Files will be re-processed on next sync.");
+      } else {
+        console.error(`Failed to clear cache:`, result.error);
+        alert(`Failed to clear cache: ${result.error}`);
+      }
+    } catch (error) {
+      console.error(`Error clearing cache:`, error);
+      alert(`Error clearing cache: ${error}`);
+    } finally {
+      setLoading(false);
+      setTimeout(fetchIngestionStatus, 1000);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6 bg-gray-50 dark:bg-gray-900 min-h-full transition-colors duration-200">
       {/* Header */}
@@ -582,6 +613,15 @@ export default function OnPremSettings() {
                   className="w-full px-3 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? "Syncing..." : "🔄 Trigger Manual Sync"}
+                </button>
+
+                {/* Clear Cache Button */}
+                <button
+                  onClick={handleClearCache}
+                  disabled={loading}
+                  className="w-full px-3 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+                >
+                  {loading ? "Clearing..." : "🗑️ Clear Import Cache"}
                 </button>
               </div>
             </div>
