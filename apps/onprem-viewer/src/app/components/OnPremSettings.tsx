@@ -301,7 +301,11 @@ export default function OnPremSettings() {
 
   // Clear Import Cache
   const handleClearCache = async () => {
-    if (!confirm("Are you sure you want to clear the import cache? This will force all files to be re-processed.")) {
+    if (
+      !confirm(
+        "Are you sure you want to clear the import cache? This will force all files to be re-processed."
+      )
+    ) {
       return;
     }
 
@@ -316,7 +320,9 @@ export default function OnPremSettings() {
       const result = await response.json();
       if (result.success) {
         console.log(`Import cache cleared successfully`);
-        alert("Import cache cleared successfully! Files will be re-processed on next sync.");
+        alert(
+          "Import cache cleared successfully! Files will be re-processed on next sync."
+        );
       } else {
         console.error(`Failed to clear cache:`, result.error);
         alert(`Failed to clear cache: ${result.error}`);
