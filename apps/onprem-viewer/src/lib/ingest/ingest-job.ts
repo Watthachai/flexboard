@@ -116,6 +116,7 @@ function mapXml(data: unknown): XmlRow[] {
 
 export async function ingestOnce() {
   console.log(`[ingest] Scanning directory: ${INBOX}`);
+  console.log(`[ingest] Using environment: XML_WATCH_DIR=${process.env.XML_WATCH_DIR}, XML_DATA_PATH=${process.env.XML_DATA_PATH}`);
 
   try {
     const entries = await fs.readdir(INBOX, { withFileTypes: true });
@@ -127,18 +128,36 @@ export async function ingestOnce() {
 
     for (const f of files) {
       const full = path.join(INBOX, f.name);
+      console.log(`[ingest] Full path: ${full}`);
+      
       const st = await fs.stat(full);
       const mtime = BigInt(Math.floor(st.mtimeMs));
+      const fileSize = st.size;
 
       const done = await prisma.importLog.findUnique({
         where: { filename: full },
       });
-      if (done && done.lastMtime === mtime) {
+      
+      console.log(`[ingest] ${f.name} → Size: ${fileSize} bytes, Current mtime: ${mtime}, Last processed mtime: ${done?.lastMtime || 'none'}`);
+      
+      // Force re-process if file size is 0 (might be corrupted record)
+      if (done && fileSize === 0 && done.recordsProcessed === 0) {
+        console.log(`[ingest] ${f.name} → File size is 0, clearing import log to force re-process`);
+        await prisma.importLog.delete({
+          where: { filename: full },
+        });
+      }
+      
+      const updatedDone = await prisma.importLog.findUnique({
+        where: { filename: full },
+      });
+      
+      if (updatedDone && updatedDone.lastMtime === mtime) {
         console.log(`[ingest] Skipping ${f.name} (already processed)`);
         continue;
       }
 
-      console.log(`[ingest] Processing ${f.name}...`);
+      console.log(`[ingest] Processing ${f.name}... (mtime changed or first time)`);
 
       const xml = await fs.readFile(full, "utf8");
       const data = parser.parse(xml);
@@ -282,6 +301,26 @@ export async function ingestOnce() {
     console.error("[ingest] Error:", error);
     throw error;
   }
+}
+
+// Function to clear all import logs and force re-ingest
+export async function clearImportLogs() {
+  console.log("[ingest] Clearing all import logs to force re-ingest...");
+  await prisma.importLog.deleteMany({});
+  console.log("[ingest] All import logs cleared");
+}
+
+// Function to clear specific file's import log
+export async function clearFileImportLog(filename: string) {
+  console.log(`[ingest] Clearing import log for: ${filename}`);
+  await prisma.importLog.deleteMany({
+    where: {
+      filename: {
+        contains: filename
+      }
+    }
+  });
+  console.log(`[ingest] Import log cleared for ${filename}`);
 }
 
 // Auto-run if called directly (ES module way)
