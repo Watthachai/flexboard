@@ -179,6 +179,15 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
 
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
+  // Load saved license key from localStorage on component mount
+  useEffect(() => {
+    const savedLicenseKey = localStorage.getItem("flexboard-license-key");
+    if (savedLicenseKey) {
+      setLicenseKey(savedLicenseKey);
+      console.log("Loaded saved license key from localStorage");
+    }
+  }, []);
+
   // Check if user already has a license
   const checkUserLicense = async (user: UserInfo) => {
     try {
@@ -200,6 +209,42 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
         });
       } else {
         // User needs to set license key
+        const savedLicenseKey = localStorage.getItem("flexboard-license-key");
+        if (savedLicenseKey) {
+          // Try auto license validation with saved key
+          console.log("Attempting auto license validation with saved key...");
+          try {
+            const licenseResponse = await fetch("/api/auth/license-validate", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              credentials: "include",
+              body: JSON.stringify({
+                licenseKey: savedLicenseKey,
+                email: user.email,
+              }),
+            });
+
+            const licenseResult = await licenseResponse.json();
+            if (licenseResponse.ok && licenseResult.success) {
+              // Auto license validation successful
+              console.log("Auto license validation successful");
+              onLogin({
+                email: user.email,
+                tenantId: licenseResult.license.tenantId,
+                companyName: licenseResult.license.companyName,
+                features: licenseResult.license.features,
+                expiryDate: licenseResult.license.expiryDate,
+              });
+              return; // Exit early, no need to show license step
+            } else {
+              console.log("Saved license key is invalid, showing license step");
+            }
+          } catch (error) {
+            console.error("Auto license validation error:", error);
+          }
+        }
         setStep("license");
       }
     } catch (error) {
@@ -274,7 +319,29 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // License validation successful
+        // License validation successful - save license key to localStorage
+        localStorage.setItem("flexboard-license-key", licenseKey);
+        console.log("License key saved to localStorage");
+
+        // Auto-save to .env file
+        try {
+          const envResponse = await fetch("/api/auth/save-license-env", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ licenseKey }),
+          });
+          const envResult = await envResponse.json();
+          if (envResult.success) {
+            console.log("License key automatically saved to .env file");
+          } else {
+            console.warn("Failed to auto-save to .env:", envResult.error);
+          }
+        } catch (error) {
+          console.warn("Error auto-saving to .env file:", error);
+        }
+
+        // Login user
         onLogin({
           email: userInfo?.email || "",
           tenantId: result.license.tenantId,
@@ -334,6 +401,23 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
                   className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                   placeholder="FLX-XXX-XXX-XXX-XXXXXX-XXXXXX"
                 />
+                {localStorage.getItem("flexboard-license-key") && (
+                  <p className="mt-1 text-sm text-green-600 dark:text-green-400">
+                    ✅ License key loaded from saved data
+                  </p>
+                )}
+                {licenseKey && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.removeItem("flexboard-license-key");
+                      setLicenseKey("");
+                    }}
+                    className="mt-2 text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 underline"
+                  >
+                    Clear saved license key
+                  </button>
+                )}
               </div>
             </div>
 

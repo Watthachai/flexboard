@@ -42,7 +42,8 @@ export async function GET(req: Request) {
       Expired: { qty: 0, value: 0, records: 0 },
     };
 
-    // @ts-ignore
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
     agingStats.forEach((row: any) => {
       kpis[row.ageBucket] = {
         qty: Number(row.totalQty),
