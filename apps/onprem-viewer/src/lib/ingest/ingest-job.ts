@@ -50,13 +50,23 @@ function toString(s?: string | number | null): string {
 }
 
 function mapXml(data: unknown): XmlRow[] {
+  console.log(`[mapXml] Input data type: ${typeof data}`);
+  console.log(
+    `[mapXml] Input data keys:`,
+    data && typeof data === "object" ? Object.keys(data) : "N/A"
+  );
+
   // Handle GraphData format (actual production data)
   if (data && typeof data === "object" && "GraphData" in data) {
+    console.log(`[mapXml] Found GraphData format`);
     const graphData = data.GraphData as any;
-    if (graphData?.Dataset1) {
-      const items = Array.isArray(graphData.Dataset1)
-        ? graphData.Dataset1
-        : [graphData.Dataset1];
+
+    // Check for DataSet1 (with capital S)
+    if (graphData?.DataSet1) {
+      const items = Array.isArray(graphData.DataSet1)
+        ? graphData.DataSet1
+        : [graphData.DataSet1];
+      console.log(`[mapXml] GraphData.DataSet1 contains ${items.length} items`);
       return items.map((item: any) => ({
         ID: item.ID || "",
         DataDate: item.DataDate || "",
@@ -70,10 +80,36 @@ function mapXml(data: unknown): XmlRow[] {
         AverageCost: item.AverageCost || 0,
       }));
     }
+    // Check for Dataset1 (lowercase s) - fallback
+    else if (graphData?.Dataset1) {
+      const items = Array.isArray(graphData.Dataset1)
+        ? graphData.Dataset1
+        : [graphData.Dataset1];
+      console.log(`[mapXml] GraphData.Dataset1 contains ${items.length} items`);
+      return items.map((item: any) => ({
+        ID: item.ID || "",
+        DataDate: item.DataDate || "",
+        Corp: item.Corp || "",
+        Branch: item.Branch || "",
+        Prod: item.Prod || "",
+        UnitName: item.UnitName || "",
+        DocNumber: item.DocNumber || "",
+        DocDate: item.DocDate || "",
+        QtyFromThisDoc: item.QtyFromThisDoc || 0,
+        AverageCost: item.AverageCost || 0,
+      }));
+    } else {
+      console.log(`[mapXml] GraphData found but no DataSet1 or Dataset1`);
+      console.log(
+        `[mapXml] Available keys in GraphData:`,
+        Object.keys(graphData)
+      );
+    }
   }
 
   // Handle sample inventory format
   if (data && typeof data === "object" && "inventory" in data) {
+    console.log(`[mapXml] Found inventory format`);
     const inventory = data.inventory as any;
     if (inventory?.item) {
       const items = Array.isArray(inventory.item)
@@ -104,19 +140,29 @@ function mapXml(data: unknown): XmlRow[] {
 
   // Handle PVS format (original)
   if (data && typeof data === "object" && "PVS" in data) {
+    console.log(`[mapXml] Found PVS format`);
     const pvs = data.PVS as any;
     if (pvs?.detail) {
       const items = Array.isArray(pvs.detail) ? pvs.detail : [pvs.detail];
+      console.log(`[mapXml] PVS.detail contains ${items.length} items`);
       return items;
+    } else {
+      console.log(`[mapXml] PVS found but no detail`);
     }
   }
 
+  console.log(`[mapXml] No recognized XML format found, returning empty array`);
   return [];
 }
 
 export async function ingestOnce() {
   console.log(`[ingest] Scanning directory: ${INBOX}`);
-  console.log(`[ingest] Using environment: XML_WATCH_DIR=${process.env.XML_WATCH_DIR}, XML_DATA_PATH=${process.env.XML_DATA_PATH}`);
+  console.log(
+    `[ingest] Using environment: XML_WATCH_DIR=${process.env.XML_WATCH_DIR}, XML_DATA_PATH=${process.env.XML_DATA_PATH}`
+  );
+  console.log(
+    `[ingest] ⚡ FORCE RE-INGEST MODE: Files will be processed every time regardless of cache`
+  );
 
   try {
     const entries = await fs.readdir(INBOX, { withFileTypes: true });
@@ -129,39 +175,37 @@ export async function ingestOnce() {
     for (const f of files) {
       const full = path.join(INBOX, f.name);
       console.log(`[ingest] Full path: ${full}`);
-      
+
       const st = await fs.stat(full);
       const mtime = BigInt(Math.floor(st.mtimeMs));
       const fileSize = st.size;
 
-      const done = await prisma.importLog.findUnique({
-        where: { filename: full },
-      });
-      
-      console.log(`[ingest] ${f.name} → Size: ${fileSize} bytes, Current mtime: ${mtime}, Last processed mtime: ${done?.lastMtime || 'none'}`);
-      
-      // Force re-process if file size is 0 (might be corrupted record)
-      if (done && fileSize === 0 && done.recordsProcessed === 0) {
-        console.log(`[ingest] ${f.name} → File size is 0, clearing import log to force re-process`);
-        await prisma.importLog.delete({
-          where: { filename: full },
-        });
-      }
-      
-      const updatedDone = await prisma.importLog.findUnique({
-        where: { filename: full },
-      });
-      
-      if (updatedDone && updatedDone.lastMtime === mtime) {
-        console.log(`[ingest] Skipping ${f.name} (already processed)`);
-        continue;
-      }
+      console.log(
+        `[ingest] ${f.name} → Size: ${fileSize} bytes, Always processing (cache disabled)`
+      );
 
-      console.log(`[ingest] Processing ${f.name}... (mtime changed or first time)`);
+      console.log(`[ingest] Processing ${f.name}... (force re-ingest mode)`);
 
       const xml = await fs.readFile(full, "utf8");
+      console.log(
+        `[ingest] ${f.name} → XML file size: ${xml.length} characters`
+      );
+      console.log(
+        `[ingest] ${f.name} → XML preview (first 500 chars):`,
+        xml.substring(0, 500)
+      );
+
       const data = parser.parse(xml);
+      console.log(
+        `[ingest] ${f.name} → Parsed XML structure:`,
+        JSON.stringify(data, null, 2).substring(0, 1000)
+      );
+
       const rows = mapXml(data);
+      console.log(`[ingest] ${f.name} → Mapped ${rows.length} rows`);
+      if (rows.length > 0) {
+        console.log(`[ingest] ${f.name} → Sample row:`, rows[0]);
+      }
 
       // Collect all IDs from XML file for differential sync
       const xmlIds = new Set(rows.map((r) => Number(r.ID)));
@@ -294,7 +338,7 @@ export async function ingestOnce() {
       });
 
       console.log(
-        `[ingest] ${f.name} → Differential sync completed: ${createdCount} created, ${updatedCount} updated, ${deletedCount} deleted (${rows.length} total from XML)`
+        `[ingest] ${f.name} → Force re-ingest completed: ${createdCount} created, ${updatedCount} updated, ${deletedCount} deleted (${rows.length} total from XML)`
       );
     }
   } catch (error) {
@@ -316,9 +360,9 @@ export async function clearFileImportLog(filename: string) {
   await prisma.importLog.deleteMany({
     where: {
       filename: {
-        contains: filename
-      }
-    }
+        contains: filename,
+      },
+    },
   });
   console.log(`[ingest] Import log cleared for ${filename}`);
 }

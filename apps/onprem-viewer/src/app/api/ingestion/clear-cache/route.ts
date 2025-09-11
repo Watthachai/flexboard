@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { clearImportLogs, clearFileImportLog } from "../../../../lib/ingest/ingest-job";
+import {
+  clearImportLogs,
+  clearFileImportLog,
+} from "../../../../lib/ingest/ingest-job";
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,16 +12,16 @@ export async function POST(request: NextRequest) {
     if (filename) {
       // Clear specific file's import log
       await clearFileImportLog(filename);
-      return NextResponse.json({ 
-        success: true, 
-        message: `Import log cleared for ${filename}` 
+      return NextResponse.json({
+        success: true,
+        message: `Import log cleared for ${filename}`,
       });
     } else {
       // Clear all import logs
       await clearImportLogs();
-      return NextResponse.json({ 
-        success: true, 
-        message: "All import logs cleared" 
+      return NextResponse.json({
+        success: true,
+        message: "All import logs cleared",
       });
     }
   } catch (error) {
