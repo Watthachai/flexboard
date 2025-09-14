@@ -86,82 +86,53 @@
     { "as": "TotalValueRow", "expr": "QtySafe * CostSafe" },
     {
       "as": "Qty_0_90_row",
-      "expr": "case(AgeBucket = '0-90', QtySafe, true, 0)"
+      "expr": "case(AgeBucket == '0-90', QtySafe, true, 0)"
     },
     {
       "as": "Val_0_90_row",
-      "expr": "case(AgeBucket = '0-90', TotalValueRow, true, 0)"
+      "expr": "case(AgeBucket == '0-90', TotalValueRow, true, 0)"
     },
     {
       "as": "Qty_91_180_row",
-      "expr": "case(AgeBucket = '91-180', QtySafe, true, 0)"
+      "expr": "case(AgeBucket == '91-180', QtySafe, true, 0)"
     },
     {
       "as": "Val_91_180_row",
-      "expr": "case(AgeBucket = '91-180', TotalValueRow, true, 0)"
+      "expr": "case(AgeBucket == '91-180', TotalValueRow, true, 0)"
     },
     {
       "as": "Qty_181_365_row",
-      "expr": "case(AgeBucket = '181-365', QtySafe, true, 0)"
+      "expr": "case(AgeBucket == '181-365', QtySafe, true, 0)"
     },
     {
       "as": "Val_181_365_row",
-      "expr": "case(AgeBucket = '181-365', TotalValueRow, true, 0)"
+      "expr": "case(AgeBucket == '181-365', TotalValueRow, true, 0)"
     },
     {
       "as": "Qty_365_plus_row",
-      "expr": "case(AgeBucket = '>365', QtySafe, true, 0)"
+      "expr": "case(AgeBucket == '>365', QtySafe, true, 0)"
     },
     {
       "as": "Val_365_plus_row",
-      "expr": "case(AgeBucket = '>365', TotalValueRow, true, 0)"
+      "expr": "case(AgeBucket == '>365', TotalValueRow, true, 0)"
     }
   ],
 
   "globalFilters": [
     {
+      "type": "date",
       "field": "DataDate",
-      "op": ">=",
-      "value": "addMonths(endOfMonth(today()), -6)",
-      "description": "ตั้งแต่สิ้นเดือนที่ 6 เดือนย้อนหลัง"
+      "label": "Filter by Date"
     },
     {
-      "field": "DataDate",
-      "op": "<=",
-      "value": "endOfMonth(today())",
-      "description": "จนถึงสิ้นเดือนปัจจุบัน"
-    }
-  ],
-
-  "userFilters": [
-    {
-      "id": "period-filter",
-      "field": "DataDate",
-      "label": "ช่วงเวลาข้อมูล",
-      "type": "select",
-      "defaultValue": "last_7_months",
-      "options": [
-        {
-          "label": "7 เดือนล่าสุด (ปัจจุบัน + ย้อนหลัง 6 เดือน)",
-          "value": "last_7_months",
-          "filter": null
-        },
-        {
-          "label": "ทุกข้อมูล (ไม่กรอง)",
-          "value": "all_data",
-          "filter": null
-        }
-      ]
+      "type": "dropdown",
+      "field": "Corp",
+      "label": "เลือกบริษัท"
     },
     {
-      "id": "month-filter",
-      "field": "DataDate",
-      "label": "เลือกเดือนเฉพาะ",
-      "type": "month-end-dropdown",
-      "defaultValue": "all",
-      "description": "เลือกข้อมูลเฉพาะเดือนสิ้นเดือน",
-      "monthsBack": 6,
-      "autoGenerate": true
+      "type": "dropdown",
+      "field": "Branch",
+      "label": "เลือกสาขา"
     }
   ],
 
@@ -229,7 +200,7 @@
       "title": "Inventory Aging Summary by Product",
       "dataSource": "uploaded-xml",
       "query": {
-        "groupBy": ["Corp", "Branch", "Prod", "UnitName"],
+        "groupBy": ["Prod", "UnitName"],
         "measures": [
           { "field": "Qty_0_90_row", "agg": "sum", "as": "Qty_0_90" },
           { "field": "Val_0_90_row", "agg": "sum", "as": "Val_0_90" },
@@ -278,7 +249,7 @@
         "columnGroups": [
           {
             "title": "Product Info",
-            "columns": ["Corp", "Branch", "Prod", "UnitName"]
+            "columns": ["Prod", "UnitName"]
           },
           {
             "title": "Total",
@@ -303,8 +274,6 @@
         ],
 
         "columnLabels": {
-          "Corp": "บริษัท",
-          "Branch": "สาขา",
           "Prod": "สินค้า",
           "UnitName": "หน่วย",
           "TotalQty": "Quantity",
@@ -346,8 +315,6 @@
         },
 
         "columnWidths": {
-          "Corp": 120,
-          "Branch": 100,
           "Prod": 200,
           "UnitName": 80,
           "TotalQty": 100,
