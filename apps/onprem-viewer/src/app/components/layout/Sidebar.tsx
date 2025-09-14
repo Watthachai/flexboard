@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { BarChart3, Settings } from "lucide-react";
+import { VersionDisplay } from "@/components/VersionDisplay";
 
 interface SidebarProps {
   isCollapsed?: boolean;
@@ -116,6 +117,24 @@ export default function Sidebar({ isCollapsed = false }: SidebarProps) {
             ))}
           </nav>
         </div>
+      </div>
+
+      {/* Version Display at Bottom */}
+      <div className="p-3 border-t border-gray-200 dark:border-gray-700">
+        {!isCollapsed ? (
+          <VersionDisplay
+            variant="full"
+            showBuildDate={false}
+            className="text-center"
+          />
+        ) : (
+          <div className="flex justify-center">
+            <VersionDisplay
+              variant="minimal"
+              className="transform rotate-90 whitespace-nowrap"
+            />
+          </div>
+        )}
       </div>
     </div>
   );

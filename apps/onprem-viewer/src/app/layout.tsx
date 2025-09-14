@@ -95,24 +95,6 @@ export default function RootLayout({
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      // Call Firebase logout endpoint
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include", // Include HTTP-only cookies
-      });
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
-
-    // Clear local state and localStorage
-    setSession(null);
-    if (typeof window !== "undefined" && window.localStorage) {
-      localStorage.removeItem("userSession");
-    }
-  };
-
   if (loading) {
     return (
       <ThemeProvider>
