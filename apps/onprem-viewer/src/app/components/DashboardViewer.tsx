@@ -773,28 +773,7 @@ export default function DashboardViewer({
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-2xl animate-pulse mb-4">📊</div>
-          <p className="text-gray-600 mb-2">
-            Loading dashboard configuration...
-          </p>
-          {dataLoading && (
-            <div className="mt-4">
-              <p className="text-sm text-blue-600 mb-2">
-                Loading all {10726} records for accurate calculations...
-              </p>
-              <div className="w-64 bg-gray-200 rounded-full h-2 mx-auto">
-                <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${processingProgress}%` }}
-                ></div>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                This may take a moment for accuracy
-              </p>
-            </div>
-          )}
-        </div>
+        <LoadingSpinner />
       </div>
     );
   }
@@ -1092,7 +1071,7 @@ export default function DashboardViewer({
 
       {/* Mobile Dashboard Layout */}
       <div className="block md:hidden">
-        <div className="space-y-3">
+        <div className="space-y-6">
           {convertToMobileLayout(
             manifest?.widgets || [],
             manifest?.layout?.rowHeight || 50
