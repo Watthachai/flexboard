@@ -61,8 +61,8 @@ export async function GET(request: NextRequest) {
             companyName,
             features: [], // Default features
             expiryDate: new Date(
-              Date.now() + 365 * 24 * 60 * 60 * 1000
-            ).toISOString(), // Default 1 year
+              Date.now() + 90 * 24 * 60 * 60 * 1000
+            ).toISOString(), // Extended to 90 days to match session cookies
           },
         });
       } else {

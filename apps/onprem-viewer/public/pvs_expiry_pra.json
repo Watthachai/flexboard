@@ -202,14 +202,46 @@
       "query": {
         "groupBy": ["Prod", "UnitName"],
         "measures": [
-          { "field": "Qty_0_90_row", "agg": "sum", "as": "Qty_0_90" },
-          { "field": "Val_0_90_row", "agg": "sum", "as": "Val_0_90" },
-          { "field": "Qty_91_180_row", "agg": "sum", "as": "Qty_91_180" },
-          { "field": "Val_91_180_row", "agg": "sum", "as": "Val_91_180" },
-          { "field": "Qty_181_365_row", "agg": "sum", "as": "Qty_181_365" },
-          { "field": "Val_181_365_row", "agg": "sum", "as": "Val_181_365" },
-          { "field": "Qty_365_plus_row", "agg": "sum", "as": "Qty_365_plus" },
-          { "field": "Val_365_plus_row", "agg": "sum", "as": "Val_365_plus" },
+          {
+            "expr": "sum(iif(AgeBucket='0-90', QtyFromThisDoc, 0))",
+            "agg": "sum",
+            "as": "Qty_0_90"
+          },
+          {
+            "expr": "sum(iif(AgeBucket='0-90', TotalValueRow, 0))",
+            "agg": "sum",
+            "as": "Val_0_90"
+          },
+          {
+            "expr": "sum(iif(AgeBucket='91-180', QtyFromThisDoc, 0))",
+            "agg": "sum",
+            "as": "Qty_91_180"
+          },
+          {
+            "expr": "sum(iif(AgeBucket='91-180', TotalValueRow, 0))",
+            "agg": "sum",
+            "as": "Val_91_180"
+          },
+          {
+            "expr": "sum(iif(AgeBucket='181-365', QtyFromThisDoc, 0))",
+            "agg": "sum",
+            "as": "Qty_181_365"
+          },
+          {
+            "expr": "sum(iif(AgeBucket='181-365', TotalValueRow, 0))",
+            "agg": "sum",
+            "as": "Val_181_365"
+          },
+          {
+            "expr": "sum(iif(AgeBucket='>365', QtyFromThisDoc, 0))",
+            "agg": "sum",
+            "as": "Qty_365_plus"
+          },
+          {
+            "expr": "sum(iif(AgeBucket='>365', TotalValueRow, 0))",
+            "agg": "sum",
+            "as": "Val_365_plus"
+          },
           { "field": "TotalValueRow", "agg": "sum", "as": "TotalValue" },
           { "field": "QtyFromThisDoc", "agg": "sum", "as": "TotalQty" }
         ],
@@ -364,9 +396,6 @@
       "query": {
         "columns": [
           "ID",
-          "DataDate",
-          "Corp",
-          "Branch",
           "Prod",
           "UnitName",
           "DocNumber",
@@ -415,16 +444,7 @@
         "columnGroups": [
           {
             "title": "Basic Information",
-            "columns": [
-              "ID",
-              "DataDate",
-              "Corp",
-              "Branch",
-              "Prod",
-              "UnitName",
-              "DocNumber",
-              "DocDate"
-            ]
+            "columns": ["ID", "Prod", "UnitName", "DocNumber", "DocDate"]
           },
           {
             "title": "Transaction Details",
@@ -438,9 +458,6 @@
 
         "columnLabels": {
           "ID": "ID",
-          "DataDate": "Data Date",
-          "Corp": "บริษัท",
-          "Branch": "สาขา",
           "Prod": "สินค้า",
           "UnitName": "หน่วย",
           "DocNumber": "Document No",
@@ -453,7 +470,6 @@
         },
 
         "columnFormatters": {
-          "DataDate": "date",
           "DocDate": "date",
           "QtyFromThisDoc": "qty",
           "AverageCost": "unitCost",
@@ -469,9 +485,6 @@
 
         "columnWidths": {
           "ID": 100,
-          "DataDate": 110,
-          "Corp": 120,
-          "Branch": 100,
           "Prod": 200,
           "UnitName": 80,
           "DocNumber": 150,

@@ -1,5 +1,5 @@
 /**
- * Beautiful Loading Spinner Component
+ * Beautiful Loading Spinner Component with Progress Support
  */
 
 "use client";
@@ -9,12 +9,16 @@ import React from "react";
 interface LoadingSpinnerProps {
   size?: "sm" | "md" | "lg";
   text?: string;
+  progress?: number; // 0-100
+  showProgress?: boolean;
   className?: string;
 }
 
 export default function LoadingSpinner({
   size = "md",
   text = "Loading...",
+  progress = 0,
+  showProgress = false,
   className = "",
 }: LoadingSpinnerProps) {
   const sizeClasses = {
@@ -29,11 +33,24 @@ export default function LoadingSpinner({
     lg: "text-lg",
   };
 
+  // Dynamic message based on progress
+  const getProgressMessage = () => {
+    if (progress < 20) return "Initializing...";
+    if (progress < 40) return "Connecting to server...";
+    if (progress < 60) return "Loading data...";
+    if (progress < 80) return "Processing data...";
+    if (progress < 95) return "Finalizing...";
+    return "Almost done...";
+  };
+
+  const displayText =
+    showProgress && progress > 0 ? getProgressMessage() : text;
+
   return (
     <div
       className={`flex flex-col items-center justify-center space-y-4 ${className}`}
     >
-      {/* Spinning Logo */}
+      {/* Spinning Logo with Progress Ring */}
       <div className="relative">
         {/* Outer ring */}
         <div
@@ -45,6 +62,27 @@ export default function LoadingSpinner({
           className={`absolute top-0 left-0 ${sizeClasses[size]} rounded-full border-4 border-transparent border-t-blue-600 dark:border-t-blue-400 animate-spin`}
         ></div>
 
+        {/* Progress ring (if showing progress) */}
+        {showProgress && progress > 0 && (
+          <div className="absolute top-0 left-0 w-full h-full">
+            <svg
+              className={`${sizeClasses[size]} transform -rotate-90`}
+              viewBox="0 0 32 32"
+            >
+              <circle
+                cx="16"
+                cy="16"
+                r="14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeDasharray={`${progress * 0.88} 88`}
+                className="text-green-500 dark:text-green-400 transition-all duration-500"
+              />
+            </svg>
+          </div>
+        )}
+
         {/* Inner dot */}
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
           <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full animate-pulse"></div>
@@ -53,9 +91,9 @@ export default function LoadingSpinner({
 
       {/* Loading text with animation */}
       <div
-        className={`${textSizeClasses[size]} text-gray-600 dark:text-gray-400 font-medium`}
+        className={`${textSizeClasses[size]} text-gray-600 dark:text-gray-400 font-medium text-center`}
       >
-        <span className="inline-block animate-pulse">{text}</span>
+        <span className="inline-block">{displayText}</span>
         <span className="ml-1 animate-bounce">.</span>
         <span className="animate-bounce" style={{ animationDelay: "0.1s" }}>
           .
@@ -64,6 +102,29 @@ export default function LoadingSpinner({
           .
         </span>
       </div>
+
+      {/* Progress bar and percentage */}
+      {showProgress && progress > 0 && (
+        <div className="w-full max-w-xs">
+          {/* Progress bar */}
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
+            <div
+              className="bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-400 dark:to-blue-500 h-2 rounded-full transition-all duration-500 ease-out relative overflow-hidden"
+              style={{ width: `${Math.max(2, progress)}%` }}
+            >
+              {/* Shine effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Progress percentage */}
+          <div className="text-center">
+            <span className="text-xs text-blue-600 dark:text-blue-400 font-mono">
+              {Math.round(progress)}%
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

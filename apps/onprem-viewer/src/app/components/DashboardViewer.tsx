@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * OnPrem Dashboard Viewer
  * Displays dashboard based on manifest configuration
@@ -5,10 +6,9 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { manifestSyncService } from "../../services/manifestSync";
 import { localDataService } from "../../services/localDataService";
-import { UniversalXmlParser } from "../../lib/xml-parser";
 import { generateMonthEndDates } from "../../lib/engine";
 import {
   adaptKPIWidget,
@@ -16,15 +16,7 @@ import {
   adaptTableWidget,
 } from "../../lib/chartConfigAdapter";
 import { MultiSelectDropdown } from "../../components/MultiSelectDropdown";
-import {
-  BarChart,
-  LineChart,
-  PieChart,
-  ParetoChart,
-  StackedBarChart,
-  ActionBar,
-  KPIWidget,
-} from "./charts";
+import { BarChart, LineChart, PieChart, ActionBar } from "./charts";
 import RealKPIWidget from "./charts/RealKPIWidget";
 import RealBarChart from "./charts/RealBarChart";
 import RealLineChart from "./charts/RealLineChart";
@@ -32,8 +24,7 @@ import RealParetoChart from "./charts/RealParetoChart";
 import RealStackedBarChart from "./charts/RealStackedBarChart";
 import RealTableWidget from "./charts/RealTableWidget";
 import AdvancedTableWidget from "../../components/AdvancedTableWidget";
-import UserFilters from "../../components/UserFilters";
-import StatsCards from "./StatsCards";
+import LoadingSpinner from "./ui/LoadingSpinner";
 import {
   validateAndFixLayout,
   convertToMobileLayout,
@@ -240,6 +231,9 @@ export default function DashboardViewer({
     Record<string, any>
   >({}); // New global filter state for Corp, Branch, etc.
 
+  // Ref to track if data loading has been initiated
+  const dataLoadingInitiated = useRef(false);
+
   // Handle screen resize for responsive behavior
   useEffect(() => {
     const handleResize = () => {
@@ -391,7 +385,7 @@ export default function DashboardViewer({
   };
 
   // Helper function to transform data keys to PascalCase
-  const transformDataToPascalCase = (data: any[]): any[] => {
+  const transformDataToPascalCase = useCallback((data: any[]): any[] => {
     return data.map((row) => {
       const newRow: any = {};
       Object.keys(row).forEach((key) => {
@@ -400,7 +394,7 @@ export default function DashboardViewer({
       });
       return newRow;
     });
-  };
+  }, []);
 
   // Load data from API or localStorage fallback
   useEffect(() => {
@@ -408,6 +402,9 @@ export default function DashboardViewer({
       console.log("� Loading data from API...");
 
       try {
+        // Simulate initial progress
+        setProcessingProgress(10);
+
         // Try to load from API first - with ALL data for accuracy
         const apiData = await localDataService.fetchData({
           id: "uploaded-xml",
@@ -416,10 +413,15 @@ export default function DashboardViewer({
           method: "GET",
         });
 
+        setProcessingProgress(50);
+
         if (apiData && apiData.length > 0) {
           // Transform field names from snake_case to PascalCase
+          setProcessingProgress(70);
           const transformedData = transformDataToPascalCase(apiData);
+          setProcessingProgress(90);
           setUploadedData(transformedData);
+          setProcessingProgress(100);
 
           console.log("✅ Successfully loaded data from API:", {
             recordCount: transformedData.length,
@@ -428,15 +430,23 @@ export default function DashboardViewer({
             availableColumns:
               transformedData.length > 0 ? Object.keys(transformedData[0]) : [],
           });
+
+          // Clear loading state immediately after successful API load
+          setTimeout(() => {
+            setDataLoading(false);
+            setProcessingProgress(0);
+          }, 300);
           return;
         }
       } catch (error) {
         console.error("❌ Failed to load data from API:", error);
         console.log("🔄 Falling back to localStorage...");
+        setProcessingProgress(30);
       }
 
       // Fallback to localStorage
       try {
+        setProcessingProgress(40);
         const savedData = localStorage.getItem("uploadedData");
         const savedFileName = localStorage.getItem("uploadedFileName");
         const savedTimestamp = localStorage.getItem("uploadedDataTimestamp");
@@ -451,8 +461,11 @@ export default function DashboardViewer({
         });
 
         if (savedData) {
+          setProcessingProgress(60);
           const parsedData = JSON.parse(savedData);
+          setProcessingProgress(80);
           const transformedData = transformDataToPascalCase(parsedData);
+          setProcessingProgress(100);
           setUploadedData(transformedData);
 
           console.log("✅ Successfully loaded data from localStorage:", {
@@ -461,16 +474,52 @@ export default function DashboardViewer({
             availableColumns:
               transformedData.length > 0 ? Object.keys(transformedData[0]) : [],
           });
+
+          // Clear loading state immediately after successful localStorage load
+          setTimeout(() => {
+            setDataLoading(false);
+            setProcessingProgress(0);
+          }, 300);
         } else {
           console.log("⚠️ No data found in localStorage or API");
+          setProcessingProgress(100);
+
+          // Clear loading state when no data found
+          setTimeout(() => {
+            setDataLoading(false);
+            setProcessingProgress(0);
+          }, 300);
         }
       } catch (fallbackError) {
         console.error("❌ Failed to load fallback data:", fallbackError);
+        setProcessingProgress(100);
+
+        // Clear loading state on error
+        setTimeout(() => {
+          setDataLoading(false);
+          setProcessingProgress(0);
+        }, 300);
       }
     };
 
-    loadData();
-  }, []);
+    // Only start loading if we haven't already initiated loading and don't have data
+    if (
+      !dataLoadingInitiated.current &&
+      uploadedData.length === 0 &&
+      !dataLoading
+    ) {
+      console.log("🚀 Starting data loading process...");
+      dataLoadingInitiated.current = true;
+      setDataLoading(true);
+      loadData();
+    } else {
+      console.log("⏸️ Skipping data loading:", {
+        alreadyInitiated: dataLoadingInitiated.current,
+        hasData: uploadedData.length > 0,
+        isLoading: dataLoading,
+      });
+    }
+  }, [dataLoading, uploadedData.length, transformDataToPascalCase]); // Add all dependencies used in effect
 
   // Render individual widget with chartConfigAdapter
   const renderWidget = (widget: Widget) => {
@@ -543,7 +592,8 @@ export default function DashboardViewer({
       console.log("🗓️ Date filtering:", {
         dateFilter,
         originalDataLength: uploadedData.length,
-        sampleDataDate: uploadedData[0]?.DataDate,
+        filteredDataLength: filteredData.length, // ใช้ filteredData แทน uploadedData
+        sampleDataDate: filteredData[0]?.DataDate, // ใช้ filteredData แทน uploadedData
       });
 
       if (dateFilter.startsWith("month-")) {
@@ -551,7 +601,8 @@ export default function DashboardViewer({
         const selectedDate = dateFilter.replace("month-", "");
         console.log("🗓️ Filtering for date:", selectedDate);
 
-        filteredData = uploadedData.filter((row) => {
+        // ✅ ใช้ filteredData แทนที่จะใช้ uploadedData
+        filteredData = filteredData.filter((row) => {
           // Extract date part from ISO datetime string (YYYY-MM-DD)
           const dataDateOnly = row.DataDate ? row.DataDate.split("T")[0] : "";
           // Extract year-month from both dates for comparison
@@ -571,13 +622,13 @@ export default function DashboardViewer({
         console.log(
           `✅ Filtering for month: ${selectedDate.substring(0, 7)}, found ${
             filteredData.length
-          } rows`
+          } rows (from ${filteredData.length} after global filters)`
         );
       }
 
-      console.log("🗓️ Filtered data length:", filteredData.length);
+      console.log("🗓️ Final filtered data length:", filteredData.length);
     } else {
-      console.log("🗓️ No date filtering applied, using all data");
+      console.log("🗓️ No date filtering applied, using globally filtered data");
     }
 
     // Calculate widget height based on layout
@@ -822,13 +873,59 @@ export default function DashboardViewer({
                   </div>
                 );
               } else if (filter.type === "dropdown" && filter.field) {
-                // Dropdown Filter (Corp, Branch, etc.)
+                // Dropdown Filter (Corp, Branch, etc.) with dependent filtering
+                let availableData = uploadedData;
+                const filterField = filter.field;
+
+                // Apply dependent filtering for Branch based on Corp selection
+                if (
+                  filterField === "Branch" &&
+                  globalFilterValues["Corp"]?.length > 0
+                ) {
+                  // Filter data to only show branches for selected corporations
+                  availableData = uploadedData.filter((row) =>
+                    globalFilterValues["Corp"].includes(row["Corp"])
+                  );
+                  console.log("🏪 Filtered Branch options based on Corp:", {
+                    selectedCorp: globalFilterValues["Corp"],
+                    originalBranches: [
+                      ...new Set(
+                        uploadedData.map((row) => row["Branch"]).filter(Boolean)
+                      ),
+                    ].length,
+                    filteredBranches: [
+                      ...new Set(
+                        availableData
+                          .map((row) => row["Branch"])
+                          .filter(Boolean)
+                      ),
+                    ].length,
+                  });
+                }
+
                 const uniqueValues = [
                   ...new Set(
-                    uploadedData.map((row) => row[filter.field]).filter(Boolean)
+                    availableData.map((row) => row[filterField]).filter(Boolean)
                   ),
                 ].sort();
-                const selectedValues = globalFilterValues[filter.field] || [];
+
+                const selectedValues = globalFilterValues[filterField] || [];
+
+                // Clear Branch selection if Corp changes and selected branches are no longer valid
+                if (filterField === "Branch") {
+                  const validBranches = selectedValues.filter(
+                    (branch: string) => uniqueValues.includes(branch)
+                  );
+                  if (validBranches.length !== selectedValues.length) {
+                    // Auto-clear invalid branch selections
+                    setTimeout(() => {
+                      setGlobalFilterValues((prev) => ({
+                        ...prev,
+                        [filterField]: validBranches,
+                      }));
+                    }, 0);
+                  }
+                }
 
                 return (
                   <div key={index} className="flex items-center gap-2">
@@ -850,10 +947,10 @@ export default function DashboardViewer({
                         onChange={(newValues) => {
                           setGlobalFilterValues((prev) => ({
                             ...prev,
-                            [filter.field!]: newValues,
+                            [filterField]: newValues,
                           }));
                         }}
-                        placeholder={`เลือก ${filter.label || filter.field}`}
+                        placeholder={`เลือก ${filter.label || filterField}`}
                         className="min-w-[180px] max-w-[250px]"
                       />
                     </div>
@@ -884,7 +981,7 @@ export default function DashboardViewer({
       )}
 
       {/* Temporary Debug Info - Remove after testing */}
-      {process.env.NODE_ENV === "development" && (
+      {process.env.NODE_ENV === "production" && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 text-xs">
           <strong>Debug Info:</strong>
           <br />
@@ -911,7 +1008,8 @@ export default function DashboardViewer({
             ? "✅"
             : "❌"}
           <br />
-          Current Date Filter: "{dateFilter}"<br />
+          Current Date Filter: &quot;{dateFilter}&quot;
+          <br />
           Current Global Filters: {JSON.stringify(globalFilterValues)}
           <br />
           Sample Data Date:{" "}
@@ -933,8 +1031,19 @@ export default function DashboardViewer({
         </div>
       )}
 
-      {/* Show upload prompt if no data */}
-      {uploadedData.length === 0 && (
+      {/* Show loading screen when data is being loaded */}
+      {dataLoading && (
+        <LoadingSpinner
+          size="lg"
+          text="Loading data..."
+          progress={processingProgress}
+          showProgress={true}
+          className="mb-4"
+        />
+      )}
+
+      {/* Show upload prompt if no data and not loading */}
+      {uploadedData.length === 0 && !dataLoading && (
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4 text-center">
           <div className="text-blue-600 dark:text-blue-400 mb-2">
             📊 No data uploaded yet
