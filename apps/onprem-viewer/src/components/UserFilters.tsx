@@ -40,11 +40,11 @@ const UserFilters: React.FC<UserFiltersProps> = ({
             onChange={(e) => onChange(filter.id, e.target.value)}
             className="text-sm border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-blue-500 focus:border-blue-500 min-w-[200px]"
           >
-            {filter.options.map((option) => (
+            {filter.options?.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
-            ))}
+            )) || []}
           </select>
         </div>
       ))}

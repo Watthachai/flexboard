@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * OnPrem Dashboard Viewer
  * Displays dashboard based on manifest configuration
@@ -5,38 +6,17 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { manifestSyncService } from "../../services/manifestSync";
 import { localDataService } from "../../services/localDataService";
-import { UniversalXmlParser } from "../../lib/xml-parser";
-import { loadLocalFile } from "../../lib/loadLocalFile";
-import {
-  coerceTypes,
-  applyTransforms,
-  filterRows,
-  groupAgg,
-  sortLimit,
-  processDataWithManifest,
-  generateMonthEndDates,
-  getMonthEndDatesValues,
-} from "../../lib/engine";
+import { generateMonthEndDates } from "../../lib/engine";
 import {
   adaptKPIWidget,
   adaptChartWidget,
   adaptTableWidget,
-  formatValue,
-  getSeverityColor,
-  getColorValue,
 } from "../../lib/chartConfigAdapter";
-import {
-  BarChart,
-  LineChart,
-  PieChart,
-  ParetoChart,
-  StackedBarChart,
-  ActionBar,
-  KPIWidget,
-} from "./charts";
+import { MultiSelectDropdown } from "../../components/MultiSelectDropdown";
+import { BarChart, LineChart, PieChart, ActionBar } from "./charts";
 import RealKPIWidget from "./charts/RealKPIWidget";
 import RealBarChart from "./charts/RealBarChart";
 import RealLineChart from "./charts/RealLineChart";
@@ -44,8 +24,7 @@ import RealParetoChart from "./charts/RealParetoChart";
 import RealStackedBarChart from "./charts/RealStackedBarChart";
 import RealTableWidget from "./charts/RealTableWidget";
 import AdvancedTableWidget from "../../components/AdvancedTableWidget";
-import UserFilters from "../../components/UserFilters";
-import StatsCards from "./StatsCards";
+import LoadingSpinner from "./ui/LoadingSpinner";
 import {
   validateAndFixLayout,
   convertToMobileLayout,
@@ -183,6 +162,12 @@ interface DashboardManifest {
   availableColumns?: string[]; // Add optional availableColumns
   transforms?: any[]; // Add optional transforms property
   formatters?: Record<string, any>; // Add optional formatters property
+  globalFilters?: Array<{
+    type: "date" | "dropdown" | "search";
+    field?: string;
+    label?: string;
+    options?: any[];
+  }>; // Add globalFilters property
 }
 
 interface WidgetConfigValidation {
@@ -242,6 +227,12 @@ export default function DashboardViewer({
     Record<string, string>
   >({});
   const [dateFilter, setDateFilter] = useState<string>("all"); // New date filter state
+  const [globalFilterValues, setGlobalFilterValues] = useState<
+    Record<string, any>
+  >({}); // New global filter state for Corp, Branch, etc.
+
+  // Ref to track if data loading has been initiated
+  const dataLoadingInitiated = useRef(false);
 
   // Handle screen resize for responsive behavior
   useEffect(() => {
@@ -268,7 +259,8 @@ export default function DashboardViewer({
       try {
         setLoading(true);
 
-        // Try override manifest first (for debugging without global filters)
+        // Skip override manifest and use original manifest directly to get globalFilters
+        /*
         try {
           console.log("🔧 Trying override manifest for debugging...");
           const overrideResponse = await fetch(
@@ -283,13 +275,19 @@ export default function DashboardViewer({
                 hasGlobalFilters: !!overrideResult.data.globalFilters?.length,
                 dataSource: overrideResult.data.dataSources?.[0],
                 transforms: overrideResult.data.transforms?.length || 0,
+                globalFilters: overrideResult.data.globalFilters,
               });
 
-              const adaptedManifest = adaptLayoutFromSchema(
-                overrideResult.data
-              );
-              setManifest(adaptedManifest);
-              return;
+              // Only use override if it has globalFilters, otherwise fall back
+              if (overrideResult.data.globalFilters && overrideResult.data.globalFilters.length > 0) {
+                const adaptedManifest = adaptLayoutFromSchema(
+                  overrideResult.data
+                );
+                setManifest(adaptedManifest);
+                return;
+              } else {
+                console.log("⚠️ Override manifest has no globalFilters, falling back to original");
+              }
             }
           }
         } catch (overrideError) {
@@ -298,8 +296,37 @@ export default function DashboardViewer({
             overrideError
           );
         }
+        */
 
-        // Fallback to original manifest
+        // Load manifest directly from JSON file to get globalFilters
+        try {
+          console.log("🔧 Loading manifest directly from JSON file...");
+          const directResponse = await fetch(`/pvs_expiry_pra.json`);
+
+          if (directResponse.ok) {
+            const directManifest = await directResponse.json();
+            console.log("✅ Loaded direct JSON manifest:", {
+              dashboardId,
+              hasGlobalFilters: !!directManifest.globalFilters?.length,
+              globalFilters: directManifest.globalFilters,
+              globalFiltersLength: directManifest.globalFilters?.length || 0,
+              schemaVersion: directManifest.schemaVersion,
+            });
+
+            if (
+              directManifest.globalFilters &&
+              directManifest.globalFilters.length > 0
+            ) {
+              const adaptedManifest = adaptLayoutFromSchema(directManifest);
+              setManifest(adaptedManifest);
+              return;
+            }
+          }
+        } catch (directError) {
+          console.log("⚠️ Direct JSON loading failed:", directError);
+        }
+
+        // Fallback to original manifest API
         const result = await manifestSyncService.fetchDashboardManifest(
           dashboardId
         );
@@ -312,6 +339,9 @@ export default function DashboardViewer({
             dashboardName: result.manifest.dashboardName,
             widgetCount: result.manifest.widgets?.length,
             firstWidget: result.manifest.widgets?.[0],
+            globalFilters: result.manifest.globalFilters,
+            hasGlobalFilters: !!result.manifest.globalFilters,
+            globalFiltersLength: result.manifest.globalFilters?.length || 0,
             rawManifest: result.manifest,
           });
 
@@ -355,7 +385,7 @@ export default function DashboardViewer({
   };
 
   // Helper function to transform data keys to PascalCase
-  const transformDataToPascalCase = (data: any[]): any[] => {
+  const transformDataToPascalCase = useCallback((data: any[]): any[] => {
     return data.map((row) => {
       const newRow: any = {};
       Object.keys(row).forEach((key) => {
@@ -364,7 +394,7 @@ export default function DashboardViewer({
       });
       return newRow;
     });
-  };
+  }, []);
 
   // Load data from API or localStorage fallback
   useEffect(() => {
@@ -372,6 +402,9 @@ export default function DashboardViewer({
       console.log("� Loading data from API...");
 
       try {
+        // Simulate initial progress
+        setProcessingProgress(10);
+
         // Try to load from API first - with ALL data for accuracy
         const apiData = await localDataService.fetchData({
           id: "uploaded-xml",
@@ -380,10 +413,15 @@ export default function DashboardViewer({
           method: "GET",
         });
 
+        setProcessingProgress(50);
+
         if (apiData && apiData.length > 0) {
           // Transform field names from snake_case to PascalCase
+          setProcessingProgress(70);
           const transformedData = transformDataToPascalCase(apiData);
+          setProcessingProgress(90);
           setUploadedData(transformedData);
+          setProcessingProgress(100);
 
           console.log("✅ Successfully loaded data from API:", {
             recordCount: transformedData.length,
@@ -392,15 +430,23 @@ export default function DashboardViewer({
             availableColumns:
               transformedData.length > 0 ? Object.keys(transformedData[0]) : [],
           });
+
+          // Clear loading state immediately after successful API load
+          setTimeout(() => {
+            setDataLoading(false);
+            setProcessingProgress(0);
+          }, 300);
           return;
         }
       } catch (error) {
         console.error("❌ Failed to load data from API:", error);
         console.log("🔄 Falling back to localStorage...");
+        setProcessingProgress(30);
       }
 
       // Fallback to localStorage
       try {
+        setProcessingProgress(40);
         const savedData = localStorage.getItem("uploadedData");
         const savedFileName = localStorage.getItem("uploadedFileName");
         const savedTimestamp = localStorage.getItem("uploadedDataTimestamp");
@@ -415,8 +461,11 @@ export default function DashboardViewer({
         });
 
         if (savedData) {
+          setProcessingProgress(60);
           const parsedData = JSON.parse(savedData);
+          setProcessingProgress(80);
           const transformedData = transformDataToPascalCase(parsedData);
+          setProcessingProgress(100);
           setUploadedData(transformedData);
 
           console.log("✅ Successfully loaded data from localStorage:", {
@@ -425,63 +474,52 @@ export default function DashboardViewer({
             availableColumns:
               transformedData.length > 0 ? Object.keys(transformedData[0]) : [],
           });
+
+          // Clear loading state immediately after successful localStorage load
+          setTimeout(() => {
+            setDataLoading(false);
+            setProcessingProgress(0);
+          }, 300);
         } else {
           console.log("⚠️ No data found in localStorage or API");
+          setProcessingProgress(100);
+
+          // Clear loading state when no data found
+          setTimeout(() => {
+            setDataLoading(false);
+            setProcessingProgress(0);
+          }, 300);
         }
       } catch (fallbackError) {
         console.error("❌ Failed to load fallback data:", fallbackError);
+        setProcessingProgress(100);
+
+        // Clear loading state on error
+        setTimeout(() => {
+          setDataLoading(false);
+          setProcessingProgress(0);
+        }, 300);
       }
     };
 
-    loadData();
-  }, []);
-
-  // Simple CSV parser (kept for backwards compatibility)
-  const parseCSV = (text: string): any[] => {
-    const lines = text.trim().split("\n");
-    const headers = lines[0].split(",").map((h) => h.trim());
-
-    return lines.slice(1).map((line) => {
-      const values = line.split(",").map((v) => v.trim());
-      const obj: any = {};
-      headers.forEach((header, index) => {
-        const value = values[index];
-        // Try to parse as number, otherwise keep as string
-        obj[header] =
-          !isNaN(Number(value)) && value !== "" ? Number(value) : value;
+    // Only start loading if we haven't already initiated loading and don't have data
+    if (
+      !dataLoadingInitiated.current &&
+      uploadedData.length === 0 &&
+      !dataLoading
+    ) {
+      console.log("🚀 Starting data loading process...");
+      dataLoadingInitiated.current = true;
+      setDataLoading(true);
+      loadData();
+    } else {
+      console.log("⏸️ Skipping data loading:", {
+        alreadyInitiated: dataLoadingInitiated.current,
+        hasData: uploadedData.length > 0,
+        isLoading: dataLoading,
       });
-      return obj;
-    });
-  };
-
-  // Universal XML parser using the advanced parser from control-plane-ui
-  const parseXML = (text: string): any[] => {
-    try {
-      const parseResult = UniversalXmlParser.parse(text, {
-        maxRecords: 1000,
-        skipEmptyFields: true,
-        normalizeFieldNames: false, // Keep original field names
-      });
-
-      console.log("🔍 XML Parse Result:", {
-        detectedStructure: parseResult.detectedStructure,
-        rootElement: parseResult.rootElement,
-        recordElement: parseResult.recordElement,
-        totalRecords: parseResult.totalRecords,
-        availableColumns: parseResult.availableColumns,
-        sampleRecord: parseResult.records[0],
-      });
-
-      return parseResult.records;
-    } catch (err) {
-      console.error("XML parsing error:", err);
-      throw new Error(
-        `Failed to parse XML file: ${
-          err instanceof Error ? err.message : String(err)
-        }`
-      );
     }
-  };
+  }, [dataLoading, uploadedData.length, transformDataToPascalCase]); // Add all dependencies used in effect
 
   // Render individual widget with chartConfigAdapter
   const renderWidget = (widget: Widget) => {
@@ -517,31 +555,80 @@ export default function DashboardViewer({
 
     // Apply date filter to uploaded data
     let filteredData = uploadedData;
-    if (dateFilter !== "all" && uploadedData.length > 0) {
+
+    // Apply global filters (Corp, Branch, etc.)
+    if (Object.keys(globalFilterValues).length > 0 && uploadedData.length > 0) {
+      console.log("🎯 Applying global filters:", globalFilterValues);
+
+      filteredData = filteredData.filter((row) => {
+        return Object.entries(globalFilterValues).every(
+          ([field, selectedValues]) => {
+            if (!selectedValues || selectedValues.length === 0) return true;
+
+            const rowValue = row[field];
+            const isMatch = selectedValues.includes(rowValue);
+
+            console.log("🎯 Filter check:", {
+              field,
+              rowValue,
+              selectedValues,
+              isMatch,
+            });
+
+            return isMatch;
+          }
+        );
+      });
+
+      console.log("🎯 After global filtering:", {
+        originalLength: uploadedData.length,
+        filteredLength: filteredData.length,
+        appliedFilters: globalFilterValues,
+      });
+    }
+
+    // Apply date filter
+    if (dateFilter !== "all" && filteredData.length > 0) {
       console.log("🗓️ Date filtering:", {
         dateFilter,
         originalDataLength: uploadedData.length,
+        filteredDataLength: filteredData.length, // ใช้ filteredData แทน uploadedData
+        sampleDataDate: filteredData[0]?.DataDate, // ใช้ filteredData แทน uploadedData
       });
 
       if (dateFilter.startsWith("month-")) {
         // Filter for specific month-end date
         const selectedDate = dateFilter.replace("month-", "");
-        filteredData = uploadedData.filter((row) => {
+        console.log("🗓️ Filtering for date:", selectedDate);
+
+        // ✅ ใช้ filteredData แทนที่จะใช้ uploadedData
+        filteredData = filteredData.filter((row) => {
           // Extract date part from ISO datetime string (YYYY-MM-DD)
           const dataDateOnly = row.DataDate ? row.DataDate.split("T")[0] : "";
           // Extract year-month from both dates for comparison
           const selectedYearMonth = selectedDate.substring(0, 7); // "2025-07"
           const dataYearMonth = dataDateOnly.substring(0, 7); // "2025-07"
+
+          console.log("🗓️ Date comparison:", {
+            selectedYearMonth,
+            dataYearMonth,
+            dataDateOnly,
+            selectedDate,
+            match: dataYearMonth === selectedYearMonth,
+          });
+
           return dataYearMonth === selectedYearMonth;
         });
         console.log(
           `✅ Filtering for month: ${selectedDate.substring(0, 7)}, found ${
             filteredData.length
-          } rows`
+          } rows (from ${filteredData.length} after global filters)`
         );
       }
 
-      console.log("🗓️ Filtered data length:", filteredData.length);
+      console.log("🗓️ Final filtered data length:", filteredData.length);
+    } else {
+      console.log("🗓️ No date filtering applied, using globally filtered data");
     }
 
     // Calculate widget height based on layout
@@ -675,7 +762,7 @@ export default function DashboardViewer({
             <div className="text-center text-gray-500">
               <div className="text-2xl mb-2">🔧</div>
               <p className="text-sm">
-                Widget type "{widget.type}" not supported yet
+                Widget type &quot;{widget.type}&quot; not supported yet
               </p>
             </div>
           </div>
@@ -686,28 +773,7 @@ export default function DashboardViewer({
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-2xl animate-pulse mb-4">📊</div>
-          <p className="text-gray-600 mb-2">
-            Loading dashboard configuration...
-          </p>
-          {dataLoading && (
-            <div className="mt-4">
-              <p className="text-sm text-blue-600 mb-2">
-                Loading all {10726} records for accurate calculations...
-              </p>
-              <div className="w-64 bg-gray-200 rounded-full h-2 mx-auto">
-                <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${processingProgress}%` }}
-                ></div>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                This may take a moment for accuracy
-              </p>
-            </div>
-          )}
-        </div>
+        <LoadingSpinner />
       </div>
     );
   }
@@ -740,63 +806,223 @@ export default function DashboardViewer({
     );
   }
 
-  if (!manifest) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-2xl mb-4">📊</div>
-          <p className="text-gray-600">Dashboard manifest not loaded</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="h-full p-6 space-y-4">
-      {/* User Filters */}
-      {manifest?.userFilters && (
-        <UserFilters
-          filters={manifest.userFilters}
-          values={userFilterValues}
-          onChange={(filterId, value) => {
-            setUserFilterValues((prev) => ({
-              ...prev,
-              [filterId]: value,
-            }));
-          }}
-        />
-      )}
+      {/* Global Filters - Show only if configured in manifest */}
+      {(() => {
+        const hasData = uploadedData.length > 0;
+        const hasGlobalFilters =
+          manifest?.globalFilters && manifest.globalFilters.length > 0;
+        const shouldShow = hasData && hasGlobalFilters;
 
-      {/* Date Filter */}
-      {uploadedData.length > 0 && (
+        console.log("🎯 Global Filters Debug:", {
+          hasData,
+          uploadedDataLength: uploadedData.length,
+          hasManifest: !!manifest,
+          globalFilters: manifest?.globalFilters,
+          hasGlobalFilters,
+          shouldShow,
+          manifestSchemaVersion: manifest?.schemaVersion,
+        });
+
+        return shouldShow;
+      })() && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-3 mb-4">
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              📅 Filter by Date:
-            </label>
-            <select
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="all">All Dates</option>
-              {generateMonthEndDates().map((monthData, index) => (
-                <option key={index} value={`month-${monthData.value}`}>
-                  {monthData.label}
-                </option>
-              ))}
-            </select>
-            {dateFilter !== "all" && (
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                Single month selected
-              </span>
+          <div className="flex items-center gap-4 flex-wrap">
+            {manifest?.globalFilters?.map((filter, index) => {
+              if (filter.type === "date") {
+                // Date Filter
+                return (
+                  <div key={index} className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      📅 {filter.label || "Filter by Date"}:
+                    </label>
+                    <select
+                      value={dateFilter}
+                      onChange={(e) => setDateFilter(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="all">All Dates</option>
+                      {generateMonthEndDates().map((monthData, index) => (
+                        <option key={index} value={`month-${monthData.value}`}>
+                          {monthData.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              } else if (filter.type === "dropdown" && filter.field) {
+                // Dropdown Filter (Corp, Branch, etc.) with dependent filtering
+                let availableData = uploadedData;
+                const filterField = filter.field;
+
+                // Apply dependent filtering for Branch based on Corp selection
+                if (
+                  filterField === "Branch" &&
+                  globalFilterValues["Corp"]?.length > 0
+                ) {
+                  // Filter data to only show branches for selected corporations
+                  availableData = uploadedData.filter((row) =>
+                    globalFilterValues["Corp"].includes(row["Corp"])
+                  );
+                  console.log("🏪 Filtered Branch options based on Corp:", {
+                    selectedCorp: globalFilterValues["Corp"],
+                    originalBranches: [
+                      ...new Set(
+                        uploadedData.map((row) => row["Branch"]).filter(Boolean)
+                      ),
+                    ].length,
+                    filteredBranches: [
+                      ...new Set(
+                        availableData
+                          .map((row) => row["Branch"])
+                          .filter(Boolean)
+                      ),
+                    ].length,
+                  });
+                }
+
+                const uniqueValues = [
+                  ...new Set(
+                    availableData.map((row) => row[filterField]).filter(Boolean)
+                  ),
+                ].sort();
+
+                const selectedValues = globalFilterValues[filterField] || [];
+
+                // Clear Branch selection if Corp changes and selected branches are no longer valid
+                if (filterField === "Branch") {
+                  const validBranches = selectedValues.filter(
+                    (branch: string) => uniqueValues.includes(branch)
+                  );
+                  if (validBranches.length !== selectedValues.length) {
+                    // Auto-clear invalid branch selections
+                    setTimeout(() => {
+                      setGlobalFilterValues((prev) => ({
+                        ...prev,
+                        [filterField]: validBranches,
+                      }));
+                    }, 0);
+                  }
+                }
+
+                return (
+                  <div key={index} className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {filter.field === "Corp"
+                        ? "🏢"
+                        : filter.field === "Branch"
+                        ? "🏪"
+                        : "📋"}{" "}
+                      {filter.label || filter.field}:
+                    </label>
+                    <div className="relative">
+                      <MultiSelectDropdown
+                        options={uniqueValues.map((value) => ({
+                          label: value,
+                          value,
+                        }))}
+                        selectedValues={selectedValues}
+                        onChange={(newValues) => {
+                          setGlobalFilterValues((prev) => ({
+                            ...prev,
+                            [filterField]: newValues,
+                          }));
+                        }}
+                        placeholder={`เลือก ${filter.label || filterField}`}
+                        className="min-w-[180px] max-w-[250px]"
+                      />
+                    </div>
+                  </div>
+                );
+              }
+
+              return null;
+            })}
+
+            {/* Clear all filters button */}
+            {(dateFilter !== "all" ||
+              Object.keys(globalFilterValues).some(
+                (key) => globalFilterValues[key]?.length > 0
+              )) && (
+              <button
+                onClick={() => {
+                  setDateFilter("all");
+                  setGlobalFilterValues({});
+                }}
+                className="px-3 py-2 text-xs bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors"
+              >
+                🗑️ Clear All
+              </button>
             )}
           </div>
         </div>
       )}
 
-      {/* Show upload prompt if no data */}
-      {uploadedData.length === 0 && (
+      {/* Temporary Debug Info - Remove after testing */}
+      {process.env.NODE_ENV === "production" && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 text-xs">
+          <strong>Debug Info:</strong>
+          <br />
+          Data: {uploadedData.length} rows
+          <br />
+          Manifest: {manifest ? "✅" : "❌"}
+          <br />
+          GlobalFilters:{" "}
+          {manifest?.globalFilters
+            ? `${manifest.globalFilters.length} filters`
+            : "None"}
+          <br />
+          Date Filter:{" "}
+          {manifest?.globalFilters?.some((f) => f.type === "date")
+            ? "✅ Found"
+            : "❌ Missing"}
+          <br />
+          Dropdown Filters:{" "}
+          {manifest?.globalFilters?.filter((f) => f.type === "dropdown")
+            .length || 0}
+          <br />
+          Should Show:{" "}
+          {uploadedData.length > 0 && manifest?.globalFilters?.length
+            ? "✅"
+            : "❌"}
+          <br />
+          Current Date Filter: &quot;{dateFilter}&quot;
+          <br />
+          Current Global Filters: {JSON.stringify(globalFilterValues)}
+          <br />
+          Sample Data Date:{" "}
+          {uploadedData.length > 0 ? uploadedData[0]?.DataDate : "No data"}
+          <br />
+          Available Corp:{" "}
+          {uploadedData.length > 0
+            ? [...new Set(uploadedData.map((r) => r.Corp))]
+                .slice(0, 3)
+                .join(", ")
+            : "None"}
+          <br />
+          Available Branch:{" "}
+          {uploadedData.length > 0
+            ? [...new Set(uploadedData.map((r) => r.Branch))]
+                .slice(0, 3)
+                .join(", ")
+            : "None"}
+        </div>
+      )}
+
+      {/* Show loading screen when data is being loaded */}
+      {dataLoading && (
+        <LoadingSpinner
+          size="lg"
+          text="Loading data..."
+          progress={processingProgress}
+          showProgress={true}
+          className="mb-4"
+        />
+      )}
+
+      {/* Show upload prompt if no data and not loading */}
+      {uploadedData.length === 0 && !dataLoading && (
         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4 text-center">
           <div className="text-blue-600 dark:text-blue-400 mb-2">
             📊 No data uploaded yet
@@ -845,7 +1071,7 @@ export default function DashboardViewer({
 
       {/* Mobile Dashboard Layout */}
       <div className="block md:hidden">
-        <div className="space-y-3">
+        <div className="space-y-6">
           {convertToMobileLayout(
             manifest?.widgets || [],
             manifest?.layout?.rowHeight || 50
@@ -870,7 +1096,7 @@ export default function DashboardViewer({
       </div>
 
       {/* Layout Debug Info (Development only) */}
-      {process.env.NODE_ENV === "development" && (
+      {process.env.NODE_ENV === "production" && (
         <div className="mt-8 space-y-4">
           {/* Current Layout Analysis */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

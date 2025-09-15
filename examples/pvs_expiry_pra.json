@@ -3,7 +3,7 @@
   "dashboardId": "pvs-co-ltd-inventory-aging-report",
   "dashboardName": "PVS Inventory Aging Analysis",
   "description": "Clean dashboard with updated data structure",
-  "version": 8,
+  "version": 1,
 
   "theme": {
     "dark": true,
@@ -86,82 +86,57 @@
     { "as": "TotalValueRow", "expr": "QtySafe * CostSafe" },
     {
       "as": "Qty_0_90_row",
-      "expr": "case(AgeBucket = '0-90', QtySafe, true, 0)"
+      "expr": "case(AgeBucket == '0-90', QtySafe, true, 0)"
     },
     {
       "as": "Val_0_90_row",
-      "expr": "case(AgeBucket = '0-90', TotalValueRow, true, 0)"
+      "expr": "case(AgeBucket == '0-90', TotalValueRow, true, 0)"
     },
     {
       "as": "Qty_91_180_row",
-      "expr": "case(AgeBucket = '91-180', QtySafe, true, 0)"
+      "expr": "case(AgeBucket == '91-180', QtySafe, true, 0)"
     },
     {
       "as": "Val_91_180_row",
-      "expr": "case(AgeBucket = '91-180', TotalValueRow, true, 0)"
+      "expr": "case(AgeBucket == '91-180', TotalValueRow, true, 0)"
     },
     {
       "as": "Qty_181_365_row",
-      "expr": "case(AgeBucket = '181-365', QtySafe, true, 0)"
+      "expr": "case(AgeBucket == '181-365', QtySafe, true, 0)"
     },
     {
       "as": "Val_181_365_row",
-      "expr": "case(AgeBucket = '181-365', TotalValueRow, true, 0)"
+      "expr": "case(AgeBucket == '181-365', TotalValueRow, true, 0)"
     },
     {
       "as": "Qty_365_plus_row",
-      "expr": "case(AgeBucket = '>365', QtySafe, true, 0)"
+      "expr": "case(AgeBucket == '>365', QtySafe, true, 0)"
     },
     {
       "as": "Val_365_plus_row",
-      "expr": "case(AgeBucket = '>365', TotalValueRow, true, 0)"
+      "expr": "case(AgeBucket == '>365', TotalValueRow, true, 0)"
+    },
+    {
+      "as": "AgeBucketDebug",
+      "expr": "AgeBucket + ' (Days:' + DaysAge + ')'"
     }
   ],
 
   "globalFilters": [
     {
+      "type": "date",
       "field": "DataDate",
-      "op": ">=",
-      "value": "addMonths(endOfMonth(today()), -6)",
-      "description": "ตั้งแต่สิ้นเดือนที่ 6 เดือนย้อนหลัง"
+      "label": "Filter by Date"
     },
     {
-      "field": "DataDate",
-      "op": "<=",
-      "value": "endOfMonth(today())",
-      "description": "จนถึงสิ้นเดือนปัจจุบัน"
-    }
-  ],
-
-  "userFilters": [
-    {
-      "id": "period-filter",
-      "field": "DataDate",
-      "label": "ช่วงเวลาข้อมูล",
-      "type": "select",
-      "defaultValue": "last_7_months",
-      "options": [
-        {
-          "label": "7 เดือนล่าสุด (ปัจจุบัน + ย้อนหลัง 6 เดือน)",
-          "value": "last_7_months",
-          "filter": null
-        },
-        {
-          "label": "ทุกข้อมูล (ไม่กรอง)",
-          "value": "all_data",
-          "filter": null
-        }
-      ]
+      "type": "dropdown",
+      "field": "Corp",
+      "label": "เลือกบริษัท"
     },
     {
-      "id": "month-filter",
-      "field": "DataDate",
-      "label": "เลือกเดือนเฉพาะ",
-      "type": "month-end-dropdown",
-      "defaultValue": "all",
-      "description": "เลือกข้อมูลเฉพาะเดือนสิ้นเดือน",
-      "monthsBack": 6,
-      "autoGenerate": true
+      "type": "dropdown",
+      "field": "Branch",
+      "label": "เลือกสาขา"
     }
   ],
 
@@ -229,16 +204,48 @@
       "title": "Inventory Aging Summary by Product",
       "dataSource": "uploaded-xml",
       "query": {
-        "groupBy": ["Corp", "Branch", "Prod", "UnitName"],
+        "groupBy": ["Prod", "UnitName"],
         "measures": [
-          { "field": "Qty_0_90_row", "agg": "sum", "as": "Qty_0_90" },
-          { "field": "Val_0_90_row", "agg": "sum", "as": "Val_0_90" },
-          { "field": "Qty_91_180_row", "agg": "sum", "as": "Qty_91_180" },
-          { "field": "Val_91_180_row", "agg": "sum", "as": "Val_91_180" },
-          { "field": "Qty_181_365_row", "agg": "sum", "as": "Qty_181_365" },
-          { "field": "Val_181_365_row", "agg": "sum", "as": "Val_181_365" },
-          { "field": "Qty_365_plus_row", "agg": "sum", "as": "Qty_365_plus" },
-          { "field": "Val_365_plus_row", "agg": "sum", "as": "Val_365_plus" },
+          {
+            "expr": "sum(iif(AgeBucket=='0-90', QtyFromThisDoc, 0))",
+            "agg": "sum",
+            "as": "Qty_0_90"
+          },
+          {
+            "expr": "sum(iif(AgeBucket=='0-90', TotalValueRow, 0))",
+            "agg": "sum",
+            "as": "Val_0_90"
+          },
+          {
+            "expr": "sum(iif(AgeBucket=='91-180', QtyFromThisDoc, 0))",
+            "agg": "sum",
+            "as": "Qty_91_180"
+          },
+          {
+            "expr": "sum(iif(AgeBucket=='91-180', TotalValueRow, 0))",
+            "agg": "sum",
+            "as": "Val_91_180"
+          },
+          {
+            "expr": "sum(iif(AgeBucket=='181-365', QtyFromThisDoc, 0))",
+            "agg": "sum",
+            "as": "Qty_181_365"
+          },
+          {
+            "expr": "sum(iif(AgeBucket=='181-365', TotalValueRow, 0))",
+            "agg": "sum",
+            "as": "Val_181_365"
+          },
+          {
+            "expr": "sum(iif(AgeBucket=='>365', QtyFromThisDoc, 0))",
+            "agg": "sum",
+            "as": "Qty_365_plus"
+          },
+          {
+            "expr": "sum(iif(AgeBucket=='>365', TotalValueRow, 0))",
+            "agg": "sum",
+            "as": "Val_365_plus"
+          },
           { "field": "TotalValueRow", "agg": "sum", "as": "TotalValue" },
           { "field": "QtyFromThisDoc", "agg": "sum", "as": "TotalQty" }
         ],
@@ -271,7 +278,6 @@
           }
         },
         "stickyHeader": true,
-        "stickyFirstColumns": 4,
         "horizontalScroll": true,
         "pageSize": 25,
         "pageSizeOptions": [10, 25, 50, 100],
@@ -279,7 +285,7 @@
         "columnGroups": [
           {
             "title": "Product Info",
-            "columns": ["Corp", "Branch", "Prod", "UnitName"]
+            "columns": ["Prod", "UnitName"]
           },
           {
             "title": "Total",
@@ -304,8 +310,6 @@
         ],
 
         "columnLabels": {
-          "Corp": "บริษัท",
-          "Branch": "สาขา",
           "Prod": "สินค้า",
           "UnitName": "หน่วย",
           "TotalQty": "Quantity",
@@ -347,8 +351,6 @@
         },
 
         "columnWidths": {
-          "Corp": 120,
-          "Branch": 100,
           "Prod": 200,
           "UnitName": 80,
           "TotalQty": 100,
@@ -363,7 +365,7 @@
           "Val_365_plus": 110
         },
 
-        "showTotalsRow": true,
+        "showTotalsRow": false,
         "totalsAgg": {
           "Qty_0_90": "sum",
           "Val_0_90": "sum",
@@ -409,6 +411,7 @@
           "AverageCost",
           "DaysAge",
           "AgeBucket",
+          "AgeBucketDebug",
           "TotalValueRow"
         ],
         "sort": [{ "field": "Prod", "dir": "asc" }]
@@ -443,7 +446,6 @@
           "freezeCols": 3
         },
         "stickyHeader": true,
-        "stickyFirstColumns": 3,
         "pageSize": 50,
         "pageSizeOptions": [25, 50, 100, 200, 500],
 
@@ -467,7 +469,7 @@
           },
           {
             "title": "Age Calculation",
-            "columns": ["DaysAge", "AgeBucket"]
+            "columns": ["DaysAge", "AgeBucket", "AgeBucketDebug"]
           }
         ],
 
@@ -484,6 +486,7 @@
           "AverageCost": "Unit Cost",
           "DaysAge": "Days Age",
           "AgeBucket": "Age Bucket",
+          "AgeBucketDebug": "Age Debug",
           "TotalValueRow": "Total Value"
         },
 
@@ -496,7 +499,7 @@
           "DaysAge": "days"
         },
 
-        "showTotalsRow": true,
+        "showTotalsRow": false,
         "totalsAgg": {
           "QtyFromThisDoc": "sum",
           "TotalValueRow": "sum"
@@ -515,7 +518,8 @@
           "AverageCost": 120,
           "TotalValueRow": 130,
           "DaysAge": 80,
-          "AgeBucket": 100
+          "AgeBucket": 100,
+          "AgeBucketDebug": 150
         },
 
         "columnAlignment": {
@@ -559,14 +563,14 @@
       {
         "widgetId": "table-summary-by-product",
         "x": 0,
-        "y": 3,
+        "y": 4,
         "width": 12,
         "height": 10
       },
       {
         "widgetId": "table-raw-aging-matrix",
         "x": 0,
-        "y": 13,
+        "y": 16,
         "width": 12,
         "height": 10
       }

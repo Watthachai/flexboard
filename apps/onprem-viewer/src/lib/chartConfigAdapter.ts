@@ -2,6 +2,7 @@
  * Chart Config Adapter
  * Converts dashboard config to Recharts-compatible format
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import {
   processDataWithManifest,
