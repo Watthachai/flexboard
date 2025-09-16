@@ -21,7 +21,7 @@ export interface DashboardManifest {
   dataSources: any[];
   transforms?: { as: string; expr: string }[];
   globalFilters?: Array<{
-    type: "date" | "dropdown" | "search" | "monthYearPicker";
+    type: "date" | "dropdown" | "search" | "monthYearPicker" | "dateRange";
     field?: string;
     label?: string;
     options?: any[];
@@ -29,6 +29,8 @@ export interface DashboardManifest {
       startYear?: number;
       endYear?: number;
       defaultValue?: string;
+      startDateLabel?: string;
+      endDateLabel?: string;
     };
   }>;
 }

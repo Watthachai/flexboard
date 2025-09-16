@@ -124,16 +124,6 @@
 
   "globalFilters": [
     {
-      "type": "monthYearPicker",
-      "field": "DataDate",
-      "label": "Filter by Date",
-      "config": {
-        "startYear": 2000,
-        "endYear": 2025,
-        "defaultValue": "all"
-      }
-    },
-    {
       "type": "dropdown",
       "field": "Corp",
       "label": "เลือกบริษัท"
@@ -142,6 +132,16 @@
       "type": "dropdown",
       "field": "Branch",
       "label": "เลือกสาขา"
+    },
+    {
+      "type": "dateRange",
+      "field": "DataDate",
+      "label": "ช่วงวันที่",
+      "config": {
+        "startDateLabel": "ตั้งแต่",
+        "endDateLabel": "จนถึง",
+        "defaultValue": "all"
+      }
     }
   ],
 

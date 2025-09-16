@@ -26,6 +26,7 @@ import RealTableWidget from "./charts/RealTableWidget";
 import AdvancedTableWidget from "../../components/AdvancedTableWidget";
 import LoadingSpinner from "./ui/LoadingSpinner";
 import MonthYearPicker from "./ui/MonthYearPicker";
+import DateRangePicker from "./DateRangePicker";
 import {
   validateAndFixLayout,
   convertToMobileLayout,
@@ -165,7 +166,7 @@ interface DashboardManifest {
   transforms?: any[]; // Add optional transforms property
   formatters?: Record<string, any>; // Add optional formatters property
   globalFilters?: Array<{
-    type: "date" | "dropdown" | "search" | "monthYearPicker";
+    type: "date" | "dropdown" | "search" | "monthYearPicker" | "dateRange";
     field?: string;
     label?: string;
     options?: any[];
@@ -173,6 +174,8 @@ interface DashboardManifest {
       startYear?: number;
       endYear?: number;
       defaultValue?: string;
+      startDateLabel?: string;
+      endDateLabel?: string;
     };
   }>; // Add globalFilters property
 }
@@ -234,6 +237,10 @@ export default function DashboardViewer({
     Record<string, string>
   >({});
   const [dateFilter, setDateFilter] = useState<string>("all"); // New date filter state
+  const [dateRangeFilter, setDateRangeFilter] = useState<{
+    startDate: string;
+    endDate: string;
+  } | null>(null); // Date range filter state
   const [globalFilterValues, setGlobalFilterValues] = useState<
     Record<string, any>
   >({}); // New global filter state for Corp, Branch, etc.
@@ -675,6 +682,45 @@ export default function DashboardViewer({
       console.log("🗓️ No date filtering applied, using globally filtered data");
     }
 
+    // Apply date range filter
+    if (dateRangeFilter && dateRangeFilter.startDate && dateRangeFilter.endDate && filteredData.length > 0) {
+      console.log("📅 Date range filtering:", {
+        startDate: dateRangeFilter.startDate,
+        endDate: dateRangeFilter.endDate,
+        originalDataLength: filteredData.length,
+      });
+
+      const startDate = new Date(dateRangeFilter.startDate);
+      const endDate = new Date(dateRangeFilter.endDate);
+      
+      // Set time to start and end of day for accurate comparison
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(23, 59, 59, 999);
+
+      filteredData = filteredData.filter((row) => {
+        const dataDateStr = row.DataDate ? row.DataDate.split("T")[0] : "";
+        if (!dataDateStr) return false;
+        
+        const dataDate = new Date(dataDateStr);
+        dataDate.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
+        
+        const isInRange = dataDate >= startDate && dataDate <= endDate;
+        
+        console.log("📅 Date range comparison:", {
+          dataDate: dataDateStr,
+          startDate: dateRangeFilter.startDate,
+          endDate: dateRangeFilter.endDate,
+          isInRange,
+        });
+
+        return isInRange;
+      });
+
+      console.log(`✅ Date range filtering complete: ${filteredData.length} rows match the range ${dateRangeFilter.startDate} to ${dateRangeFilter.endDate}`);
+    } else {
+      console.log("📅 No date range filtering applied");
+    }
+
     // Calculate widget height based on layout
     const widgetHeight =
       widget.layout.height * (manifest?.layout?.rowHeight || 50);
@@ -927,6 +973,26 @@ export default function DashboardViewer({
                         startYear={autoStartYear}
                         endYear={autoEndYear}
                         className="min-w-[160px]"
+                      />
+                    </div>
+                  </div>
+                );
+              } else if (filter.type === "dateRange") {
+                // Date Range Filter
+                return (
+                  <div key={index} className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      📅 {filter.label || "ช่วงวันที่"}:
+                    </label>
+                    <div className="relative">
+                      <DateRangePicker
+                        value={dateRangeFilter}
+                        onChange={(value) => setDateRangeFilter(value)}
+                        startDateLabel={
+                          filter.config?.startDateLabel || "ตั้งแต่"
+                        }
+                        endDateLabel={filter.config?.endDateLabel || "จนถึง"}
+                        className="min-w-[200px]"
                       />
                     </div>
                   </div>
