@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Manifest Sync Service - Handles dashboard configuration synchronization
  */
@@ -19,6 +20,17 @@ export interface DashboardManifest {
   widgets: any[];
   dataSources: any[];
   transforms?: { as: string; expr: string }[];
+  globalFilters?: Array<{
+    type: "date" | "dropdown" | "search" | "monthYearPicker";
+    field?: string;
+    label?: string;
+    options?: any[];
+    config?: {
+      startYear?: number;
+      endYear?: number;
+      defaultValue?: string;
+    };
+  }>;
 }
 
 export interface SyncConfig {
@@ -270,8 +282,16 @@ class ManifestSyncService {
 
       const result = await response.json();
 
+      console.log("🔍 Raw API Response:", {
+        success: result.success,
+        hasData: !!result.data,
+        hasManifestContent: !!result.data?.manifestContent,
+        dataKeys: result.data ? Object.keys(result.data) : [],
+        manifestContentLength: result.data?.manifestContent?.length || 0,
+      });
+
       if (result.success && result.data) {
-        // Parse manifestContent if it exists
+        // Parse manifestContent if it exists (Firebase format)
         let manifestData = result.data;
         if (result.data.manifestContent) {
           try {
@@ -279,11 +299,62 @@ class ManifestSyncService {
             console.log("📋 Parsed manifestContent successfully:", {
               hasTransforms: !!parsedManifest.transforms,
               transformsLength: parsedManifest.transforms?.length || 0,
+              hasGlobalFilters: !!parsedManifest.globalFilters,
+              globalFiltersLength: parsedManifest.globalFilters?.length || 0,
+              globalFilters: parsedManifest.globalFilters,
             });
             manifestData = parsedManifest;
           } catch (error) {
             console.error("Failed to parse manifestContent:", error);
             // Fall back to using result.data as-is
+          }
+        } else {
+          // Direct API format - data is already in the right structure
+          console.log("📋 Using direct API format:", {
+            hasTransforms: !!manifestData.transforms,
+            transformsLength: manifestData.transforms?.length || 0,
+            hasGlobalFilters: !!manifestData.globalFilters,
+            globalFiltersLength: manifestData.globalFilters?.length || 0,
+            globalFilters: manifestData.globalFilters,
+          });
+
+          // If no globalFilters in direct API, try to fetch from Firebase
+          if (
+            !manifestData.globalFilters ||
+            manifestData.globalFilters.length === 0
+          ) {
+            try {
+              console.log(
+                "🔥 Trying to fetch manifestContent from Firebase..."
+              );
+              const firebaseUrl = `${config.controlPlaneUrl}/api/tenants/${config.tenantId}/dashboards/${dashboardId}/config/manifest`;
+              const firebaseResponse = await fetch(firebaseUrl, {
+                headers: {
+                  Authorization: `Bearer ${config.licenseKey}`,
+                  "Content-Type": "application/json",
+                },
+              });
+
+              if (firebaseResponse.ok) {
+                const firebaseResult = await firebaseResponse.json();
+                if (
+                  firebaseResult.success &&
+                  firebaseResult.data?.manifestContent
+                ) {
+                  const firebaseManifest = JSON.parse(
+                    firebaseResult.data.manifestContent
+                  );
+                  console.log(
+                    "🔥 Found globalFilters in Firebase:",
+                    firebaseManifest.globalFilters
+                  );
+                  manifestData.globalFilters =
+                    firebaseManifest.globalFilters || [];
+                }
+              }
+            } catch (firebaseError) {
+              console.log("🔥 Firebase fallback failed:", firebaseError);
+            }
           }
         }
 
@@ -303,7 +374,16 @@ class ManifestSyncService {
           widgets: manifestData.widgets || [],
           dataSources: manifestData.dataSources || [],
           transforms: manifestData.transforms || [], // Now correctly parsed from manifestContent
+          globalFilters: manifestData.globalFilters || [], // Include globalFilters from API
         };
+
+        console.log("📋 Final manifest object:", {
+          dashboardId: manifest.dashboardId,
+          hasGlobalFilters: !!manifest.globalFilters,
+          globalFiltersCount: manifest.globalFilters?.length || 0,
+          globalFilters: manifest.globalFilters,
+          manifestDataGlobalFilters: manifestData.globalFilters,
+        });
 
         console.log(`✅ Successfully fetched manifest for ${dashboardId}`);
         return { success: true, manifest };

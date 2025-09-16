@@ -1,9 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Advanced Table Widget with Dynamic Column Groups Support
  * Supports TanStack Table with hierarchical headers and dynamic configuration
  */
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 "use client";
 

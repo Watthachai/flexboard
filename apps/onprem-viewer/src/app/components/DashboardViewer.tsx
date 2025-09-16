@@ -25,6 +25,7 @@ import RealStackedBarChart from "./charts/RealStackedBarChart";
 import RealTableWidget from "./charts/RealTableWidget";
 import AdvancedTableWidget from "../../components/AdvancedTableWidget";
 import LoadingSpinner from "./ui/LoadingSpinner";
+import MonthYearPicker from "./ui/MonthYearPicker";
 import {
   validateAndFixLayout,
   convertToMobileLayout,
@@ -106,6 +107,7 @@ const adaptLayoutFromSchema = (config: any) => {
       ...config,
       widgets: adaptedWidgets,
       formatters: config.formatters, // ✅ Keep formatters from original config
+      globalFilters: config.globalFilters, // Use globalFilters from API
     };
 
     console.log("✅ adaptLayoutFromSchema result:", {
@@ -163,10 +165,15 @@ interface DashboardManifest {
   transforms?: any[]; // Add optional transforms property
   formatters?: Record<string, any>; // Add optional formatters property
   globalFilters?: Array<{
-    type: "date" | "dropdown" | "search";
+    type: "date" | "dropdown" | "search" | "monthYearPicker";
     field?: string;
     label?: string;
     options?: any[];
+    config?: {
+      startYear?: number;
+      endYear?: number;
+      defaultValue?: string;
+    };
   }>; // Add globalFilters property
 }
 
@@ -298,9 +305,47 @@ export default function DashboardViewer({
         }
         */
 
-        // Load manifest directly from JSON file to get globalFilters
+        // Try to load from manifest API first
         try {
-          console.log("🔧 Loading manifest directly from JSON file...");
+          console.log("� Loading manifest from API...");
+          const result = await manifestSyncService.fetchDashboardManifest(
+            dashboardId
+          );
+
+          if (result.success && result.manifest) {
+            console.log("✅ Loaded manifest from API:", {
+              dashboardId,
+              schemaVersion: result.manifest.schemaVersion,
+              version: result.manifest.version,
+              dashboardName: result.manifest.dashboardName,
+              widgetCount: result.manifest.widgets?.length,
+              firstWidget: result.manifest.widgets?.[0],
+              rawManifest: result.manifest,
+            });
+
+            // Adapt layout from new schema format to old format
+            const adaptedManifest = adaptLayoutFromSchema(result.manifest);
+            setManifest(adaptedManifest);
+            return;
+          } else {
+            console.log("❌ API manifest failed:", result.error);
+            throw new Error(
+              `Failed to load manifest from API: ${
+                result.error || "Unknown error"
+              }`
+            );
+          }
+        } catch (err) {
+          console.log("❌ API manifest error:", err);
+          throw new Error(
+            `Failed to load manifest from API: ${
+              err instanceof Error ? err.message : "Unknown error"
+            }`
+          );
+        }
+
+        try {
+          console.log("� Loading manifest directly from JSON file...");
           const directResponse = await fetch(`/pvs_expiry_pra.json`);
 
           if (directResponse.ok) {
@@ -326,33 +371,8 @@ export default function DashboardViewer({
           console.log("⚠️ Direct JSON loading failed:", directError);
         }
 
-        // Fallback to original manifest API
-        const result = await manifestSyncService.fetchDashboardManifest(
-          dashboardId
-        );
-
-        if (result.success && result.manifest) {
-          console.log("🔍 Loaded manifest from API:", {
-            dashboardId,
-            schemaVersion: result.manifest.schemaVersion,
-            version: result.manifest.version,
-            dashboardName: result.manifest.dashboardName,
-            widgetCount: result.manifest.widgets?.length,
-            firstWidget: result.manifest.widgets?.[0],
-            globalFilters: result.manifest.globalFilters,
-            hasGlobalFilters: !!result.manifest.globalFilters,
-            globalFiltersLength: result.manifest.globalFilters?.length || 0,
-            rawManifest: result.manifest,
-          });
-
-          // Adapt layout from new schema format to old format
-          const adaptedManifest = adaptLayoutFromSchema(result.manifest);
-          setManifest(adaptedManifest);
-        } else {
-          throw new Error(
-            result.error || "Failed to load dashboard configuration"
-          );
-        }
+        // If all else fails, throw error
+        throw new Error("Unable to load manifest from API or fallback sources");
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to load dashboard"
@@ -596,10 +616,34 @@ export default function DashboardViewer({
         sampleDataDate: filteredData[0]?.DataDate, // ใช้ filteredData แทน uploadedData
       });
 
-      if (dateFilter.startsWith("month-")) {
-        // Filter for specific month-end date
+      // Handle new YYYY-MM format from MonthYearPicker
+      if (dateFilter.match(/^\d{4}-\d{2}$/)) {
+        // New format: "2024-09"
+        const selectedYearMonth = dateFilter; // "2024-09"
+        console.log("🗓️ Filtering for year-month:", selectedYearMonth);
+
+        filteredData = filteredData.filter((row) => {
+          // Extract date part from ISO datetime string (YYYY-MM-DD)
+          const dataDateOnly = row.DataDate ? row.DataDate.split("T")[0] : "";
+          // Extract year-month from data date
+          const dataYearMonth = dataDateOnly.substring(0, 7); // "2024-09"
+
+          console.log("🗓️ Date comparison:", {
+            selectedYearMonth,
+            dataYearMonth,
+            dataDateOnly,
+            match: dataYearMonth === selectedYearMonth,
+          });
+
+          return dataYearMonth === selectedYearMonth;
+        });
+        console.log(
+          `✅ Filtering for year-month: ${selectedYearMonth}, found ${filteredData.length} rows`
+        );
+      } else if (dateFilter.startsWith("month-")) {
+        // Legacy format: "month-2024-09-30" (for backward compatibility)
         const selectedDate = dateFilter.replace("month-", "");
-        console.log("🗓️ Filtering for date:", selectedDate);
+        console.log("🗓️ Filtering for legacy date:", selectedDate);
 
         // ✅ ใช้ filteredData แทนที่จะใช้ uploadedData
         filteredData = filteredData.filter((row) => {
@@ -830,25 +874,61 @@ export default function DashboardViewer({
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-3 mb-4">
           <div className="flex items-center gap-4 flex-wrap">
             {manifest?.globalFilters?.map((filter, index) => {
-              if (filter.type === "date") {
-                // Date Filter
+              if (filter.type === "date" || filter.type === "monthYearPicker") {
+                // Auto-detect year range from actual data
+                let autoStartYear = filter.config?.startYear || 2000;
+                let autoEndYear =
+                  filter.config?.endYear || new Date().getFullYear();
+
+                if (uploadedData.length > 0) {
+                  // Extract years from actual data
+                  const dataYears = uploadedData
+                    .map((row) => {
+                      const dateStr = row.DataDate || row.DocDate;
+                      if (dateStr) {
+                        const year = new Date(dateStr).getFullYear();
+                        return isNaN(year) ? null : year;
+                      }
+                      return null;
+                    })
+                    .filter((year) => year !== null);
+
+                  if (dataYears.length > 0) {
+                    const minYear = Math.min(...dataYears);
+                    const maxYear = Math.max(...dataYears);
+
+                    // Use data range but ensure reasonable bounds
+                    autoStartYear = Math.min(
+                      minYear,
+                      filter.config?.startYear || 2000
+                    );
+                    autoEndYear = Math.max(maxYear, new Date().getFullYear());
+
+                    console.log("📅 Auto-detected year range:", {
+                      dataYears: dataYears.length,
+                      minYear,
+                      maxYear,
+                      autoStartYear,
+                      autoEndYear,
+                    });
+                  }
+                }
+
+                // Date Filter with MonthYearPicker
                 return (
                   <div key={index} className="flex items-center gap-2">
                     <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       📅 {filter.label || "Filter by Date"}:
                     </label>
-                    <select
-                      value={dateFilter}
-                      onChange={(e) => setDateFilter(e.target.value)}
-                      className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="all">All Dates</option>
-                      {generateMonthEndDates().map((monthData, index) => (
-                        <option key={index} value={`month-${monthData.value}`}>
-                          {monthData.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <MonthYearPicker
+                        value={dateFilter}
+                        onChange={(value) => setDateFilter(value)}
+                        startYear={autoStartYear}
+                        endYear={autoEndYear}
+                        className="min-w-[160px]"
+                      />
+                    </div>
                   </div>
                 );
               } else if (filter.type === "dropdown" && filter.field) {
