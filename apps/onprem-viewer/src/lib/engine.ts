@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
 import dayjs from "dayjs";
 
 // Debug flag
@@ -21,21 +20,6 @@ interface ReferenceTable {
 interface EngineContext {
   referenceTables?: Record<string, ReferenceTable>;
   settings?: Record<string, any>;
-}
-
-// Template variable replacement function
-function replaceTemplateVariables(
-  expr: string,
-  variables: Record<string, string>
-): string {
-  let result = expr;
-  for (const [variable, value] of Object.entries(variables)) {
-    // Replace ${variable} patterns
-    result = result.replace(new RegExp(`\\$\\{${variable}\\}`, "g"), value);
-    // Also support {{variable}} patterns
-    result = result.replace(new RegExp(`\\{\\{${variable}\\}\\}`, "g"), value);
-  }
-  return result;
 }
 
 export function coerceTypes(
@@ -683,27 +667,22 @@ function evaluateCondition(
 
       dlog(`comparison: ${leftValue} ${operator} ${rightValue}`);
 
-      // Normalize string values to prevent space/trim issues
-      const norm = (v: any) => (typeof v === "string" ? v.trim() : v);
-      const L = norm(leftValue);
-      const R = norm(rightValue);
-
       switch (operator) {
         case "<=":
-          return Number(L) <= Number(R);
+          return Number(leftValue) <= Number(rightValue);
         case ">=":
-          return Number(L) >= Number(R);
+          return Number(leftValue) >= Number(rightValue);
         case "<":
-          return Number(L) < Number(R);
+          return Number(leftValue) < Number(rightValue);
         case ">":
-          return Number(L) > Number(R);
+          return Number(leftValue) > Number(rightValue);
         case "=":
           // Support single equals as equality for DSL convenience
-          return L == R;
+          return leftValue == rightValue;
         case "==":
-          return L == R;
+          return leftValue == rightValue;
         case "!=":
-          return L != R;
+          return leftValue != rightValue;
       }
     }
 
@@ -862,26 +841,6 @@ export function groupAgg(
   dimensions: string[] | undefined,
   measures: any[]
 ) {
-  // RECOMMENDED TABLE MEASURES FIX:
-  // Instead of using pre-computed *_row fields, use expr with conditional aggregation
-  // Example for aging buckets:
-  // {
-  //   "groupBy": ["Prod", "UnitName"],
-  //   "measures": [
-  //     { "expr": "sum(iif(AgeBucket='0-90', QtyFromThisDoc, 0))", "agg": "sum", "as": "Qty_0_90" },
-  //     { "expr": "sum(iif(AgeBucket='0-90', TotalValueRow, 0))", "agg": "sum", "as": "Val_0_90" },
-  //     { "expr": "sum(iif(AgeBucket='91-180', QtyFromThisDoc, 0))", "agg": "sum", "as": "Qty_91_180" },
-  //     { "expr": "sum(iif(AgeBucket='91-180', TotalValueRow, 0))", "agg": "sum", "as": "Val_91_180" },
-  //     { "expr": "sum(iif(AgeBucket='181-365', QtyFromThisDoc, 0))", "agg": "sum", "as": "Qty_181_365" },
-  //     { "expr": "sum(iif(AgeBucket='181-365', TotalValueRow, 0))", "agg": "sum", "as": "Val_181_365" },
-  //     { "expr": "sum(iif(AgeBucket='>365', QtyFromThisDoc, 0))", "agg": "sum", "as": "Qty_365_plus" },
-  //     { "expr": "sum(iif(AgeBucket='>365', TotalValueRow, 0))", "agg": "sum", "as": "Val_365_plus" },
-  //     { "field": "TotalValueRow", "agg": "sum", "as": "TotalValue" },
-  //     { "field": "QtyFromThisDoc", "agg": "sum", "as": "TotalQty" }
-  //   ]
-  // }
-  // This ensures KPI and Table use the same logic and match exactly.
-
   // Debug logging disabled for performance
   // console.log("🔍 SUMMARY TABLE AGGREGATION START:", {
   //   rowsCount: rows.length,
@@ -1122,19 +1081,17 @@ export function processDataWithManifest(
   manifest: {
     referenceTables?: Record<string, ReferenceTable>;
     settings?: Record<string, any>;
-    variables?: Record<string, string>; // Template variables for field names
     transforms?: { as: string; expr: string }[];
     globalFilters?: Array<{
       field: string;
       op: string;
-      value: unknown;
+      value: any;
       description?: string;
     }>;
     dataSources?: Array<{
       id: string;
       fieldTypes?: Record<string, string>;
       dateParsing?: Record<string, string>;
-      fieldMapping?: Record<string, string>; // Map standard field names to actual column names
     }>;
   },
   dataSourceId: string = "uploaded-xml"
@@ -1165,42 +1122,6 @@ export function processDataWithManifest(
     firstRowKeys: processedData.length > 0 ? Object.keys(processedData[0]) : [],
     firstRowSample: processedData.length > 0 ? processedData[0] : null,
   });
-
-  // 2.5. Apply field mapping (rename columns to standard names)
-  if (dataSource?.fieldMapping) {
-    processedData = processedData.map((row) => {
-      const mappedRow = { ...row };
-      for (const [standardField, actualField] of Object.entries(
-        dataSource.fieldMapping as Record<string, string>
-      )) {
-        if (actualField in row) {
-          mappedRow[standardField] = row[actualField as string];
-          // Optional: remove original field
-          // delete mappedRow[actualField];
-        }
-      }
-      return mappedRow;
-    });
-    dlog("🏭 After field mapping:", {
-      mapping: dataSource.fieldMapping,
-      firstRowKeys:
-        processedData.length > 0 ? Object.keys(processedData[0]) : [],
-    });
-  }
-
-  // 2.7. Apply template variable replacement
-  let finalTransforms = manifest.transforms;
-  if (manifest.variables && manifest.transforms) {
-    finalTransforms = manifest.transforms.map((transform) => ({
-      ...transform,
-      expr: replaceTemplateVariables(transform.expr, manifest.variables!),
-    }));
-    dlog("🏭 After template variable replacement:", {
-      variables: manifest.variables,
-      originalTransforms: manifest.transforms.map((t) => t.expr),
-      replacedTransforms: finalTransforms.map((t) => t.expr),
-    });
-  }
 
   // 3. Apply transforms with context
   const context: EngineContext = {
