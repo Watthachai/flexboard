@@ -124,11 +124,6 @@
 
   "globalFilters": [
     {
-      "type": "date",
-      "field": "DataDate",
-      "label": "Filter by Date"
-    },
-    {
       "type": "dropdown",
       "field": "Corp",
       "label": "เลือกบริษัท"
@@ -137,6 +132,16 @@
       "type": "dropdown",
       "field": "Branch",
       "label": "เลือกสาขา"
+    },
+    {
+      "type": "dateRange",
+      "field": "DataDate",
+      "label": "ช่วงวันที่",
+      "config": {
+        "startDateLabel": "ตั้งแต่",
+        "endDateLabel": "จนถึง",
+        "defaultValue": "all"
+      }
     }
   ],
 
