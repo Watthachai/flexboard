@@ -124,9 +124,14 @@
 
   "globalFilters": [
     {
-      "type": "date",
+      "type": "monthYearPicker",
       "field": "DataDate",
-      "label": "Filter by Date"
+      "label": "Filter by Date",
+      "config": {
+        "startYear": 2000,
+        "endYear": 2025,
+        "defaultValue": "all"
+      }
     },
     {
       "type": "dropdown",

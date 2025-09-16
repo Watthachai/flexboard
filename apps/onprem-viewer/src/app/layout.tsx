@@ -28,7 +28,8 @@ export default function RootLayout({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if we have a saved session as fallback first
+    checkSession();
+    // Check if we have a saved session as fallback
     if (typeof window !== "undefined" && window.localStorage) {
       const savedSession = localStorage.getItem("userSession");
       if (savedSession) {
@@ -39,13 +40,10 @@ export default function RootLayout({
             sessionData.expiryDate &&
             new Date(sessionData.expiryDate) > new Date()
           ) {
-            console.log("✅ Using valid saved session from localStorage");
             setSession(sessionData);
             setLoading(false);
-            return; // Don't need to check server if we have valid local session
           } else {
             // Remove expired session
-            console.log("❌ Removing expired session from localStorage");
             localStorage.removeItem("userSession");
           }
         } catch (error) {
@@ -54,14 +52,10 @@ export default function RootLayout({
         }
       }
     }
-
-    // Only check server session if no valid local session found
-    checkSession();
   }, []);
 
   const checkSession = async () => {
     try {
-      console.log("🔍 Checking server session...");
       // Check Firebase session using HTTP-only cookies
       const response = await fetch("/api/auth/validate", {
         credentials: "include", // Include HTTP-only cookies
@@ -70,39 +64,22 @@ export default function RootLayout({
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.user && result.license) {
-          console.log("✅ Server session valid, updating local session");
-          const sessionData = {
+          setSession({
             email: result.user.email,
             tenantId: result.license.tenantId,
             companyName: result.license.companyName,
             features: result.license.features,
             expiryDate: result.license.expiryDate,
-          };
-          setSession(sessionData);
-
-          // Update localStorage with fresh server session
-          if (typeof window !== "undefined" && window.localStorage) {
-            localStorage.setItem("userSession", JSON.stringify(sessionData));
-          }
+          });
         } else {
-          console.log("⚠️ Server session invalid");
           setSession(null);
         }
       } else {
-        console.log(
-          `❌ Server session check failed: ${response.status} ${response.statusText}`
-        );
-        // Don't clear session on server errors, might be temporary
-        if (response.status !== 401) {
-          console.log("🔄 Keeping existing session due to server error");
-          return; // Keep existing session on non-401 errors
-        }
         setSession(null);
       }
     } catch (error) {
-      console.error("💥 Session check failed:", error);
-      // Don't clear session on network errors, might be temporary
-      console.log("🔄 Keeping existing session due to network error");
+      console.error("Session check failed:", error);
+      setSession(null);
     } finally {
       setLoading(false);
     }
