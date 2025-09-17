@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Real Pareto Chart with Recharts
  * Combination chart showing bars and cumulative line
@@ -26,6 +27,7 @@ interface RealParetoChartProps {
 export default function RealParetoChart({
   data,
   config,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   width = 400,
   height = 300,
 }: RealParetoChartProps) {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Real Stacked Bar Chart with Recharts
  * Supports multiple series stacking with category breakdown
@@ -38,6 +39,7 @@ const CHART_COLORS = [
 export default function RealStackedBarChart({
   data,
   config,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   width = 400,
   height = 300,
 }: RealStackedBarChartProps) {
@@ -202,6 +204,7 @@ function processStackedData(data: any[], query: any) {
   return result;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getStackKeys(data: any[], stackField?: string): string[] {
   if (!data.length) return [];
 

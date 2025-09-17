@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Enhanced Real Bar Chart with Recharts
  * Supports complex queries, data processing, and conditional formatting
@@ -26,7 +27,6 @@ interface RealBarChartProps {
 export default function RealBarChart({
   data,
   config,
-  width = 400,
   height = 300,
 }: RealBarChartProps) {
   // Use adaptedConfig if available, otherwise fallback to legacy processing
@@ -38,6 +38,7 @@ export default function RealBarChart({
     // Use processed config from chartConfigAdapter
     chartData = config.adaptedConfig.data;
     encoding = config.adaptedConfig.encoding || config.encoding || {};
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     title = config.adaptedConfig.title || title;
   } else {
     // Legacy processing for backward compatibility
@@ -282,6 +283,7 @@ function processBarData(data: any[], query: any) {
   return result;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function getBarColor(
   props: any,
   colorField?: string,

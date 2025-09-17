@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Enhanced Widget Renderer
  * Maps new schema widget types to appropriate chart components
@@ -21,7 +22,8 @@ interface WidgetRendererProps {
 }
 
 // Data processor to handle queries and transforms
-const processWidgetData = (widget: any, rawData: any[], config: any): any => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const processWidgetData = (widget: any, rawData: any[], config?: any): any => {
   if (!rawData.length) return { processedData: [], value: null };
 
   // For KPI widgets
