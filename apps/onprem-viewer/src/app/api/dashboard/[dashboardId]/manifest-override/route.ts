@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Local Manifest Override Route
  * Provides modified manifest without p            // Update field names to match PascalCase format (to work with JSON manifest)

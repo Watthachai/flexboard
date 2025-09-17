@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Stacked Bar Chart Component
  * Bar chart with multiple series stacked on top of each other
@@ -15,8 +16,6 @@ interface StackedBarChartProps {
 export default function StackedBarChart({
   data,
   config,
-  width = 400,
-  height = 300,
 }: StackedBarChartProps) {
   return (
     <div className="w-full h-full bg-white border rounded-lg p-4">

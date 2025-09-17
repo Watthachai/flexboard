@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 
@@ -45,11 +46,14 @@ export async function GET(req: Request) {
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-expect-error
     agingStats.forEach((row: any) => {
-      kpis[row.ageBucket] = {
-        qty: Number(row.totalQty),
-        value: Number(row.totalValue),
-        records: Number(row.recordCount),
-      };
+      const ageBucket = row.ageBucket as keyof typeof kpis;
+      if (ageBucket in kpis) {
+        kpis[ageBucket] = {
+          qty: Number(row.totalQty),
+          value: Number(row.totalValue),
+          records: Number(row.recordCount),
+        };
+      }
     });
 
     // Calculate totals

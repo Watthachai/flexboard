@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
 import {
   PieChart as RechartsPieChart,
@@ -5,7 +6,6 @@ import {
   Cell,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import { PieChart as PieChartIcon } from "lucide-react";
 import {

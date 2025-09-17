@@ -9,14 +9,13 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { manifestSyncService } from "../../services/manifestSync";
 import { localDataService } from "../../services/localDataService";
-import { generateMonthEndDates } from "../../lib/engine";
 import {
   adaptKPIWidget,
   adaptChartWidget,
   adaptTableWidget,
 } from "../../lib/chartConfigAdapter";
 import { MultiSelectDropdown } from "../../components/MultiSelectDropdown";
-import { BarChart, LineChart, PieChart, ActionBar } from "./charts";
+import { PieChart, ActionBar } from "./charts";
 import RealKPIWidget from "./charts/RealKPIWidget";
 import RealBarChart from "./charts/RealBarChart";
 import RealLineChart from "./charts/RealLineChart";
@@ -186,7 +185,9 @@ interface WidgetConfigValidation {
   missingColumns: string[];
 }
 
+//#!TODO: THIS อาจจะใช้ทีหลัง
 // Validate widget configurations against file columns
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const validateWidgetConfigs = (
   widgets: Widget[],
   fileColumns: string[]
@@ -230,12 +231,8 @@ export default function DashboardViewer({
   const [uploadedData, setUploadedData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
-  const [processingProgress, setProcessingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [screenWidth, setScreenWidth] = useState<number>(1200); // Default desktop width
-  const [userFilterValues, setUserFilterValues] = useState<
-    Record<string, string>
-  >({});
   const [dateFilter, setDateFilter] = useState<string>("all"); // New date filter state
   const [dateRangeFilter, setDateRangeFilter] = useState<{
     startDate: string;
@@ -429,9 +426,6 @@ export default function DashboardViewer({
       console.log("� Loading data from API...");
 
       try {
-        // Simulate initial progress
-        setProcessingProgress(10);
-
         // Try to load from API first - with ALL data for accuracy
         const apiData = await localDataService.fetchData({
           id: "uploaded-xml",
@@ -440,15 +434,10 @@ export default function DashboardViewer({
           method: "GET",
         });
 
-        setProcessingProgress(50);
-
         if (apiData && apiData.length > 0) {
           // Transform field names from snake_case to PascalCase
-          setProcessingProgress(70);
           const transformedData = transformDataToPascalCase(apiData);
-          setProcessingProgress(90);
           setUploadedData(transformedData);
-          setProcessingProgress(100);
 
           console.log("✅ Successfully loaded data from API:", {
             recordCount: transformedData.length,
@@ -461,19 +450,16 @@ export default function DashboardViewer({
           // Clear loading state immediately after successful API load
           setTimeout(() => {
             setDataLoading(false);
-            setProcessingProgress(0);
           }, 300);
           return;
         }
       } catch (error) {
         console.error("❌ Failed to load data from API:", error);
         console.log("🔄 Falling back to localStorage...");
-        setProcessingProgress(30);
       }
 
       // Fallback to localStorage
       try {
-        setProcessingProgress(40);
         const savedData = localStorage.getItem("uploadedData");
         const savedFileName = localStorage.getItem("uploadedFileName");
         const savedTimestamp = localStorage.getItem("uploadedDataTimestamp");
@@ -488,11 +474,8 @@ export default function DashboardViewer({
         });
 
         if (savedData) {
-          setProcessingProgress(60);
           const parsedData = JSON.parse(savedData);
-          setProcessingProgress(80);
           const transformedData = transformDataToPascalCase(parsedData);
-          setProcessingProgress(100);
           setUploadedData(transformedData);
 
           console.log("✅ Successfully loaded data from localStorage:", {
@@ -505,26 +488,21 @@ export default function DashboardViewer({
           // Clear loading state immediately after successful localStorage load
           setTimeout(() => {
             setDataLoading(false);
-            setProcessingProgress(0);
           }, 300);
         } else {
           console.log("⚠️ No data found in localStorage or API");
-          setProcessingProgress(100);
 
           // Clear loading state when no data found
           setTimeout(() => {
             setDataLoading(false);
-            setProcessingProgress(0);
           }, 300);
         }
       } catch (fallbackError) {
         console.error("❌ Failed to load fallback data:", fallbackError);
-        setProcessingProgress(100);
 
         // Clear loading state on error
         setTimeout(() => {
           setDataLoading(false);
-          setProcessingProgress(0);
         }, 300);
       }
     };
@@ -683,7 +661,12 @@ export default function DashboardViewer({
     }
 
     // Apply date range filter
-    if (dateRangeFilter && dateRangeFilter.startDate && dateRangeFilter.endDate && filteredData.length > 0) {
+    if (
+      dateRangeFilter &&
+      dateRangeFilter.startDate &&
+      dateRangeFilter.endDate &&
+      filteredData.length > 0
+    ) {
       console.log("📅 Date range filtering:", {
         startDate: dateRangeFilter.startDate,
         endDate: dateRangeFilter.endDate,
@@ -692,7 +675,7 @@ export default function DashboardViewer({
 
       const startDate = new Date(dateRangeFilter.startDate);
       const endDate = new Date(dateRangeFilter.endDate);
-      
+
       // Set time to start and end of day for accurate comparison
       startDate.setHours(0, 0, 0, 0);
       endDate.setHours(23, 59, 59, 999);
@@ -700,12 +683,12 @@ export default function DashboardViewer({
       filteredData = filteredData.filter((row) => {
         const dataDateStr = row.DataDate ? row.DataDate.split("T")[0] : "";
         if (!dataDateStr) return false;
-        
+
         const dataDate = new Date(dataDateStr);
         dataDate.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
-        
+
         const isInRange = dataDate >= startDate && dataDate <= endDate;
-        
+
         console.log("📅 Date range comparison:", {
           dataDate: dataDateStr,
           startDate: dateRangeFilter.startDate,
@@ -716,7 +699,9 @@ export default function DashboardViewer({
         return isInRange;
       });
 
-      console.log(`✅ Date range filtering complete: ${filteredData.length} rows match the range ${dateRangeFilter.startDate} to ${dateRangeFilter.endDate}`);
+      console.log(
+        `✅ Date range filtering complete: ${filteredData.length} rows match the range ${dateRangeFilter.startDate} to ${dateRangeFilter.endDate}`
+      );
     } else {
       console.log("📅 No date range filtering applied");
     }
@@ -744,7 +729,6 @@ export default function DashboardViewer({
               ...widget,
               adaptedConfig: kpiConfig,
             }}
-            height={maxChartHeight}
           />
         );
       }
@@ -799,7 +783,6 @@ export default function DashboardViewer({
                 ...widget,
                 adaptedConfig: tableConfig,
               }}
-              height={maxChartHeight}
             />
           );
         }
@@ -1158,13 +1141,7 @@ export default function DashboardViewer({
 
       {/* Show loading screen when data is being loaded */}
       {dataLoading && (
-        <LoadingSpinner
-          size="lg"
-          text="Loading data..."
-          progress={processingProgress}
-          showProgress={true}
-          className="mb-4"
-        />
+        <LoadingSpinner size="lg" text="Loading data..." className="mb-4" />
       )}
 
       {/* Show upload prompt if no data and not loading */}

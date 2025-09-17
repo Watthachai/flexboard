@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Action Bar Component
  * Contains action buttons like export, filter, etc.

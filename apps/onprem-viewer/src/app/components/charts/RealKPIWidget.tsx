@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Real KPI Widget with Recharts
  * Displays key performance indicators with conditional styling
@@ -15,8 +16,6 @@ interface KPIWidgetProps {
 export default function RealKPIWidget({
   data,
   config,
-  width = 200,
-  height = 150,
 }: KPIWidgetProps) {
   // Use adaptedConfig if available, otherwise fallback to legacy processing
   let value: number | string = 0;
