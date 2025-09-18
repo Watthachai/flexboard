@@ -4,6 +4,7 @@
  */
 
 // ❌ Your Current Layout (with issues):
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const currentProblematicLayout = {
   layout: { columns: 12, rowHeight: 50 },
   widgets: [

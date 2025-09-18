@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import dayjs from "dayjs";
 
 // Debug flag
-const DEBUG = false;
+const DEBUG = false; // Enabled temporarily for debugging
 const dlog = (...args: any[]) => {
   if (DEBUG) console.log(...args);
 };
@@ -116,7 +117,7 @@ function compileExpression(
       );
       if (match) {
         const [, field1, field2, unit] = match;
-        const compiled = (row: any, ctx?: EngineContext) => {
+        const compiled = (row: any) => {
           const val1 = row[field1.trim()] || Date.now();
           const val2 = row[field2.trim()] || 0;
           return dateDiff(val1, val2, unit as any);
@@ -158,6 +159,7 @@ function compileExpression(
 
 const transformCache = new Map<string, CompiledTransform>();
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function compileTransform(transform: any): CompiledTransform {
   const cacheKey = JSON.stringify(transform);
   if (transformCache.has(cacheKey)) {
@@ -235,7 +237,7 @@ function compileTransform(transform: any): CompiledTransform {
     compiled = {
       field: transform.field,
       type: "computed",
-      evaluator: (row: any) => null,
+      evaluator: () => null,
     };
   }
 
@@ -243,6 +245,7 @@ function compileTransform(transform: any): CompiledTransform {
   return compiled;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function applyCompiledTransform(
   row: any,
   compiled: CompiledTransform,
@@ -429,7 +432,7 @@ function lookupDs(
 
   const keyValue = row[keyField];
   const found = table.rows.find((r) => r[table.key] === keyValue);
-  return found ? found[valueField] : (table.defaultValue ?? null);
+  return found ? found[valueField] : table.defaultValue ?? null;
 }
 
 function coalesce(...values: any[]): any {
@@ -696,7 +699,8 @@ function evaluateCondition(
 function evaluateValue(
   valueExpr: string,
   row: Row,
-  context: EngineContext
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _context: EngineContext
 ): any {
   const trimmed = valueExpr.trim();
   dlog(`evaluateValue: "${trimmed}"`);
@@ -754,11 +758,18 @@ export function applyTransforms(
   const ctx = context || { referenceTables: {}, settings: {} };
 
   const result = rows.map((r, index) => {
+    // Field mapping now handled at API level for better performance
     const rr = { ...r };
+
     if (DEBUG && index < 2) {
       dlog(`🔄 Processing row ${index}:`, {
-        originalKeys: Object.keys(r),
-        originalData: r,
+        availableKeys: Object.keys(r),
+        sampleData: {
+          DataDate: r.DataDate,
+          DocDate: r.DocDate,
+          DocNumber: r.DocNumber,
+          QtyFromThisDoc: r.QtyFromThisDoc,
+        },
       });
     }
 
@@ -833,29 +844,30 @@ export function groupAgg(
   dimensions: string[] | undefined,
   measures: any[]
 ) {
-  console.log("🔍 SUMMARY TABLE AGGREGATION START:", {
-    rowsCount: rows.length,
-    dimensions,
-    measures: measures?.map((m) => ({
-      field: m.field,
-      expr: m.expr,
-      agg: m.agg,
-      as: m.as,
-    })),
-    firstRowKeys: rows.length > 0 ? Object.keys(rows[0]) : [],
-    firstRowSample: rows.length > 0 ? rows[0] : null,
-    hasTransformedFields:
-      rows.length > 0
-        ? {
-            hasQty0_90: "Qty_0_90_row" in rows[0],
-            hasQty91_180: "Qty_91_180_row" in rows[0],
-            hasQty181_365: "Qty_181_365_row" in rows[0],
-            hasQty365Plus: "Qty_365_plus_row" in rows[0],
-            hasAgeBucket: "AgeBucket" in rows[0],
-            hasDaysAge: "DaysAge" in rows[0],
-          }
-        : null,
-  });
+  // Debug logging disabled for performance
+  // console.log("🔍 SUMMARY TABLE AGGREGATION START:", {
+  //   rowsCount: rows.length,
+  //   dimensions,
+  //   measures: measures?.map((m) => ({
+  //     field: m.field,
+  //     expr: m.expr,
+  //     agg: m.agg,
+  //     as: m.as,
+  //   })),
+  //   firstRowKeys: rows.length > 0 ? Object.keys(rows[0]) : [],
+  //   firstRowSample: rows.length > 0 ? rows[0] : null,
+  //   hasTransformedFields:
+  //     rows.length > 0
+  //       ? {
+  //           hasQty0_90: "Qty_0_90_row" in rows[0],
+  //           hasQty91_180: "Qty_91_180_row" in rows[0],
+  //           hasQty181_365: "Qty_181_365_row" in rows[0],
+  //           hasQty365Plus: "Qty_365_plus_row" in rows[0],
+  //           hasAgeBucket: "AgeBucket" in rows[0],
+  //           hasDaysAge: "DaysAge" in rows[0],
+  //         }
+  //       : null,
+  // });
 
   if (!measures?.length) return [];
 
@@ -924,20 +936,21 @@ export function groupAgg(
             const trueValue = iifMatch[2].trim();
             const falseValue = iifMatch[3].trim();
 
-            console.log("🔍 IIF EXPRESSION DEBUG:", {
-              expr,
-              condition,
-              trueValue,
-              falseValue,
-              rowSample: {
-                AgeBucket: r["AgeBucket"],
-                QtyFromThisDoc: r["QtyFromThisDoc"],
-                Qty_0_90_row: r["Qty_0_90_row"],
-              },
-              availableFields: Object.keys(r).filter(
-                (k) => k.startsWith("Qty_") || k.includes("Age")
-              ),
-            });
+            // Debug logging disabled for performance
+            // console.log("🔍 IIF EXPRESSION DEBUG:", {
+            //   expr,
+            //   condition,
+            //   trueValue,
+            //   falseValue,
+            //   rowSample: {
+            //     AgeBucket: r["AgeBucket"],
+            //     QtyFromThisDoc: r["QtyFromThisDoc"],
+            //     Qty_0_90_row: r["Qty_0_90_row"],
+            //   },
+            //   availableFields: Object.keys(r).filter(
+            //     (k) => k.startsWith("Qty_") || k.includes("Age")
+            //   ),
+            // });
 
             // Evaluate condition (e.g., AgeBucket='0-90')
             const conditionResult = evaluateCondition(condition, r, {
@@ -945,10 +958,11 @@ export function groupAgg(
               settings: {},
             });
 
-            console.log("🔍 CONDITION RESULT:", {
-              condition,
-              result: conditionResult,
-            });
+            // Debug logging disabled for performance
+            // console.log("🔍 CONDITION RESULT:", {
+            //   condition,
+            //   result: conditionResult,
+            // });
 
             if (conditionResult) {
               value = Number(r[trueValue] || 0);
@@ -968,11 +982,12 @@ export function groupAgg(
         }
       } else {
         value = Number(r[field] || 0);
-        console.log("🔍 FIELD VALUE:", {
-          field,
-          value,
-          rowFieldValue: r[field],
-        });
+        // Debug logging disabled for performance
+        // console.log("🔍 FIELD VALUE:", {
+        //   field,
+        //   value,
+        //   rowFieldValue: r[field],
+        // });
       }
 
       bucket.counts[idx]++;
@@ -1011,11 +1026,12 @@ export function groupAgg(
     out.push(row);
   }
 
-  console.log("🔍 SUMMARY TABLE AGGREGATION RESULT:", {
-    resultCount: out.length,
-    resultSample: out.slice(0, 3),
-    allResults: out,
-  });
+  // Debug logging disabled for performance
+  // console.log("🔍 SUMMARY TABLE AGGREGATION RESULT:", {
+  //   resultCount: out.length,
+  //   resultSample: out.slice(0, 3),
+  //   allResults: out,
+  // });
 
   return out;
 }
@@ -1047,7 +1063,7 @@ export function sortLimit(
   sort?: { field: string; dir: "asc" | "desc" }[],
   limit?: number
 ) {
-  let r = [...rows];
+  const r = [...rows];
   if (sort?.length) {
     r.sort((a, b) => {
       for (const s of sort) {

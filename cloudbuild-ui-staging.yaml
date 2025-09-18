@@ -5,20 +5,19 @@ substitutions:
   _DIR: apps/control-plane-ui
 
 steps:
-  # Build and tag the Docker image with Kaniko + Cache
+  # 1) Build & Push ด้วย Kaniko (เปิดแคช)
   - name: gcr.io/kaniko-project/executor:latest
     args:
       - '--dockerfile=${_DIR}/Dockerfile'
-      - '--context=.'
+      - '--context=.'                                      # kaniko จะมองจาก /workspace
       - '--destination=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
       - '--destination=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:staging-latest'
       - '--cache=true'
-      - '--cache-ttl=168h'
-      - '--cache-repo=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/cache'
-      - '--use-new-run'
+      - '--cache-ttl=168h'                                 # 7 วัน
+      - '--cache-repo=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}-cache'
       - '--snapshot-mode=redo'
 
-  # Deploy to Cloud Run (Staging)
+  # 2) Deploy ไป Cloud Run
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
@@ -49,7 +48,9 @@ steps:
       - '--set-env-vars'
       - 'NODE_ENV=staging,ENVIRONMENT=staging,HOST=0.0.0.0,NEXT_PUBLIC_ENVIRONMENT=staging,NEXT_PUBLIC_API_URL=https://sandbox.api-flexboard.fittcoreai.com'
 
-# Store the built images
 images:
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA'
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:staging-latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

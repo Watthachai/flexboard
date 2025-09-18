@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 type Measure =
   | { field: string; as: string; agg: "sum" | "count" | "min" | "max" | "avg" }
   | {
@@ -20,9 +21,9 @@ export function aggregateBy(
   }
 
   const out: any[] = [];
-  for (const [k, arr] of buckets.entries()) {
+  for (const [, arr] of buckets.entries()) {
     const base: any = {};
-    groupBy.forEach((g, i) => {
+    groupBy.forEach((g) => {
       base[g] = arr[0]?.[g] ?? null;
     });
 

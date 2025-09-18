@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Pareto Chart Component
  * Combination of bar chart and line chart showing cumulative percentage
@@ -12,12 +13,7 @@ interface ParetoChartProps {
   height?: number;
 }
 
-export default function ParetoChart({
-  data,
-  config,
-  width = 400,
-  height = 300,
-}: ParetoChartProps) {
+export default function ParetoChart({ data, config }: ParetoChartProps) {
   // For now, render as Bar Chart with note
   return (
     <div className="w-full h-full bg-white border rounded-lg p-4">

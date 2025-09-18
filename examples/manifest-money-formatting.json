@@ -1,0 +1,125 @@
+{
+  "formatters": {
+    "money": {
+      "kind": "number",
+      "precision": 2,
+      "thousandsSep": ",",
+      "prefix": "",
+      "suffix": ""
+    },
+    "int": {
+      "kind": "number",
+      "precision": 0,
+      "thousandsSep": ","
+    },
+    "percent": {
+      "kind": "number",
+      "precision": 1,
+      "thousandsSep": false,
+      "suffix": "%"
+    }
+  },
+  "widgets": [
+    {
+      "type": "table",
+      "title": "📊 Inventory Aging Analysis",
+      "display": {
+        "showTotalsRow": true,
+        "searchable": true,
+        "pageSize": 50,
+        "totalsAgg": {
+          "Total Value": "sum",
+          "0-90 Days: Value": "sum",
+          "91-180 Days: Value": "sum",
+          "181-365 Days: Value": "sum",
+          "Over 365 Days: Value": "sum",
+          "Value": "sum"
+        },
+        "columnAlignment": {
+          "Total Value": "right",
+          "0-90 Days: Value": "right",
+          "91-180 Days: Value": "right",
+          "181-365 Days: Value": "right",
+          "Over 365 Days: Value": "right",
+          "Value": "right",
+          "Amount": "right",
+          "Price": "right",
+          "Cost": "right"
+        },
+        "columnFormatters": {
+          "Total Value": "money",
+          "0-90 Days: Value": "money",
+          "91-180 Days: Value": "money",
+          "181-365 Days: Value": "money",
+          "Over 365 Days: Value": "money",
+          "Value": "money",
+          "Amount": "money",
+          "Price": "money",
+          "Cost": "money",
+          "Quantity": "int",
+          "Qty": "int"
+        },
+        "columnGroups": [
+          {
+            "title": "📋 Product Info",
+            "columns": ["Corp", "Prod", "Product", "บริษัท", "สินค้า"]
+          },
+          {
+            "title": "💰 Current Value",
+            "columns": ["Total Value", "Value"]
+          },
+          {
+            "title": "📅 Aging Analysis",
+            "columns": [
+              "0-90 Days: Value",
+              "91-180 Days: Value",
+              "181-365 Days: Value",
+              "Over 365 Days: Value"
+            ]
+          }
+        ],
+        "exportExcelOptions": {
+          "filename": "inventory-aging-report.xlsx",
+          "worksheetName": "Aging Analysis"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "title": "📦 Product Inventory Summary",
+      "display": {
+        "showTotalsRow": true,
+        "searchable": true,
+        "pageSize": 25,
+        "totalsAgg": {
+          "Value": "sum",
+          "Total Value": "sum",
+          "Quantity": "sum",
+          "Amount": "sum"
+        },
+        "columnAlignment": {
+          "Value": "right",
+          "Total Value": "right",
+          "Amount": "right",
+          "Price": "right",
+          "Cost": "right",
+          "Quantity": "right",
+          "Qty": "right"
+        },
+        "columnFormatters": {
+          "Value": "money",
+          "Total Value": "money",
+          "Amount": "money",
+          "Price": "money",
+          "Cost": "money",
+          "Quantity": "int",
+          "Qty": "int"
+        },
+        "exportExcelOptions": {
+          "filename": "product-inventory-summary.xlsx",
+          "worksheetName": "Product Summary"
+        }
+      }
+    }
+  ]
+}

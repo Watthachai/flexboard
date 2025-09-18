@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Enhanced Real Line Chart with Recharts
  * Supports time series data, multiple lines, and advanced formatting
@@ -39,6 +40,7 @@ const LINE_COLORS = [
 export default function RealLineChart({
   data,
   config,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   width = 400,
   height = 300,
 }: RealLineChartProps) {

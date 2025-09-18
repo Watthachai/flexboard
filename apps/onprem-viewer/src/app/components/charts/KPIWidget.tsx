@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * KPI Widget Component
  * Displays key performance indicators with status colors
@@ -12,12 +13,7 @@ interface KPIWidgetProps {
   height?: number;
 }
 
-export default function KPIWidget({
-  data,
-  config,
-  width = 200,
-  height = 150,
-}: KPIWidgetProps) {
+export default function KPIWidget({ data, config }: KPIWidgetProps) {
   // Extract value from data
   const value = data?.[0] || {};
   const displayValue = (Object.values(value)[0] as number) || 0;
@@ -49,7 +45,10 @@ export default function KPIWidget({
 
   return (
     <div
-      className={`w-full h-full border rounded-lg p-4 ${colorClasses[statusColor as keyof typeof colorClasses] || colorClasses.neutral}`}
+      className={`w-full h-full border rounded-lg p-4 ${
+        colorClasses[statusColor as keyof typeof colorClasses] ||
+        colorClasses.neutral
+      }`}
     >
       <div className="text-center h-full flex flex-col justify-center">
         <h3 className="font-semibold text-sm mb-2 opacity-80">
