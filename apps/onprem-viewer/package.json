@@ -9,7 +9,7 @@
     "dev:ui-only": "next dev --turbopack -H 0.0.0.0 -p 3002",
     "dev:show-ip": "prisma generate && prisma db push && node scripts/show-network-info.js && concurrently \"next dev --turbopack -H 0.0.0.0 -p 3002\" \"tsx scripts/cron-worker.ts\" --names \"UI,SYNC\" --prefix-colors \"cyan,magenta\"",
     "runbuild": "prisma generate && prisma db push && node scripts/show-network-info.js && NODE_ENV=production NEXT_PUBLIC_DISABLE_CONSOLE=true next build",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "build:prod": "NODE_ENV=production NEXT_PUBLIC_DISABLE_CONSOLE=true next build",
     "start": "prisma generate && prisma db push && node scripts/show-network-info.js && concurrently \"next start -H 0.0.0.0 -p 3002\" \"tsx scripts/cron-worker.ts\" --names \"UI,SYNC\" --prefix-colors \"cyan,magenta\"",
     "start:prod": "NODE_ENV=production next start -H 0.0.0.0 -p 3002",
