@@ -95,6 +95,11 @@ export default function RootLayout({
     if (typeof window !== "undefined" && window.localStorage) {
       localStorage.setItem("userSession", JSON.stringify(newSession));
     }
+
+    // Redirect to PVS Dashboard after successful login
+    if (typeof window !== "undefined") {
+      window.location.href = "/pvs";
+    }
   };
 
   if (loading) {
