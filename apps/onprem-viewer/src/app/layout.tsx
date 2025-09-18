@@ -9,7 +9,9 @@ import { useEffect, useState } from "react";
 import { VersionDisplay } from "@/components/VersionDisplay";
 import { ThemeProvider, useTheme } from "@/app/components/context/ThemeContext";
 import "./globals.css";
-import "@/services/autoStartService";
+// import "@/services/autoStartService"; // Temporarily disabled
+// Import logger to auto-disable console in production
+import "@/utils/logger";
 
 interface UserSession {
   email: string;
