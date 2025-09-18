@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardLayout from "./layout/DashboardLayout";
+import { useTheme } from "@/app/components/context/ThemeContext";
+import * as XLSX from "xlsx";
 import {
   Settings,
   RefreshCw,
@@ -21,6 +23,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  Download,
 } from "lucide-react";
 interface DatabaseRecord {
   id: number;
@@ -68,6 +71,7 @@ interface ProductAgeBucketSummary {
 }
 
 export default function PVSDashboard() {
+  const {} = useTheme();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DatabaseRecord[]>([]);
   const [filteredData, setFilteredData] = useState<DatabaseRecord[]>([]);
@@ -347,6 +351,286 @@ export default function PVSDashboard() {
     }).format(value);
   };
 
+  // Export to Excel function with proper XLSX format and styling
+  const exportToExcel = () => {
+    try {
+      // Create a new workbook
+      const wb = XLSX.utils.book_new();
+
+      // Create worksheet data with proper structure
+      const wsData: (string | number)[][] = [];
+
+      // Add main header row with groupings (Row 1)
+      wsData.push([
+        "Product Info",
+        "",
+        "",
+        "",
+        "Total",
+        "",
+        "0-90 Days",
+        "",
+        "91-180 Days",
+        "",
+        "181-365 Days",
+        "",
+        "Over 365 Days",
+        "",
+      ]);
+
+      // Add sub header row (Row 2)
+      wsData.push([
+        "สินค้า",
+        "หน่วย",
+        "",
+        "",
+        "Quantity",
+        "Total Value",
+        "Quantity",
+        "Value",
+        "Quantity",
+        "Value",
+        "Quantity",
+        "Value",
+        "Quantity",
+        "Value",
+      ]);
+
+      // Add data rows
+      productSummary.forEach((product) => {
+        wsData.push([
+          product.prod,
+          product.unitName,
+          "", // Empty columns for alignment
+          "",
+          product.totalQty,
+          product.totalValue,
+          product.ageBuckets["0-90"].qty,
+          product.ageBuckets["0-90"].value,
+          product.ageBuckets["90-180"].qty,
+          product.ageBuckets["90-180"].value,
+          product.ageBuckets["180-360"].qty,
+          product.ageBuckets["180-360"].value,
+          product.ageBuckets[">360"].qty,
+          product.ageBuckets[">360"].value,
+        ]);
+      });
+
+      // Create worksheet
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      // Set column widths
+      ws["!cols"] = [
+        { wch: 50 }, // Product name - wider
+        { wch: 10 }, // Unit
+        { wch: 8 }, // Empty
+        { wch: 8 }, // Empty
+        { wch: 12 }, // Total Quantity
+        { wch: 15 }, // Total Value
+        { wch: 12 }, // 0-90 Quantity
+        { wch: 15 }, // 0-90 Value
+        { wch: 12 }, // 91-180 Quantity
+        { wch: 15 }, // 91-180 Value
+        { wch: 12 }, // 181-365 Quantity
+        { wch: 15 }, // 181-365 Value
+        { wch: 12 }, // >365 Quantity
+        { wch: 15 }, // >365 Value
+      ];
+
+      // Define merges for grouped headers
+      ws["!merges"] = [
+        // Product Info group (A1:D1)
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
+        // Total group (E1:F1)
+        { s: { r: 0, c: 4 }, e: { r: 0, c: 5 } },
+        // 0-90 Days group (G1:H1)
+        { s: { r: 0, c: 6 }, e: { r: 0, c: 7 } },
+        // 91-180 Days group (I1:J1)
+        { s: { r: 0, c: 8 }, e: { r: 0, c: 9 } },
+        // 181-365 Days group (K1:L1)
+        { s: { r: 0, c: 10 }, e: { r: 0, c: 11 } },
+        // Over 365 Days group (M1:N1)
+        { s: { r: 0, c: 12 }, e: { r: 0, c: 13 } },
+      ];
+
+      // Apply styles to cells
+      const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[cellAddress]) continue;
+
+          // Header row styling (Row 1)
+          if (R === 0) {
+            ws[cellAddress].s = {
+              font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
+              fill: { fgColor: { rgb: "4472C4" } }, // Blue background
+              alignment: { horizontal: "center", vertical: "center" },
+              border: {
+                top: { style: "thin", color: { rgb: "000000" } },
+                bottom: { style: "thin", color: { rgb: "000000" } },
+                left: { style: "thin", color: { rgb: "000000" } },
+                right: { style: "thin", color: { rgb: "000000" } },
+              },
+            };
+          }
+          // Sub header row styling (Row 2)
+          else if (R === 1) {
+            ws[cellAddress].s = {
+              font: { bold: true, sz: 11 },
+              fill: { fgColor: { rgb: "D9E2F3" } }, // Light blue background
+              alignment: { horizontal: "center", vertical: "center" },
+              border: {
+                top: { style: "thin", color: { rgb: "000000" } },
+                bottom: { style: "thin", color: { rgb: "000000" } },
+                left: { style: "thin", color: { rgb: "000000" } },
+                right: { style: "thin", color: { rgb: "000000" } },
+              },
+            };
+          }
+          // Data rows
+          else {
+            let fillColor = "FFFFFF"; // Default white
+
+            // Apply age bucket colors
+            if (C >= 6 && C <= 7) {
+              // 0-90 days - Light green
+              fillColor = "E2EFDA";
+            } else if (C >= 8 && C <= 9) {
+              // 91-180 days - Light yellow
+              fillColor = "FFF2CC";
+            } else if (C >= 10 && C <= 11) {
+              // 181-365 days - Light orange
+              fillColor = "FCE4D6";
+            } else if (C >= 12 && C <= 13) {
+              // Over 365 days - Light red
+              fillColor = "FFEBE9";
+            }
+
+            ws[cellAddress].s = {
+              font: { sz: 10 },
+              fill: { fgColor: { rgb: fillColor } },
+              alignment: {
+                horizontal: C >= 4 ? "right" : "left",
+                vertical: "center",
+              },
+              border: {
+                top: { style: "thin", color: { rgb: "CCCCCC" } },
+                bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+                left: { style: "thin", color: { rgb: "CCCCCC" } },
+                right: { style: "thin", color: { rgb: "CCCCCC" } },
+              },
+            };
+
+            // Format numbers
+            if (typeof ws[cellAddress].v === "number" && C >= 4) {
+              if (C % 2 === 1) {
+                // Value columns (odd indices after column 4)
+                ws[cellAddress].z = "#,##0.00"; // Number format with 2 decimals
+              } else {
+                // Quantity columns
+                ws[cellAddress].z = "#,##0"; // Number format without decimals
+              }
+            }
+          }
+        }
+      }
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, "PVS Summary");
+
+      // Generate filename with current date and filter info
+      const now = new Date();
+      const dateStr = now.toISOString().split("T")[0];
+      let filename = `PVS_Summary_${dateStr}`;
+
+      if (selectedCorp) filename += `_${selectedCorp}`;
+      if (selectedBranch) filename += `_${selectedBranch}`;
+      if (dateFrom || dateTo) {
+        filename += "_";
+        if (dateFrom) filename += dateFrom;
+        if (dateTo) filename += "_to_" + dateTo;
+      }
+      filename += ".xlsx";
+
+      // Write and download the file
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error("Export failed:", error);
+
+      // Fallback to CSV if XLSX fails
+      const now = new Date();
+      const dateStr = now.toISOString().split("T")[0];
+      let fallbackFilename = `PVS_Summary_${dateStr}`;
+
+      if (selectedCorp) fallbackFilename += `_${selectedCorp}`;
+      if (selectedBranch) fallbackFilename += `_${selectedBranch}`;
+      if (dateFrom || dateTo) {
+        fallbackFilename += "_";
+        if (dateFrom) fallbackFilename += dateFrom;
+        if (dateTo) fallbackFilename += "_to_" + dateTo;
+      }
+      fallbackFilename += ".csv";
+
+      const csvData = [
+        [
+          "Product Info",
+          "Unit",
+          "Total Quantity",
+          "Total Value",
+          "0-90 Days Qty",
+          "0-90 Days Value",
+          "91-180 Days Qty",
+          "91-180 Days Value",
+          "181-365 Days Qty",
+          "181-365 Days Value",
+          "Over 365 Days Qty",
+          "Over 365 Days Value",
+        ],
+        ...productSummary.map((product) => [
+          product.prod,
+          product.unitName,
+          product.totalQty,
+          product.totalValue,
+          product.ageBuckets["0-90"].qty,
+          product.ageBuckets["0-90"].value,
+          product.ageBuckets["90-180"].qty,
+          product.ageBuckets["90-180"].value,
+          product.ageBuckets["180-360"].qty,
+          product.ageBuckets["180-360"].value,
+          product.ageBuckets[">360"].qty,
+          product.ageBuckets[">360"].value,
+        ]),
+      ];
+
+      const csvContent = csvData
+        .map((row) =>
+          row
+            .map((cell) =>
+              typeof cell === "string" && cell.includes(",")
+                ? `"${cell}"`
+                : cell
+            )
+            .join(",")
+        )
+        .join("\n");
+
+      const blob = new Blob(["\uFEFF" + csvContent], {
+        type: "text/csv;charset=utf-8;",
+      });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", fallbackFilename);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+  };
+
   // Get available branches for selected corporation
   const getAvailableBranches = () => {
     if (!selectedCorp) {
@@ -413,8 +697,10 @@ export default function PVSDashboard() {
       <div className="relative">
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className={`flex items-center justify-between w-full min-w-[280px] px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white hover:bg-slate-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-            !hasDateRange ? "text-slate-400" : "text-slate-900"
+          className={`flex items-center justify-between w-full min-w-[280px] px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+            !hasDateRange
+              ? "text-slate-400 dark:text-slate-500"
+              : "text-slate-900 dark:text-slate-200"
           }`}
         >
           <div className="flex items-center">
@@ -425,15 +711,15 @@ export default function PVSDashboard() {
         </button>
 
         {isOpen && (
-          <div className="absolute top-full left-0 mt-2 p-4 bg-white border border-slate-200 rounded-lg shadow-lg z-50 min-w-[320px]">
+          <div className="absolute top-full left-0 mt-2 p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-50 min-w-[320px]">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-slate-900">
+                <h4 className="text-sm font-medium text-slate-900 dark:text-slate-200">
                   เลือกช่วงวันที่
                 </h4>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="text-slate-400 hover:text-slate-600"
+                  className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                 >
                   <XCircle className="w-4 h-4" />
                 </button>
@@ -441,25 +727,25 @@ export default function PVSDashboard() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                     ตั้งแต่วันที่
                   </label>
                   <input
                     type="date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                     ถึงวันที่
                   </label>
                   <input
                     type="date"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -470,13 +756,13 @@ export default function PVSDashboard() {
                     setDateFrom("");
                     setDateTo("");
                   }}
-                  className="px-3 py-1 text-xs text-slate-600 hover:text-slate-800 border border-slate-300 rounded-md hover:bg-slate-50"
+                  className="px-3 py-1 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700"
                 >
                   ล้างวันที่
                 </button>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="px-4 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  className="px-4 py-1 text-xs bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600"
                 >
                   ตกลง
                 </button>
@@ -494,12 +780,14 @@ export default function PVSDashboard() {
       selectedCorp || selectedBranch || dateFrom || dateTo;
 
     return (
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 p-6">
         <div className="flex items-center mb-4">
           <div className="bg-gradient-to-r from-slate-500 to-slate-600 rounded-lg p-2 mr-3">
             <Settings className="text-white w-5 h-5" />
           </div>
-          <h3 className="text-xl font-bold text-gray-800">ตัวกรองข้อมูล</h3>
+          <h3 className="text-xl font-bold text-gray-800 dark:text-slate-200">
+            ตัวกรองข้อมูล
+          </h3>
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
@@ -509,7 +797,7 @@ export default function PVSDashboard() {
             <select
               value={selectedCorp}
               onChange={(e) => handleCorpChange(e.target.value)}
-              className="text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[150px]"
+              className="text-sm px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[150px]"
             >
               <option value="">ทุกบริษัท</option>
               {corps.map((corp) => (
@@ -526,7 +814,7 @@ export default function PVSDashboard() {
             <select
               value={selectedBranch}
               onChange={(e) => setSelectedBranch(e.target.value)}
-              className="text-sm px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[150px]"
+              className="text-sm px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[150px]"
               disabled={!selectedCorp && getAvailableBranches().length === 0}
             >
               <option value="">
@@ -539,7 +827,7 @@ export default function PVSDashboard() {
               ))}
             </select>
             {selectedCorp && getAvailableBranches().length > 0 && (
-              <span className="ml-2 text-xs text-slate-500">
+              <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                 ({getAvailableBranches().length} สาขา)
               </span>
             )}
@@ -559,12 +847,22 @@ export default function PVSDashboard() {
                 setDateFrom("");
                 setDateTo("");
               }}
-              className="px-4 py-2 bg-slate-500 text-white rounded-lg hover:bg-slate-600 transition-colors flex items-center font-medium"
+              className="px-4 py-2 bg-slate-500 dark:bg-slate-600 text-white rounded-lg hover:bg-slate-600 dark:hover:bg-slate-700 transition-colors flex items-center font-medium"
             >
               <Trash2 className="w-4 h-4 mr-2" />
               ล้างตัวกรอง
             </button>
           )}
+
+          {/* Export Excel Button */}
+          <button
+            onClick={exportToExcel}
+            className="px-4 py-2 bg-emerald-600 dark:bg-emerald-500 text-white rounded-lg hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors flex items-center font-medium"
+            disabled={productSummary.length === 0}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export Excel
+          </button>
         </div>
 
         {hasActiveFilters && (
@@ -621,8 +919,8 @@ export default function PVSDashboard() {
     const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
     return (
-      <div className="flex items-center justify-between p-6 bg-gray-50 rounded-b-xl border-t border-gray-200">
-        <div className="text-sm text-gray-600">
+      <div className="flex items-center justify-between p-6 bg-gray-50 dark:bg-slate-800 rounded-b-xl border-t border-gray-200 dark:border-slate-700">
+        <div className="text-sm text-gray-600 dark:text-slate-400">
           แสดง <span className="font-medium">{startItem}</span> ถึง{" "}
           <span className="font-medium">{endItem}</span> จากทั้งหมด{" "}
           <span className="font-medium">{totalItems.toLocaleString()}</span>{" "}
@@ -633,7 +931,7 @@ export default function PVSDashboard() {
           <button
             onClick={() => onPageChange(Math.max(1, currentPage - 1))}
             disabled={currentPage === 1}
-            className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -657,8 +955,8 @@ export default function PVSDashboard() {
                   onClick={() => onPageChange(pageNum)}
                   className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
                     currentPage === pageNum
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-700 hover:bg-gray-100"
+                      ? "bg-blue-600 dark:bg-blue-500 text-white"
+                      : "text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700"
                   }`}
                 >
                   {pageNum}
@@ -670,7 +968,7 @@ export default function PVSDashboard() {
           <button
             onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
             disabled={currentPage === totalPages}
-            className="p-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -681,10 +979,10 @@ export default function PVSDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-xl p-8 flex items-center space-x-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="text-lg font-medium text-gray-700">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 flex items-center space-x-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400"></div>
+          <span className="text-lg font-medium text-gray-700 dark:text-slate-300">
             กำลังโหลดข้อมูลจาก Database...
           </span>
         </div>
@@ -694,19 +992,19 @@ export default function PVSDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4">
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 dark:from-red-900/20 dark:to-pink-900/20 flex items-center justify-center">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 max-w-md w-full mx-4">
           <div className="text-center">
             <div className="flex justify-center mb-4">
-              <XCircle className="w-16 h-16 text-red-500" />
+              <XCircle className="w-16 h-16 text-red-500 dark:text-red-400" />
             </div>
-            <h2 className="text-2xl font-bold text-red-600 mb-4">
+            <h2 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-4">
               เกิดข้อผิดพลาด
             </h2>
-            <p className="text-gray-600 mb-6">{error}</p>
+            <p className="text-gray-600 dark:text-slate-400 mb-6">{error}</p>
             <button
               onClick={fetchDatabaseData}
-              className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+              className="px-6 py-3 bg-red-600 dark:bg-red-500 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-colors font-medium"
             >
               ลองใหม่
             </button>
@@ -718,16 +1016,16 @@ export default function PVSDashboard() {
 
   return (
     <DashboardLayout>
-      <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 min-h-full">
+      <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 min-h-full">
         <div className="container mx-auto p-6 space-y-8">
           {/* Global Controls */}
-          <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-slate-700">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <div className="bg-gradient-to-r from-slate-500 to-slate-600 rounded-lg p-2 mr-3">
                   <Settings className="text-white w-5 h-5" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-slate-200">
                   Dashboard Controls
                 </h2>
               </div>
@@ -765,7 +1063,7 @@ export default function PVSDashboard() {
                 <div className="bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg p-2 mr-3">
                   <BarChart3 className="text-white w-6 h-6" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-800">
+                <h3 className="text-2xl font-bold text-gray-800 dark:text-slate-200">
                   มูลค่าตามกลุ่มอายุสินค้า
                 </h3>
               </div>
@@ -896,7 +1194,7 @@ export default function PVSDashboard() {
 
           {/* Product Summary Table */}
           {productSummary.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
               <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-8 text-white">
                 <div className="flex items-center">
                   <div className="bg-white/20 rounded-lg p-2 mr-4">
@@ -911,28 +1209,28 @@ export default function PVSDashboard() {
                   </div>
                 </div>
               </div>
-              <div className="p-8">
+              <div className="p-8 dark:bg-slate-800">
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b-2 border-gray-200">
-                        <th className="text-left p-2 font-bold text-gray-700 min-w-[100px]">
+                      <tr className="border-b-2 border-gray-200 dark:border-slate-600">
+                        <th className="text-left p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[100px]">
                           บริษัท
                         </th>
-                        <th className="text-left p-2 font-bold text-gray-700 min-w-[100px]">
+                        <th className="text-left p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[100px]">
                           สาขา
                         </th>
-                        <th className="text-left p-2 font-bold text-gray-700 min-w-[200px]">
+                        <th className="text-left p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[200px]">
                           สินค้า
                         </th>
-                        <th className="text-left p-2 font-bold text-gray-700 min-w-[80px]">
+                        <th className="text-left p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[80px]">
                           หน่วย
                         </th>
-                        <th className="text-right p-2 font-bold text-gray-700 min-w-[120px]">
+                        <th className="text-right p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[120px]">
                           รวมทั้งหมด
                         </th>
                         <th
-                          className="text-center p-2 bg-emerald-50 font-bold text-emerald-700 rounded-tl-lg min-w-[100px]"
+                          className="text-center p-2 bg-emerald-50 dark:bg-emerald-900/30 font-bold text-emerald-700 dark:text-emerald-300 rounded-tl-lg min-w-[100px]"
                           colSpan={2}
                         >
                           <div className="flex items-center justify-center">
@@ -941,7 +1239,7 @@ export default function PVSDashboard() {
                           </div>
                         </th>
                         <th
-                          className="text-center p-2 bg-amber-50 font-bold text-amber-700 min-w-[100px]"
+                          className="text-center p-2 bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-300 min-w-[100px]"
                           colSpan={2}
                         >
                           <div className="flex items-center justify-center">
@@ -950,7 +1248,7 @@ export default function PVSDashboard() {
                           </div>
                         </th>
                         <th
-                          className="text-center p-2 bg-orange-50 font-bold text-orange-700 min-w-[100px]"
+                          className="text-center p-2 bg-orange-50 dark:bg-orange-900/30 font-bold text-orange-700 dark:text-orange-300 min-w-[100px]"
                           colSpan={2}
                         >
                           <div className="flex items-center justify-center">
@@ -959,7 +1257,7 @@ export default function PVSDashboard() {
                           </div>
                         </th>
                         <th
-                          className="text-center p-2 bg-rose-50 font-bold text-rose-700 rounded-tr-lg min-w-[100px]"
+                          className="text-center p-2 bg-rose-50 dark:bg-rose-900/30 font-bold text-rose-700 dark:text-rose-300 rounded-tr-lg min-w-[100px]"
                           colSpan={2}
                         >
                           <div className="flex items-center justify-center">
@@ -968,36 +1266,36 @@ export default function PVSDashboard() {
                           </div>
                         </th>
                       </tr>
-                      <tr className="border-b border-gray-200 text-sm">
+                      <tr className="border-b border-gray-200 dark:border-slate-600 text-sm">
                         <th></th>
                         <th></th>
                         <th></th>
                         <th></th>
-                        <th className="text-right p-3 text-gray-600">
+                        <th className="text-right p-3 text-gray-600 dark:text-slate-400">
                           จำนวน / มูลค่า
                         </th>
-                        <th className="text-right p-3 bg-green-50 text-green-600 font-medium">
+                        <th className="text-right p-3 bg-green-50 dark:bg-emerald-900/30 text-green-600 dark:text-emerald-300 font-medium">
                           จำนวน
                         </th>
-                        <th className="text-right p-3 bg-green-50 text-green-600 font-medium">
+                        <th className="text-right p-3 bg-green-50 dark:bg-emerald-900/30 text-green-600 dark:text-emerald-300 font-medium">
                           มูลค่า
                         </th>
-                        <th className="text-right p-3 bg-yellow-50 text-yellow-600 font-medium">
+                        <th className="text-right p-3 bg-yellow-50 dark:bg-amber-900/30 text-yellow-600 dark:text-amber-300 font-medium">
                           จำนวน
                         </th>
-                        <th className="text-right p-3 bg-yellow-50 text-yellow-600 font-medium">
+                        <th className="text-right p-3 bg-yellow-50 dark:bg-amber-900/30 text-yellow-600 dark:text-amber-300 font-medium">
                           มูลค่า
                         </th>
-                        <th className="text-right p-3 bg-orange-50 text-orange-600 font-medium">
+                        <th className="text-right p-3 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300 font-medium">
                           จำนวน
                         </th>
-                        <th className="text-right p-3 bg-orange-50 text-orange-600 font-medium">
+                        <th className="text-right p-3 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300 font-medium">
                           มูลค่า
                         </th>
-                        <th className="text-right p-3 bg-red-50 text-red-600 font-medium">
+                        <th className="text-right p-3 bg-red-50 dark:bg-rose-900/30 text-red-600 dark:text-rose-300 font-medium">
                           จำนวน
                         </th>
-                        <th className="text-right p-3 bg-red-50 text-red-600 font-medium">
+                        <th className="text-right p-3 bg-red-50 dark:bg-rose-900/30 text-red-600 dark:text-rose-300 font-medium">
                           มูลค่า
                         </th>
                       </tr>
@@ -1010,61 +1308,61 @@ export default function PVSDashboard() {
                       ).map((product, index) => (
                         <tr
                           key={index}
-                          className="border-b border-gray-100 hover:bg-gray-50 transition-colors duration-150"
+                          className="border-b border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors duration-150"
                         >
-                          <td className="p-2 font-medium text-gray-700">
+                          <td className="p-2 font-medium text-gray-700 dark:text-slate-300">
                             {product.corp}
                           </td>
-                          <td className="p-2 text-gray-600">
+                          <td className="p-2 text-gray-600 dark:text-slate-400">
                             {product.branch}
                           </td>
                           <td
-                            className="p-2 font-medium text-gray-800 min-w-[200px]"
+                            className="p-2 font-medium text-gray-800 dark:text-slate-200 min-w-[200px]"
                             title={product.prod}
                           >
                             {product.prod}
                           </td>
-                          <td className="p-2 text-gray-600">
+                          <td className="p-2 text-gray-600 dark:text-slate-400">
                             {product.unitName}
                           </td>
                           <td className="p-2 text-right">
-                            <div className="font-bold text-gray-800 text-sm">
+                            <div className="font-bold text-gray-800 dark:text-slate-200 text-sm">
                               {product.totalQty.toLocaleString()}
                             </div>
-                            <div className="text-emerald-600 font-bold">
+                            <div className="text-emerald-600 dark:text-emerald-400 font-bold">
                               {formatMoney(product.totalValue)}
                             </div>
                           </td>
 
                           {/* 0-90 days */}
-                          <td className="p-2 text-right bg-emerald-50 font-bold text-emerald-700">
+                          <td className="p-2 text-right bg-emerald-50 dark:bg-emerald-900/30 font-bold text-emerald-700 dark:text-emerald-300">
                             {product.ageBuckets["0-90"].qty.toLocaleString()}
                           </td>
-                          <td className="p-2 text-right bg-emerald-50 font-bold text-emerald-800">
+                          <td className="p-2 text-right bg-emerald-50 dark:bg-emerald-900/30 font-bold text-emerald-800 dark:text-emerald-200">
                             {formatMoney(product.ageBuckets["0-90"].value)}
                           </td>
 
                           {/* 90-180 days */}
-                          <td className="p-2 text-right bg-amber-50 font-bold text-amber-700">
+                          <td className="p-2 text-right bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-300">
                             {product.ageBuckets["90-180"].qty.toLocaleString()}
                           </td>
-                          <td className="p-2 text-right bg-amber-50 font-bold text-amber-800">
+                          <td className="p-2 text-right bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-800 dark:text-amber-200">
                             {formatMoney(product.ageBuckets["90-180"].value)}
                           </td>
 
                           {/* 180-360 days */}
-                          <td className="p-2 text-right bg-orange-50 font-bold text-orange-700">
+                          <td className="p-2 text-right bg-orange-50 dark:bg-orange-900/30 font-bold text-orange-700 dark:text-orange-300">
                             {product.ageBuckets["180-360"].qty.toLocaleString()}
                           </td>
-                          <td className="p-2 text-right bg-orange-50 font-bold text-orange-800">
+                          <td className="p-2 text-right bg-orange-50 dark:bg-orange-900/30 font-bold text-orange-800 dark:text-orange-200">
                             {formatMoney(product.ageBuckets["180-360"].value)}
                           </td>
 
                           {/* >360 days */}
-                          <td className="p-2 text-right bg-rose-50 font-bold text-rose-700">
+                          <td className="p-2 text-right bg-rose-50 dark:bg-rose-900/30 font-bold text-rose-700 dark:text-rose-300">
                             {product.ageBuckets[">360"].qty.toLocaleString()}
                           </td>
-                          <td className="p-2 text-right bg-rose-50 font-bold text-rose-800">
+                          <td className="p-2 text-right bg-rose-50 dark:bg-rose-900/30 font-bold text-rose-800 dark:text-rose-200">
                             {formatMoney(product.ageBuckets[">360"].value)}
                           </td>
                         </tr>
@@ -1092,7 +1390,7 @@ export default function PVSDashboard() {
 
           {/* Raw Data Table */}
           {showRawData && filteredData.length > 0 && (
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
               <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-6 text-white">
                 <div className="flex items-center">
                   <div className="bg-white/20 rounded-lg p-2 mr-3">
@@ -1108,36 +1406,36 @@ export default function PVSDashboard() {
                 </div>
               </div>
 
-              <div className="p-8">
+              <div className="p-8 dark:bg-slate-800">
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b-2 border-gray-200 bg-gray-50">
-                        <th className="text-left p-2 font-bold text-gray-700 min-w-[100px]">
+                      <tr className="border-b-2 border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700">
+                        <th className="text-left p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[100px]">
                           บริษัท
                         </th>
-                        <th className="text-left p-2 font-bold text-gray-700 min-w-[100px]">
+                        <th className="text-left p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[100px]">
                           สาขา
                         </th>
-                        <th className="text-left p-2 font-bold text-gray-700 min-w-[300px]">
+                        <th className="text-left p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[300px]">
                           สินค้า
                         </th>
-                        <th className="text-left p-2 font-bold text-gray-700 min-w-[80px]">
+                        <th className="text-left p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[80px]">
                           หน่วย
                         </th>
-                        <th className="text-right p-2 font-bold text-gray-700 min-w-[80px]">
+                        <th className="text-right p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[80px]">
                           จำนวน
                         </th>
-                        <th className="text-right p-2 font-bold text-gray-700 min-w-[100px]">
+                        <th className="text-right p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[100px]">
                           ราคาต้นทุน
                         </th>
-                        <th className="text-right p-2 font-bold text-gray-700 min-w-[120px]">
+                        <th className="text-right p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[120px]">
                           มูลค่า
                         </th>
-                        <th className="text-center p-2 font-bold text-gray-700 min-w-[80px]">
+                        <th className="text-center p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[80px]">
                           อายุ (วัน)
                         </th>
-                        <th className="text-center p-2 font-bold text-gray-700 min-w-[100px]">
+                        <th className="text-center p-2 font-bold text-gray-700 dark:text-slate-300 min-w-[100px]">
                           กลุ่มอายุ
                         </th>
                       </tr>
@@ -1150,29 +1448,33 @@ export default function PVSDashboard() {
                       ).map((row, index) => (
                         <tr
                           key={index}
-                          className="border-b border-gray-100 hover:bg-blue-50 transition-colors duration-150"
+                          className="border-b border-gray-100 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors duration-150"
                         >
-                          <td className="p-2 font-medium text-gray-700">
+                          <td className="p-2 font-medium text-gray-700 dark:text-slate-300">
                             {row.corp}
                           </td>
-                          <td className="p-2 text-gray-600">{row.branch}</td>
+                          <td className="p-2 text-gray-600 dark:text-slate-400">
+                            {row.branch}
+                          </td>
                           <td
-                            className="p-2 font-medium text-gray-800 min-w-[300px]"
+                            className="p-2 font-medium text-gray-800 dark:text-slate-200 min-w-[300px]"
                             title={row.prod}
                           >
                             {row.prod}
                           </td>
-                          <td className="p-2 text-gray-600">{row.unitName}</td>
-                          <td className="p-2 text-right font-bold text-gray-800">
+                          <td className="p-2 text-gray-600 dark:text-slate-400">
+                            {row.unitName}
+                          </td>
+                          <td className="p-2 text-right font-bold text-gray-800 dark:text-slate-200">
                             {row.qtyFromThisDoc?.toLocaleString()}
                           </td>
-                          <td className="p-2 text-right font-medium text-emerald-600">
+                          <td className="p-2 text-right font-medium text-emerald-600 dark:text-emerald-400">
                             {formatMoney(row.averageCost || 0)}
                           </td>
-                          <td className="p-2 text-right font-bold text-emerald-700">
+                          <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300">
                             {formatMoney(row.totalValueRow || 0)}
                           </td>
-                          <td className="p-2 text-center font-bold text-gray-700">
+                          <td className="p-2 text-center font-bold text-gray-700 dark:text-slate-300">
                             {row.daysAge}
                           </td>
                           <td className="p-2 text-center">
@@ -1213,7 +1515,7 @@ export default function PVSDashboard() {
           )}
 
           {/* Debug Info */}
-          <div className="bg-gray-800 rounded-2xl shadow-xl p-6 text-gray-300">
+          <div className="bg-gray-800 dark:bg-slate-900 rounded-2xl shadow-xl p-6 text-gray-300 dark:text-slate-400">
             <div className="flex items-center mb-4">
               <Settings className="text-white w-6 h-6 mr-2" />
               <h4 className="text-lg font-bold text-white">
