@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Chart Config Adapter
  * Converts dashboard config to Recharts-compatible format

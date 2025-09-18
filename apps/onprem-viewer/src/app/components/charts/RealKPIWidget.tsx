@@ -1,10 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Real KPI Widget with Recharts
  * Displays key performance indicators with conditional styling
  */
 
 import React from "react";
-import { Cell, PieChart, Pie, ResponsiveContainer } from "recharts";
 
 interface KPIWidgetProps {
   data: any[];
@@ -13,16 +13,11 @@ interface KPIWidgetProps {
   height?: number;
 }
 
-export default function RealKPIWidget({
-  data,
-  config,
-  width = 200,
-  height = 150,
-}: KPIWidgetProps) {
+export default function RealKPIWidget({ data, config }: KPIWidgetProps) {
   // Use adaptedConfig if available, otherwise fallback to legacy processing
   let value: number | string = 0;
   let display: any;
-  let title: string = config.title || "";
+  let title: string = config.title || config.adaptedConfig?.title || "";
 
   if (config.adaptedConfig) {
     // Use processed config from chartConfigAdapter
@@ -36,17 +31,21 @@ export default function RealKPIWidget({
     display = config.display;
   }
 
-  // Determine status color based on severity rules
+  // Determine status color based on title/age group
   const numericValue =
     typeof value === "string" ? parseFloat(value) || 0 : value;
-  const statusColor = getStatusColor(numericValue, display?.severityRules);
+  const statusColor = getStatusColorByTitle(
+    title,
+    numericValue,
+    display?.severityRules
+  );
 
   const colorClasses = {
     danger: {
-      bg: "bg-red-50",
-      border: "border-red-200",
-      text: "text-red-800",
-      accent: "#ef4444",
+      bg: "bg-red-100",
+      border: "border-red-300",
+      text: "text-red-900",
+      accent: "#dc2626",
     },
     warning: {
       bg: "bg-yellow-50",
@@ -60,6 +59,18 @@ export default function RealKPIWidget({
       text: "text-green-800",
       accent: "#10b981",
     },
+    fresh: {
+      bg: "bg-green-100",
+      border: "border-green-400",
+      text: "text-green-900",
+      accent: "#047857",
+    },
+    aging: {
+      bg: "bg-green-50",
+      border: "border-green-200",
+      text: "text-green-700",
+      accent: "#10b981",
+    },
     neutral: {
       bg: "bg-gray-50",
       border: "border-gray-200",
@@ -71,12 +82,6 @@ export default function RealKPIWidget({
   const colors =
     colorClasses[statusColor as keyof typeof colorClasses] ||
     colorClasses.neutral;
-
-  // Create mini chart data for visual interest
-  const chartData = [
-    { name: "Value", value: Math.abs(numericValue) },
-    { name: "Rest", value: Math.max(0, 100 - Math.abs(numericValue)) },
-  ];
 
   return (
     <div
@@ -102,28 +107,6 @@ export default function RealKPIWidget({
             </div>
           </div>
         </div>
-
-        {/* Mini Chart */}
-        {numericValue > 0 && (
-          <div className="h-8 mt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={8}
-                  outerRadius={12}
-                  paddingAngle={2}
-                  dataKey="value"
-                >
-                  <Cell fill={colors.accent} />
-                  <Cell fill={colors.accent + "20"} />
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -181,22 +164,64 @@ function processKPIData(data: any[], query: any) {
   return { value: result, [alias]: result };
 }
 
-function getStatusColor(value: number, rules: any[] = []): string {
-  if (!rules || rules.length === 0) {
-    return "neutral";
+function getStatusColorByTitle(
+  title: string,
+  value: number,
+  rules: any[] = []
+): string {
+  // Add null check for title
+  if (!title || typeof title !== "string") {
+    return getStatusColor(value, rules);
   }
 
-  for (const rule of rules) {
-    if (rule.if) {
-      // Simple condition evaluation - handle basic comparisons
-      if (evaluateSimpleCondition(rule.if, value)) {
+  // Determine color based on title for age-based KPIs
+  if (title.includes("0-90") || title.includes("Fresh")) {
+    return "fresh";
+  }
+  if (title.includes("91-180") || title.includes("Aging")) {
+    return "aging";
+  }
+  if (title.includes("181-365") || title.includes("Risk")) {
+    return "warning";
+  }
+  if (title.includes(">365") || title.includes("Old Stock")) {
+    return "danger";
+  }
+
+  // Fallback to original age-based logic
+  return getStatusColor(value, rules);
+}
+
+function getStatusColor(value: number, rules: any[] = []): string {
+  // Special handling for age-based KPIs (Days)
+  if (value > 365) {
+    return "danger";
+  }
+  if (value > 180) {
+    return "warning";
+  }
+  if (value > 90) {
+    return "aging";
+  }
+  if (value >= 0) {
+    return "fresh";
+  }
+
+  // Fallback to rule-based evaluation if provided
+  if (rules && rules.length > 0) {
+    for (const rule of rules) {
+      if (rule.if) {
+        // Simple condition evaluation - handle basic comparisons
+        if (evaluateSimpleCondition(rule.if, value)) {
+          return rule.color || "neutral";
+        }
+      }
+      if (rule.else === true) {
         return rule.color || "neutral";
       }
     }
-    if (rule.else === true) {
-      return rule.color || "neutral";
-    }
   }
+
   return "neutral";
 }
 
@@ -265,25 +290,33 @@ function formatValue(value: number, formatter?: string): string {
 function getStatusIcon(status: string): string {
   switch (status) {
     case "danger":
-      return "⚠️";
+      return "🚨";
     case "warning":
-      return "⚡";
+      return "⚠️";
     case "ok":
       return "✅";
+    case "fresh":
+      return "🟢";
+    case "aging":
+      return "🟡";
     default:
-      return "📊";
+      return "";
   }
 }
 
 function getStatusText(status: string): string {
   switch (status) {
     case "danger":
-      return "Critical";
+      return "อันตรายมาก";
     case "warning":
-      return "Warning";
+      return "ต้องระวัง";
     case "ok":
-      return "Good";
+      return "ปกติ";
+    case "fresh":
+      return "สดใหม่";
+    case "aging":
+      return "เริ่มเก่า";
     default:
-      return "Normal";
+      return "";
   }
 }

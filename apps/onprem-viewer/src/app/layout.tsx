@@ -6,9 +6,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
 import { VersionDisplay } from "@/components/VersionDisplay";
+import { ThemeProvider, useTheme } from "@/app/components/context/ThemeContext";
 import "./globals.css";
+// import "@/services/autoStartService"; // Temporarily disabled
+// Import logger to auto-disable console in production
+import "@/utils/logger";
 
 interface UserSession {
   email: string;
@@ -25,32 +28,33 @@ export default function RootLayout({
 }) {
   const [session, setSession] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
-  const [darkMode, setDarkMode] = useState(true);
 
   useEffect(() => {
     checkSession();
-    // Load dark mode preference (only in browser)
+    // Check if we have a saved session as fallback
     if (typeof window !== "undefined" && window.localStorage) {
-      const savedDarkMode = localStorage.getItem("darkMode");
-      if (savedDarkMode !== null) {
-        setDarkMode(JSON.parse(savedDarkMode));
+      const savedSession = localStorage.getItem("userSession");
+      if (savedSession) {
+        try {
+          const sessionData = JSON.parse(savedSession);
+          // Only use saved session if license hasn't expired
+          if (
+            sessionData.expiryDate &&
+            new Date(sessionData.expiryDate) > new Date()
+          ) {
+            setSession(sessionData);
+            setLoading(false);
+          } else {
+            // Remove expired session
+            localStorage.removeItem("userSession");
+          }
+        } catch (error) {
+          console.error("Failed to parse saved session:", error);
+          localStorage.removeItem("userSession");
+        }
       }
     }
   }, []);
-
-  useEffect(() => {
-    // Apply dark mode to document
-    if (darkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-
-    // Save dark mode preference (only in browser)
-    if (typeof window !== "undefined" && window.localStorage) {
-      localStorage.setItem("darkMode", JSON.stringify(darkMode));
-    }
-  }, [darkMode]);
 
   const checkSession = async () => {
     try {
@@ -86,76 +90,67 @@ export default function RootLayout({
   const handleLogin = (newSession: UserSession) => {
     setSession(newSession);
     setLoading(false);
-  };
 
-  const handleLogout = async () => {
-    try {
-      // Call Firebase logout endpoint
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include", // Include HTTP-only cookies
-      });
-    } catch (error) {
-      console.error("Logout error:", error);
+    // Save session to localStorage (excluding sensitive data)
+    if (typeof window !== "undefined" && window.localStorage) {
+      localStorage.setItem("userSession", JSON.stringify(newSession));
     }
-
-    // Clear local state
-    setSession(null);
   };
 
   if (loading) {
     return (
-      <html lang="en" className={darkMode ? "dark" : ""}>
-        <body className="bg-gray-50 dark:bg-gray-900">
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
-              <p className="text-gray-600 dark:text-gray-300">
-                Checking authentication...
-              </p>
+      <ThemeProvider>
+        <html lang="en">
+          <body className="bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Checking authentication...
+                </p>
+              </div>
             </div>
-          </div>
-        </body>
-      </html>
+          </body>
+        </html>
+      </ThemeProvider>
     );
   }
 
   // Show login screen if not authenticated
   if (!session) {
     return (
-      <html lang="en" className={darkMode ? "dark" : ""}>
-        <body className="bg-gray-50 dark:bg-gray-900">
-          <LoginScreen
-            onLogin={handleLogin}
-            darkMode={darkMode}
-            setDarkMode={setDarkMode}
-          />
-        </body>
-      </html>
+      <ThemeProvider>
+        <html lang="en">
+          <body className="bg-gray-50 dark:bg-gray-900">
+            <LoginScreen onLogin={handleLogin} />
+          </body>
+        </html>
+      </ThemeProvider>
     );
   }
 
   // Show authenticated layout
   return (
-    <html lang="en" className={darkMode ? "dark" : ""}>
-      <body className="bg-gray-50 dark:bg-gray-900">
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-          {/* Main content */}
-          <main className="h-screen">{children}</main>
-        </div>
-      </body>
-    </html>
+    <ThemeProvider>
+      <html lang="en">
+        <body className="bg-gray-50 dark:bg-gray-900">
+          <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+            {/* Main content */}
+            <main className="h-screen">{children}</main>
+          </div>
+        </body>
+      </html>
+    </ThemeProvider>
   );
 }
 
 // Login Screen Component with 2-Step Process
 interface LoginScreenProps {
   onLogin: (session: UserSession) => void;
-  darkMode: boolean;
-  setDarkMode: (dark: boolean) => void;
 }
 
-function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
+function LoginScreen({ onLogin }: LoginScreenProps) {
+  const { darkMode, toggleDarkMode } = useTheme();
   const [step, setStep] = useState<"login" | "license">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -167,6 +162,81 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
   }
 
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+
+  // Load saved license key from localStorage on component mount
+  useEffect(() => {
+    const savedLicenseKey = localStorage.getItem("flexboard-license-key");
+    if (savedLicenseKey) {
+      setLicenseKey(savedLicenseKey);
+      console.log("Loaded saved license key from localStorage");
+    }
+  }, []);
+
+  // Check if user already has a license
+  const checkUserLicense = async (user: UserInfo) => {
+    try {
+      const response = await fetch("/api/auth/check-license", {
+        method: "GET",
+        credentials: "include",
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success && result.hasLicense) {
+        // User already has valid license, proceed directly
+        onLogin({
+          email: user.email,
+          tenantId: result.license.tenantId,
+          companyName: result.license.companyName,
+          features: result.license.features,
+          expiryDate: result.license.expiryDate,
+        });
+      } else {
+        // User needs to set license key
+        const savedLicenseKey = localStorage.getItem("flexboard-license-key");
+        if (savedLicenseKey) {
+          // Try auto license validation with saved key
+          console.log("Attempting auto license validation with saved key...");
+          try {
+            const licenseResponse = await fetch("/api/auth/license-validate", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              credentials: "include",
+              body: JSON.stringify({
+                licenseKey: savedLicenseKey,
+                email: user.email,
+              }),
+            });
+
+            const licenseResult = await licenseResponse.json();
+            if (licenseResponse.ok && licenseResult.success) {
+              // Auto license validation successful
+              console.log("Auto license validation successful");
+              onLogin({
+                email: user.email,
+                tenantId: licenseResult.license.tenantId,
+                companyName: licenseResult.license.companyName,
+                features: licenseResult.license.features,
+                expiryDate: licenseResult.license.expiryDate,
+              });
+              return; // Exit early, no need to show license step
+            } else {
+              console.log("Saved license key is invalid, showing license step");
+            }
+          } catch (error) {
+            console.error("Auto license validation error:", error);
+          }
+        }
+        setStep("license");
+      }
+    } catch (error) {
+      console.error("License check error:", error);
+      // On error, fall back to license step
+      setStep("license");
+    }
+  };
 
   // Step 1: Firebase Email/Password Login
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -193,10 +263,12 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // Email login successful, store user info and move to license step
+        // Email login successful, check if user already has license
         setUserInfo(result.user);
-        setStep("license");
         setError("");
+
+        // Auto-check if user has existing license
+        await checkUserLicense(result.user);
       } else {
         setError(result.message || "Login failed");
       }
@@ -224,16 +296,38 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
         credentials: "include", // Include HTTP-only cookies
         body: JSON.stringify({
           licenseKey,
-          email: userInfo.email,
+          email: userInfo?.email,
         }),
       });
 
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // License validation successful
+        // License validation successful - save license key to localStorage
+        localStorage.setItem("flexboard-license-key", licenseKey);
+        console.log("License key saved to localStorage");
+
+        // Auto-save to .env file
+        try {
+          const envResponse = await fetch("/api/auth/save-license-env", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ licenseKey }),
+          });
+          const envResult = await envResponse.json();
+          if (envResult.success) {
+            console.log("License key automatically saved to .env file");
+          } else {
+            console.warn("Failed to auto-save to .env:", envResult.error);
+          }
+        } catch (error) {
+          console.warn("Error auto-saving to .env file:", error);
+        }
+
+        // Login user
         onLogin({
-          email: userInfo.email,
+          email: userInfo?.email || "",
           tenantId: result.license.tenantId,
           companyName: result.license.companyName,
           features: result.license.features,
@@ -266,7 +360,8 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
               Welcome, {userInfo?.email}
             </h2>
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              Please enter your company license key to access dashboards
+              Please enter your company license key. This will be saved to your
+              account for future logins.
             </p>
           </div>
 
@@ -290,6 +385,23 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
                   className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                   placeholder="FLX-XXX-XXX-XXX-XXXXXX-XXXXXX"
                 />
+                {localStorage.getItem("flexboard-license-key") && (
+                  <p className="mt-1 text-sm text-green-600 dark:text-green-400">
+                    ✅ License key loaded from saved data
+                  </p>
+                )}
+                {licenseKey && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.removeItem("flexboard-license-key");
+                      setLicenseKey("");
+                    }}
+                    className="mt-2 text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 underline"
+                  >
+                    Clear saved license key
+                  </button>
+                )}
               </div>
             </div>
 
@@ -334,7 +446,7 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
           {/* Dark Mode Toggle */}
           <div className="flex justify-center">
             <button
-              onClick={() => setDarkMode(!darkMode)}
+              onClick={toggleDarkMode}
               className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
@@ -356,9 +468,7 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
               FlexBoard OnPrem
             </h1>
           </div>
-          <h2 className="text-xl text-gray-600 dark:text-gray-300">
-            Dashboard Viewer
-          </h2>
+
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
             Sign in to your account to access dashboards
           </p>
@@ -444,7 +554,7 @@ function LoginScreen({ onLogin, darkMode, setDarkMode }: LoginScreenProps) {
         {/* Dark Mode Toggle */}
         <div className="flex justify-center">
           <button
-            onClick={() => setDarkMode(!darkMode)}
+            onClick={toggleDarkMode}
             className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
           >
             {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}

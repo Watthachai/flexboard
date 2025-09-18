@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Universal XML Parser Service for OnPrem Viewer
  * รองรับ XML structure หลายรูปแบบ
@@ -63,7 +64,9 @@ export class UniversalXmlParser {
       };
     } catch (error) {
       throw new Error(
-        `Failed to parse XML: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to parse XML: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       );
     }
   }

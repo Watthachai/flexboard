@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Advanced Table Widget with Dynamic Column Groups Support
  * Supports TanStack Table with hierarchical headers and dynamic configuration
@@ -5,7 +6,7 @@
 
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -18,9 +19,145 @@ import {
   SortingState,
   PaginationState,
 } from "@tanstack/react-table";
-import { ChevronUp, ChevronDown, Download, Search } from "lucide-react";
+import { ChevronUp, ChevronDown, Download, Search, Filter } from "lucide-react";
 import * as XLSX from "xlsx";
 import { aggregateBy } from "../utils/aggregate";
+import {
+  formatMoney,
+  isMoneyField,
+  EXCEL_MONEY_FORMAT,
+} from "../utils/numberFormat";
+
+// Multi-Select Dropdown Component
+interface MultiSelectProps {
+  options: string[];
+  selectedValues: string[];
+  onChange: (selected: string[]) => void;
+  placeholder: string;
+  maxDisplayItems?: number;
+}
+
+const MultiSelectDropdown: React.FC<MultiSelectProps> = ({
+  options,
+  selectedValues,
+  onChange,
+  placeholder,
+  maxDisplayItems = 3,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isOpen]);
+
+  const toggleOption = (option: string) => {
+    const newSelected = selectedValues.includes(option)
+      ? selectedValues.filter((v) => v !== option)
+      : [...selectedValues, option];
+    onChange(newSelected);
+  };
+
+  const clearAll = () => {
+    onChange([]);
+  };
+
+  const selectAll = () => {
+    onChange([...options]);
+  };
+
+  const displayText = () => {
+    if (selectedValues.length === 0) return placeholder;
+    if (selectedValues.length === 1) return selectedValues[0];
+    if (selectedValues.length <= maxDisplayItems) {
+      return selectedValues.join(", ");
+    }
+    return `${selectedValues.slice(0, maxDisplayItems).join(", ")} +${
+      selectedValues.length - maxDisplayItems
+    } more`;
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full pl-2 pr-8 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-left"
+        style={{ minHeight: "32px" }}
+        title={displayText()}
+      >
+        <span className="break-words whitespace-normal leading-tight block pr-4 text-left">
+          {displayText()}
+        </span>
+        <span className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400">
+          {isOpen ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full min-w-fit mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg max-h-64 overflow-y-auto">
+          {/* Control buttons */}
+          <div className="p-2 border-b border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={selectAll}
+                className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Select All
+              </button>
+              <button
+                type="button"
+                onClick={clearAll}
+                className="text-xs px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+              >
+                Clear All
+              </button>
+              <span className="text-xs text-gray-600 dark:text-gray-400 flex items-center ml-auto">
+                {selectedValues.length}/{options.length}
+              </span>
+            </div>
+          </div>
+
+          {/* Options list */}
+          {options.map((option) => (
+            <label
+              key={option}
+              className="flex items-center px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer min-h-[32px]"
+            >
+              <input
+                type="checkbox"
+                checked={selectedValues.includes(option)}
+                onChange={() => toggleOption(option)}
+                className="mr-2 text-blue-500 focus:ring-blue-500 flex-shrink-0"
+              />
+              <span
+                className="text-xs flex-1 break-words whitespace-normal leading-tight py-1 text-left"
+                title={option}
+              >
+                {option}
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Types for dynamic column configuration
 interface ColumnGroup {
@@ -30,6 +167,7 @@ interface ColumnGroup {
   cellClass?: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface ColumnConfig {
   field: string;
   label?: string;
@@ -49,7 +187,6 @@ interface TableDisplayConfig {
   columnWidths?: Record<string, number>;
   columnAlignment?: Record<string, "left" | "center" | "right">;
   stickyHeader?: boolean;
-  stickyFirstColumns?: number;
   pageSize?: number;
   showTotalsRow?: boolean;
   totalsAgg?: Record<string, "sum" | "avg" | "count" | "min" | "max">;
@@ -80,24 +217,52 @@ const formatValue = (
   formatter: string,
   formatters: Record<string, any> = {}
 ) => {
+  console.log("🔧 formatValue called:", { value, formatter, formatters });
+
   if (value == null) return "";
 
   const formatterConfig = formatters[formatter];
-  if (!formatterConfig) return String(value);
+  console.log("📝 formatterConfig:", formatterConfig);
+
+  if (!formatterConfig) {
+    console.log("❌ No formatter config found for:", formatter);
+    return String(value);
+  }
 
   switch (formatterConfig.kind) {
     case "number":
+      console.log("🔢 Number formatting:", { value, formatterConfig });
       const num = Number(value);
       if (isNaN(num)) return String(value);
 
-      let formatted = num.toFixed(formatterConfig.precision || 0);
+      // Handle floating point precision issues more aggressively
+      const precision = formatterConfig.precision || 0;
 
-      if (formatterConfig.thousandsSep) {
+      // For very small numbers with floating point errors, use parseFloat to clean up
+      let cleanNum = num;
+      if (Math.abs(num) < 1 && num.toString().includes("e")) {
+        // Handle scientific notation
+        cleanNum = parseFloat(num.toPrecision(10));
+      } else if (num.toString().length > 15) {
+        // Handle very long decimal numbers
+        cleanNum = parseFloat(num.toPrecision(12));
+      }
+
+      const multiplier = Math.pow(10, precision);
+      const roundedNum =
+        Math.round((cleanNum + Number.EPSILON) * multiplier) / multiplier;
+      let formatted = roundedNum.toFixed(precision);
+
+      // Remove unnecessary trailing zeros for better display
+      if (precision > 0 && formatted.includes(".")) {
+        formatted = formatted.replace(/\.?0+$/, "");
+      }
+
+      if (formatterConfig.thousandsSep !== false) {
+        // ใช้ comma เป็น default สำหรับการคั่นหลักพัน
+        const separator = formatterConfig.thousandsSep || ",";
         const parts = formatted.split(".");
-        parts[0] = parts[0].replace(
-          /\B(?=(\d{3})+(?!\d))/g,
-          formatterConfig.thousandsSep
-        );
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, separator);
         formatted = parts.join(".");
       }
 
@@ -106,15 +271,27 @@ const formatValue = (
       if (formatterConfig.suffix)
         formatted = formatted + formatterConfig.suffix;
 
+      console.log("✅ Number formatted result:", formatted);
       return formatted;
+
+    case "days":
+      const numValue = Number(value);
+      if (isNaN(numValue)) return String(value);
+
+      // Format days with proper suffix
+      if (numValue === 1) return "1 day";
+      if (numValue === 0) return "Today";
+      if (numValue < 0) return `${Math.abs(numValue)} days ago`;
+      return `${numValue} days`;
 
     case "date":
       const date = new Date(value);
       if (isNaN(date.getTime())) return String(value);
 
+      // Use more readable date format - Thai friendly DD/MM/YYYY format
       return date.toLocaleDateString("th-TH", {
         day: "2-digit",
-        month: "short",
+        month: "2-digit",
         year: "numeric",
       });
 
@@ -163,13 +340,48 @@ const generateColumns = (
               header: display.columnLabels?.[field] || field,
               cell: (info: any) => {
                 const value = info.getValue();
-                const formatter = display.columnFormatters?.[field];
-                return formatter
-                  ? formatValue(value, formatter, formatters)
-                  : value;
+                const formatterKey = display.columnFormatters?.[field];
+
+                console.log(`🔍 Format Debug [${field}]:`, {
+                  value,
+                  formatterKey,
+                  availableFormatters: Object.keys(formatters),
+                  isMoneyField: isMoneyField(field),
+                });
+
+                // Use formatter from config first, then fallback to auto-format
+                if (formatterKey) {
+                  const formatted = formatValue(
+                    value,
+                    formatterKey,
+                    formatters
+                  );
+                  console.log(
+                    `✅ Formatted [${field}] with "${formatterKey}":`,
+                    value,
+                    "→",
+                    formatted
+                  );
+                  return formatted;
+                } // Fallback: auto-format money columns if no explicit formatter
+                if (isMoneyField(field)) {
+                  const formatted = formatMoney(value);
+                  console.log(
+                    `🔄 Auto-formatted [${field}]:`,
+                    value,
+                    "→",
+                    formatted
+                  );
+                  return formatted;
+                }
+
+                console.log(`➡️ No formatting [${field}]:`, value);
+                return value;
               },
               meta: {
-                align: display.columnAlignment?.[field] || "left",
+                align:
+                  display.columnAlignment?.[field] ||
+                  (isMoneyField(field) ? "right" : "left"),
                 className: display.rowClassRules ? "dynamic-cell" : undefined,
               },
             })
@@ -197,13 +409,48 @@ const generateColumns = (
                   header: display.columnLabels?.[field] || field,
                   cell: (info: any) => {
                     const value = info.getValue();
-                    const formatter = display.columnFormatters?.[field];
-                    return formatter
-                      ? formatValue(value, formatter, formatters)
-                      : value;
+                    const formatterKey = display.columnFormatters?.[field];
+
+                    console.log(`🔍 Group Format Debug [${field}]:`, {
+                      value,
+                      formatterKey,
+                      availableFormatters: Object.keys(formatters),
+                      isMoneyField: isMoneyField(field),
+                    });
+
+                    // Use formatter from config first, then fallback to auto-format
+                    if (formatterKey) {
+                      const formatted = formatValue(
+                        value,
+                        formatterKey,
+                        formatters
+                      );
+                      console.log(
+                        `✅ Group Formatted [${field}] with "${formatterKey}":`,
+                        value,
+                        "→",
+                        formatted
+                      );
+                      return formatted;
+                    } // Fallback: auto-format money columns if no explicit formatter
+                    if (isMoneyField(field)) {
+                      const formatted = formatMoney(value);
+                      console.log(
+                        `🔄 Group Auto-formatted [${field}]:`,
+                        value,
+                        "→",
+                        formatted
+                      );
+                      return formatted;
+                    }
+
+                    console.log(`➡️ Group No formatting [${field}]:`, value);
+                    return value;
                   },
                   meta: {
-                    align: display.columnAlignment?.[field] || "left",
+                    align:
+                      display.columnAlignment?.[field] ||
+                      (isMoneyField(field) ? "right" : "left"),
                     className: display.rowClassRules
                       ? "dynamic-cell"
                       : undefined,
@@ -232,11 +479,46 @@ const generateColumns = (
         header: display.columnLabels?.[field] || field,
         cell: (info: any) => {
           const value = info.getValue();
-          const formatter = display.columnFormatters?.[field];
-          return formatter ? formatValue(value, formatter, formatters) : value;
+          const formatterKey = display.columnFormatters?.[field];
+
+          console.log(`🔍 Flat Format Debug [${field}]:`, {
+            value,
+            formatterKey,
+            availableFormatters: Object.keys(formatters),
+            isMoneyField: isMoneyField(field),
+          });
+
+          // Use formatter from config first, then fallback to auto-format
+          if (formatterKey) {
+            const formatted = formatValue(value, formatterKey, formatters);
+            console.log(
+              `✅ Flat Formatted [${field}] with "${formatterKey}":`,
+              value,
+              "→",
+              formatted
+            );
+            return formatted;
+          }
+
+          // Fallback: auto-format money columns if no explicit formatter
+          if (isMoneyField(field)) {
+            const formatted = formatMoney(value);
+            console.log(
+              `🔄 Flat Auto-formatted [${field}]:`,
+              value,
+              "→",
+              formatted
+            );
+            return formatted;
+          }
+
+          console.log(`➡️ Flat No formatting [${field}]:`, value);
+          return value;
         },
         meta: {
-          align: display.columnAlignment?.[field] || "left",
+          align:
+            display.columnAlignment?.[field] ||
+            (isMoneyField(field) ? "right" : "left"),
           className: display.rowClassRules ? "dynamic-cell" : undefined,
         },
       })
@@ -332,12 +614,52 @@ export default function AdvancedTableWidget({
   title,
   preAggregation,
 }: AdvancedTableProps) {
+  // Merge provided formatters with fallback - memoized to prevent re-renders
+  const mergedFormatters = useMemo(() => {
+    // 🔧 Temporary hardcoded formatters as fallback
+    const fallbackFormatters = {
+      money: {
+        kind: "number",
+        precision: 2,
+        thousandsSep: ",",
+        prefix: "฿",
+        roundingMode: "round",
+      },
+      qty: {
+        kind: "number",
+        precision: 0,
+        thousandsSep: ",",
+        roundingMode: "round",
+      },
+      unitCost: {
+        kind: "number",
+        precision: 6,
+        thousandsSep: ",",
+        prefix: "฿",
+        roundingMode: "round",
+      },
+      days: {
+        kind: "number",
+        precision: 0,
+        roundingMode: "round",
+      },
+      date: {
+        kind: "date",
+        timezone: "Asia/Bangkok",
+        pattern: "dd MMM yyyy",
+      },
+    };
+
+    return { ...fallbackFormatters, ...formatters };
+  }, [formatters]);
+
   // Debug logging
   console.log("🔥 AdvancedTableWidget Props:", {
     dataLength: data?.length || 0,
     dataPreview: data?.slice(0, 2) || [],
     display,
-    formatters,
+    originalFormatters: formatters,
+    mergedFormatters,
     height,
     title,
     preAggregation,
@@ -359,6 +681,10 @@ export default function AdvancedTableWidget({
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  // Filter state - now supports multi-select with arrays
+  const [columnFilters, setColumnFilters] = useState<
+    Record<string, string | string[]>
+  >({});
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: display.pageSize || 25,
@@ -368,31 +694,128 @@ export default function AdvancedTableWidget({
   const tableContainerHeight = useMemo(() => {
     const headerHeight = 60;
     const paginationHeight = 60;
+    const filterHeight = 60; // เพิ่ม space สำหรับ filters
     const minHeight = 500; // เพิ่มความสูงขั้นต่ำ
-    const calculatedHeight = height - headerHeight - paginationHeight;
+    const calculatedHeight =
+      height - headerHeight - paginationHeight - filterHeight;
     return Math.max(minHeight, calculatedHeight);
   }, [height]);
+
+  // Extract unique values for filters
+  const getUniqueValues = (field: string) => {
+    const values = aggregatedData.map((row) => row[field]).filter(Boolean);
+    return [...new Set(values)].sort();
+  };
+
+  // Apply column filters to data - now supports multi-select
+  const filteredData = useMemo(() => {
+    console.log("🔍 Filter Debug:", {
+      originalDataCount: aggregatedData.length,
+      columnFilters,
+      hasFilters: Object.keys(columnFilters).length > 0,
+    });
+
+    if (Object.keys(columnFilters).length === 0) {
+      console.log("📊 No filters applied, returning all data");
+      return aggregatedData;
+    }
+
+    const filtered = aggregatedData.filter((row) => {
+      return Object.entries(columnFilters).every(([field, filterValue]) => {
+        if (
+          !filterValue ||
+          (Array.isArray(filterValue) && filterValue.length === 0)
+        )
+          return true;
+
+        console.log(
+          `🔎 Checking filter: ${field} = ${JSON.stringify(
+            filterValue
+          )} for row:`,
+          row[field]
+        );
+
+        // Special handling for month filter
+        if (field === "documentMonth") {
+          const month = parseInt(
+            Array.isArray(filterValue) ? filterValue[0] : filterValue
+          );
+          const docDate = row["Document Date"] || row["Data Date"];
+          if (docDate) {
+            const date = new Date(docDate);
+            const matches = date.getMonth() + 1 === month;
+            console.log(
+              `📅 Month filter: ${month}, row date: ${docDate}, matches: ${matches}`
+            );
+            return matches;
+          }
+          return false;
+        }
+
+        // Multi-select filtering - check if cell value is in selected values array
+        const cellValue = String(row[field] || "");
+
+        // Special handling for date fields - format the cell value for comparison
+        let comparisonValue = cellValue;
+        if (
+          field.toLowerCase().includes("date") ||
+          field.toLowerCase().includes("วันที่")
+        ) {
+          const date = new Date(row[field]);
+          if (!isNaN(date.getTime())) {
+            comparisonValue = date.toLocaleDateString("th-TH", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            });
+          }
+        }
+
+        if (Array.isArray(filterValue)) {
+          const matches = filterValue.includes(comparisonValue);
+          console.log(
+            `🏢 Multi-select filter: ${JSON.stringify(
+              filterValue
+            )} contains "${comparisonValue}": ${matches}`
+          );
+          return matches;
+        }
+
+        // Single-select filtering (fallback for backward compatibility)
+        const matches = comparisonValue === filterValue;
+        console.log(
+          `🏢 Single-select filter: "${filterValue}" vs "${comparisonValue}", matches: ${matches}`
+        );
+        return matches;
+      });
+    });
+
+    console.log(
+      `✅ Filtered result: ${filtered.length} rows from ${aggregatedData.length}`
+    );
+    return filtered;
+  }, [aggregatedData, columnFilters]);
 
   // Generate columns dynamically
   const columns = useMemo(() => {
     const generatedColumns = generateColumns(
-      aggregatedData,
+      filteredData,
       display,
-      formatters
+      mergedFormatters
     );
     console.log("🔥 Generated Columns:", generatedColumns);
     return generatedColumns;
-  }, [aggregatedData, display, formatters]);
+  }, [filteredData, display, mergedFormatters]);
 
   // Calculate totals if enabled
   const totalsRow = useMemo(() => {
     if (!display.showTotalsRow || !display.totalsAgg) return null;
-    return calculateTotalsRow(aggregatedData, display.totalsAgg);
-  }, [aggregatedData, display.showTotalsRow, display.totalsAgg]);
+    return calculateTotalsRow(filteredData, display.totalsAgg);
+  }, [filteredData, display.showTotalsRow, display.totalsAgg]);
 
   // Initialize table
   const table = useReactTable({
-    data: aggregatedData,
+    data: filteredData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -408,49 +831,441 @@ export default function AdvancedTableWidget({
     onPaginationChange: setPagination,
   });
 
-  // Export to Excel function
+  // Export to Excel function with column groups support and filtered data
   const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(aggregatedData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
 
+    // Get export options from display config
+    const exportOptions =
+      (
+        display as {
+          exportExcelOptions?: { filename?: string; worksheetName?: string };
+        }
+      ).exportExcelOptions || {};
     const filename =
-      display.exportFilename ||
-      `table-export-${new Date().toISOString().split("T")[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
+      exportOptions.filename ||
+      `inventory-export-${new Date().toISOString().split("T")[0]}.xlsx`;
+    const worksheetName = exportOptions.worksheetName || "Filtered Data";
+
+    // Use FILTERED data instead of all data
+    const exportData = filteredData; // ใช้ข้อมูลที่ filter แล้ว
+
+    // Apply global search filter if exists
+    const currentFilteredData = globalFilter
+      ? exportData.filter((row) =>
+          Object.values(row).some((value) =>
+            String(value).toLowerCase().includes(globalFilter.toLowerCase())
+          )
+        )
+      : exportData;
+
+    console.log(
+      `📊 Exporting ${currentFilteredData.length} filtered rows (from ${data.length} total) - FILTERED DATA EXPORT`
+    );
+
+    // Create worksheet with column groups if available
+    let worksheet: XLSX.WorkSheet;
+
+    if (display.columnGroups && display.columnGroups.length > 0) {
+      // Create worksheet with custom headers for column groups
+      worksheet = createWorksheetWithColumnGroups(
+        currentFilteredData,
+        display.columnGroups,
+        display.columnLabels || {},
+        display.columnFormatters || {},
+        mergedFormatters
+      );
+    } else {
+      // Fallback to simple export
+      worksheet = XLSX.utils.json_to_sheet(currentFilteredData);
+    }
+
+    // Add the filtered data worksheet
+    XLSX.utils.book_append_sheet(workbook, worksheet, worksheetName);
+
+    // Add raw data worksheet with ALL original data
+    console.log(`📋 Adding raw data worksheet with ${data.length} total rows`);
+    const rawDataWorksheet = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(
+      workbook,
+      rawDataWorksheet,
+      `Raw Data (${data.length} rows)`
+    );
+
+    // Force .xlsx extension
+    const finalFilename = filename.endsWith(".xlsx")
+      ? filename
+      : filename + ".xlsx";
+
+    // Export with proper MIME type
+    XLSX.writeFile(workbook, finalFilename, {
+      bookType: "xlsx",
+      type: "binary",
+    });
+  };
+
+  // Helper function to create worksheet with column groups
+  const createWorksheetWithColumnGroups = (
+    data: any[],
+    columnGroups: ColumnGroup[],
+    columnLabels: Record<string, string>,
+    columnFormatters: Record<string, string>,
+    formatters: Record<string, any>
+  ): XLSX.WorkSheet => {
+    if (data.length === 0) return XLSX.utils.json_to_sheet([]);
+
+    // Prepare header rows
+    const groupHeaderRow: string[] = [];
+    const columnHeaderRow: string[] = [];
+    const columnKeys: string[] = [];
+
+    // Build headers from column groups
+    columnGroups.forEach((group) => {
+      const groupColumns = group.columns.filter(
+        (col) => data.length > 0 && data[0].hasOwnProperty(col)
+      );
+
+      if (groupColumns.length > 0) {
+        // Add group title spanning multiple columns
+        groupHeaderRow.push(group.title);
+        // Add empty cells for remaining columns in this group
+        for (let i = 1; i < groupColumns.length; i++) {
+          groupHeaderRow.push("");
+        }
+
+        // Add individual column headers
+        groupColumns.forEach((col) => {
+          columnHeaderRow.push(columnLabels[col] || col);
+          columnKeys.push(col);
+        });
+      }
+    });
+
+    // Create data rows with proper formatting
+    const dataRows = data.map((row) => {
+      const formattedRow: any[] = [];
+      columnKeys.forEach((key) => {
+        const value = row[key];
+
+        // Apply formatting if specified
+        const formatterKey = columnFormatters[key];
+        if (formatterKey && formatters[formatterKey]) {
+          const formatter = formatters[formatterKey];
+          if (formatter.kind === "number") {
+            // For Excel, keep numbers as numbers but format appropriately
+            if (typeof value === "number") {
+              formattedRow.push(value);
+            } else {
+              formattedRow.push(parseFloat(value) || 0);
+            }
+          } else if (formatter.kind === "date") {
+            // Convert dates for Excel
+            formattedRow.push(value);
+          } else {
+            formattedRow.push(value);
+          }
+        } else {
+          // Special handling for Total Value and Value columns (accounting format)
+          if (
+            key === "Total Value" ||
+            key === "Value" ||
+            key.toLowerCase().includes("value")
+          ) {
+            const numValue = Number(value);
+            if (!isNaN(numValue)) {
+              formattedRow.push(numValue);
+            } else {
+              formattedRow.push(value);
+            }
+          } else {
+            formattedRow.push(value);
+          }
+        }
+      });
+      return formattedRow;
+    });
+
+    // Combine all rows
+    const allRows = [groupHeaderRow, columnHeaderRow, ...dataRows];
+
+    // Create worksheet from array of arrays
+    const worksheet = XLSX.utils.aoa_to_sheet(allRows);
+
+    // Merge cells for group headers
+    if (!worksheet["!merges"]) worksheet["!merges"] = [];
+
+    let colIndex = 0;
+    columnGroups.forEach((group) => {
+      const groupColumns = group.columns.filter(
+        (col) => data.length > 0 && data[0].hasOwnProperty(col)
+      );
+
+      if (groupColumns.length > 1) {
+        // Merge cells for group header (row 0)
+        worksheet["!merges"]?.push({
+          s: { r: 0, c: colIndex },
+          e: { r: 0, c: colIndex + groupColumns.length - 1 },
+        });
+      }
+
+      colIndex += groupColumns.length;
+    });
+
+    // Set column widths based on content
+    const columnWidths = columnKeys.map((key) => {
+      const maxLength = Math.max(
+        (columnLabels[key] || key).length,
+        ...data.map((row) => String(row[key] || "").length)
+      );
+      return { wch: Math.min(Math.max(maxLength + 2, 10), 50) };
+    });
+    worksheet["!cols"] = columnWidths;
+
+    // Style the header rows (make them bold with yellow background)
+    const headerCells = [];
+
+    // Style group header row (row 0)
+    for (let col = 0; col < groupHeaderRow.length; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+      if (!worksheet[cellAddress]) continue;
+      headerCells.push(cellAddress);
+      // Apply yellow background and bold formatting
+      worksheet[cellAddress].s = {
+        fill: { fgColor: { rgb: "FFFF00" } }, // Yellow background
+        font: { bold: true }, // Bold text
+        alignment: { horizontal: "center", vertical: "center" },
+      };
+    }
+
+    // Style column header row (row 1)
+    for (let col = 0; col < columnHeaderRow.length; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 1, c: col });
+      if (!worksheet[cellAddress]) continue;
+      headerCells.push(cellAddress);
+      // Apply yellow background and bold formatting
+      worksheet[cellAddress].s = {
+        fill: { fgColor: { rgb: "FFFF00" } }, // Yellow background
+        font: { bold: true }, // Bold text
+        alignment: { horizontal: "center", vertical: "center" },
+      };
+    }
+
+    // Add number formatting for currency/number columns
+    columnKeys.forEach((key, colIndex) => {
+      const formatterKey = columnFormatters[key];
+      if (formatterKey && formatters[formatterKey]) {
+        const formatter = formatters[formatterKey];
+        if (formatter.kind === "number") {
+          // Apply number format with thousand separator
+          for (let rowIndex = 2; rowIndex < allRows.length; rowIndex++) {
+            const cellAddress = XLSX.utils.encode_cell({
+              r: rowIndex,
+              c: colIndex,
+            });
+            if (
+              worksheet[cellAddress] &&
+              typeof worksheet[cellAddress].v === "number"
+            ) {
+              worksheet[cellAddress].z = "#,##0.00"; // Number format with comma separator and 2 decimals
+            }
+          }
+        }
+      } else if (isMoneyField(key)) {
+        // Auto-format money columns even without explicit formatter
+        for (let rowIndex = 2; rowIndex < allRows.length; rowIndex++) {
+          const cellAddress = XLSX.utils.encode_cell({
+            r: rowIndex,
+            c: colIndex,
+          });
+          if (
+            worksheet[cellAddress] &&
+            typeof worksheet[cellAddress].v === "number"
+          ) {
+            // Use accounting format with currency symbol
+            worksheet[cellAddress].z = EXCEL_MONEY_FORMAT;
+            // Also add right alignment for numbers
+            if (!worksheet[cellAddress].s) {
+              worksheet[cellAddress].s = {};
+            }
+            worksheet[cellAddress].s.alignment = { horizontal: "right" };
+          }
+        }
+      }
+    });
+
+    return worksheet;
   };
 
   return (
-    <div className="w-full h-full flex flex-col bg-white rounded-lg shadow-sm border">
+    <div className="w-full h-full flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 transition-colors duration-200">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-gray-50 flex-shrink-0">
-        <h3 className="text-lg font-semibold">{title}</h3>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex-shrink-0 transition-colors duration-200">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+            {title}
+          </h3>
+          <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            📊 Total: {data.length} records | Displayed: {filteredData.length}{" "}
+            rows
+            {globalFilter &&
+              ` | Search: ${table.getFilteredRowModel().rows.length}`}
+            {Object.keys(columnFilters).length > 0 &&
+              ` | Filtered: ${filteredData.length}`}
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Global Search */}
           {display.searchable && (
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search..."
+                placeholder="Search all fields..."
                 value={globalFilter}
                 onChange={(e) => setGlobalFilter(e.target.value)}
-                className="pl-10 pr-4 py-2 border rounded-lg text-sm"
+                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               />
             </div>
           )}
+
+          {/* Company Filter - ปรับปรุงให้ดูชัดเจนขึ้น */}
+          {(data.some((row) => row["บริษัท"]) ||
+            data.some((row) => row["Company"])) && (
+            <div className="relative min-w-[200px]">
+              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 z-10" />
+              <select
+                value={
+                  columnFilters["บริษัท"] || columnFilters["Company"] || ""
+                }
+                onChange={(e) => {
+                  const field = data.some((row) => row["บริษัท"])
+                    ? "บริษัท"
+                    : "Company";
+                  setColumnFilters((prev) => ({
+                    ...prev,
+                    [field]: e.target.value,
+                  }));
+                }}
+                className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer transition-all duration-200"
+              >
+                <option value="">
+                  🏢 All Companies (
+                  {
+                    getUniqueValues(
+                      data.some((row) => row["บริษัท"]) ? "บริษัท" : "Company"
+                    ).length
+                  }
+                  )
+                </option>
+                {getUniqueValues(
+                  data.some((row) => row["บริษัท"]) ? "บริษัท" : "Company"
+                ).map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Product Filter - เพิ่ม filter สำหรับสินค้า */}
+          {(data.some((row) => row["สินค้า"]) ||
+            data.some((row) => row["Product"])) && (
+            <div className="relative min-w-[180px]">
+              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 z-10" />
+              <select
+                value={
+                  columnFilters["สินค้า"] || columnFilters["Product"] || ""
+                }
+                onChange={(e) => {
+                  const field = data.some((row) => row["สินค้า"])
+                    ? "สินค้า"
+                    : "Product";
+                  setColumnFilters((prev) => ({
+                    ...prev,
+                    [field]: e.target.value,
+                  }));
+                }}
+                className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer transition-all duration-200"
+              >
+                <option value="">
+                  📦 All Products (
+                  {
+                    getUniqueValues(
+                      data.some((row) => row["สินค้า"]) ? "สินค้า" : "Product"
+                    ).length
+                  }
+                  )
+                </option>
+                {getUniqueValues(
+                  data.some((row) => row["สินค้า"]) ? "สินค้า" : "Product"
+                ).map((value) => (
+                  <option key={value} value={value}>
+                    {value}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Date/Month Filter */}
+          {(data.some((row) => row["Document Date"]) ||
+            data.some((row) => row["Data Date"])) && (
+            <div className="relative min-w-[160px]">
+              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500 z-10" />
+              <select
+                value={columnFilters["documentMonth"] || ""}
+                onChange={(e) => {
+                  setColumnFilters((prev) => ({
+                    ...prev,
+                    documentMonth: e.target.value,
+                  }));
+                }}
+                className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer transition-all duration-200"
+              >
+                <option value="">📅 All Months</option>
+                {Array.from({ length: 12 }, (_, i) => {
+                  const month = new Date(2024, i).toLocaleDateString("en-US", {
+                    month: "long",
+                  });
+                  return (
+                    <option key={i} value={i + 1}>
+                      {month}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
+
+          {/* Clear Filters Button */}
+          {(Object.keys(columnFilters).length > 0 || globalFilter) && (
+            <button
+              onClick={() => {
+                setColumnFilters({});
+                setGlobalFilter("");
+              }}
+              className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 border border-gray-300 rounded-lg transition-all duration-200"
+              title="Clear all filters"
+            >
+              ✕ Clear
+            </button>
+          )}
+
           <button
             onClick={exportToExcel}
-            className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md"
+            title="Export to Excel with all data sheets"
           >
             <Download className="h-4 w-4" />
-            Export Excel
+            Export Excel ({filteredData.length}/{data.length})
           </button>
         </div>
       </div>
 
       {/* Table Container */}
       <div
-        className="flex-1 relative border border-gray-300"
+        className="flex-1 relative border border-gray-300 dark:border-gray-600 transition-colors duration-200"
         style={{
           minHeight: `${tableContainerHeight}px`,
           maxHeight: `${Math.max(tableContainerHeight, 600)}px`,
@@ -466,49 +1281,37 @@ export default function AdvancedTableWidget({
           }}
         >
           <table
-            className="border-collapse border border-gray-200"
+            className="border-collapse border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 transition-colors duration-200"
             style={{
               minWidth: "100%",
               width: "max-content", // ให้ table ขยายตามเนื้อหา
+              tableLayout: "auto", // ให้ browser คำนวณความกว้างอัตโนมัติ
             }}
           >
             {/* Headers */}
-            <thead className="sticky top-0 z-30 bg-gray-50">
+            <thead className="sticky top-0 z-30 bg-yellow-100 dark:bg-yellow-900">
               {table.getHeaderGroups().map((headerGroup: any) => (
                 <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header: any, index: number) => {
-                    const isSticky =
-                      display.stickyFirstColumns &&
-                      index < display.stickyFirstColumns;
-
-                    // คำนวณ left position สำหรับ sticky columns
-                    let leftPosition = 0;
-                    if (isSticky) {
-                      for (let i = 0; i < index; i++) {
-                        leftPosition += 120; // width ของแต่ละ column
-                      }
-                    }
-
+                  {headerGroup.headers.map((header: any) => {
                     return (
                       <th
                         key={header.id}
                         colSpan={header.colSpan}
                         className={`
-                          border border-gray-200 p-2 text-left font-medium text-gray-700 text-sm bg-gray-50
-                          ${isSticky ? "sticky z-40" : ""}
-                          ${header.column.getCanSort() ? "cursor-pointer hover:bg-gray-100" : ""}
+                          border border-gray-200 dark:border-gray-600 p-2 text-left font-bold text-gray-800 dark:text-gray-200 text-sm bg-yellow-100 dark:bg-yellow-900 transition-colors duration-200
+                          ${
+                            header.column.getCanSort()
+                              ? "cursor-pointer hover:bg-yellow-200 dark:hover:bg-yellow-800"
+                              : ""
+                          }
                         `}
                         style={{
-                          ...(isSticky
-                            ? {
-                                left: `${leftPosition}px`,
-                                backgroundColor: "#f9fafb", // เพื่อให้เห็นชัดเจน
-                                borderRight: "2px solid #e5e7eb", // เส้นขอบขวาสำหรับ sticky
-                              }
-                            : {}),
                           minWidth: "120px",
-                          width: "120px",
-                          maxWidth: "120px",
+                          width: "auto",
+                          whiteSpace: "nowrap",
+                          verticalAlign: "middle",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
                         }}
                         onClick={header.column.getToggleSortingHandler()}
                       >
@@ -543,6 +1346,147 @@ export default function AdvancedTableWidget({
                   })}
                 </tr>
               ))}
+
+              {/* Filter Row ใต้ header (Dropdown ต่อคอลัมน์) */}
+              <tr className="bg-gray-50 dark:bg-gray-700">
+                {table.getAllLeafColumns().map((column: any) => {
+                  const columnId = column.id as string;
+
+                  // เลือกว่าจะให้คอลัมน์ไหนมี dropdown filter บ้าง
+                  // ถ้าไม่กำหนด จะเปิดให้ทุกคอลัมน์ที่มี unique values ไม่เยอะ
+                  const filterableWhitelist = new Set<string>([
+                    "Corp",
+                    "บริษัท",
+                    "Company",
+                    "Prod",
+                    "สินค้า",
+                    "Product",
+                    "Branch",
+                    "สาขา",
+                    "documentMonth", // สำหรับกรองตามเดือน (จาก Document Date/Data Date)
+                  ]);
+
+                  // ถ้าคุณอยาก "เปิดทุกคอลัมน์" ให้คอมเมนต์บรรทัด isFilterableColumn ด้านล่าง แล้วตั้งเป็น true
+                  const isFilterableColumn =
+                    filterableWhitelist.has(columnId) ||
+                    // เปิดออโต้เมื่อจำนวนค่าซ้ำไม่เกิน 300 (กัน dropdown ยาวเกิน)
+                    (new Set(
+                      aggregatedData
+                        .map((r) => r[columnId])
+                        .filter(
+                          (v) => v !== undefined && v !== null && v !== ""
+                        )
+                    ).size <= 300 &&
+                      // ไม่เปิดกับคอลัมน์ตัวเลขยาว/amount/price โดยดีฟอลต์ และไม่เปิดกับ money fields
+                      !isMoneyField(columnId));
+
+                  if (!isFilterableColumn) {
+                    return (
+                      <th
+                        key={`filter-${columnId}`}
+                        className="border border-gray-200 dark:border-gray-600 p-1 bg-gray-50 dark:bg-gray-700"
+                        style={{ minWidth: "120px" }}
+                      >
+                        <div className="h-6" />
+                      </th>
+                    );
+                  }
+
+                  // กรณีพิเศษ: documentMonth (กรองเดือนจาก Document Date / Data Date)
+                  if (columnId === "documentMonth") {
+                    return (
+                      <th
+                        key={`filter-${columnId}`}
+                        className="border border-gray-200 dark:border-gray-600 p-1 bg-gray-50 dark:bg-gray-700"
+                        style={{ minWidth: "140px" }}
+                      >
+                        <select
+                          value={columnFilters["documentMonth"] || ""}
+                          onChange={(e) =>
+                            setColumnFilters((prev) => ({
+                              ...prev,
+                              documentMonth: e.target.value,
+                            }))
+                          }
+                          className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="">📅 All Months</option>
+                          {Array.from({ length: 12 }, (_, i) => {
+                            const label = new Date(2024, i).toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "long",
+                              }
+                            );
+                            return (
+                              <option key={i + 1} value={i + 1}>
+                                {label}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </th>
+                    );
+                  }
+
+                  // ค่าไม่ซ้ำทั้งหมดจาก "ข้อมูลหลัง aggregation" (ให้ dropdown เห็นทุกตัวเลือก)
+                  const uniq = Array.from(
+                    new Set(
+                      aggregatedData
+                        .map((r) => r[columnId])
+                        .filter(
+                          (v) => v !== undefined && v !== null && v !== ""
+                        )
+                    )
+                  )
+                    .map((v) => {
+                      // Format date values for better display
+                      if (
+                        columnId.toLowerCase().includes("date") ||
+                        columnId.toLowerCase().includes("วันที่")
+                      ) {
+                        const date = new Date(v);
+                        if (!isNaN(date.getTime())) {
+                          return date.toLocaleDateString("th-TH", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          });
+                        }
+                      }
+                      return String(v);
+                    })
+                    .sort((a, b) =>
+                      a.localeCompare(b, undefined, { numeric: true })
+                    );
+
+                  return (
+                    <th
+                      key={`filter-${columnId}`}
+                      className="border border-gray-200 dark:border-gray-600 p-1 bg-gray-50 dark:bg-gray-700"
+                      style={{ minWidth: "140px" }}
+                    >
+                      <MultiSelectDropdown
+                        options={uniq.slice(0, 500)}
+                        selectedValues={
+                          Array.isArray(columnFilters[columnId])
+                            ? (columnFilters[columnId] as string[])
+                            : columnFilters[columnId]
+                            ? [columnFilters[columnId] as string]
+                            : []
+                        }
+                        onChange={(selected) =>
+                          setColumnFilters((prev) => ({
+                            ...prev,
+                            [columnId]: selected,
+                          }))
+                        }
+                        placeholder="All"
+                      />
+                    </th>
+                  );
+                })}
+              </tr>
             </thead>
 
             {/* Body */}
@@ -551,7 +1495,7 @@ export default function AdvancedTableWidget({
                 <tr>
                   <td
                     colSpan={columns.length}
-                    className="text-center p-8 text-gray-500"
+                    className="text-center p-8 text-gray-500 dark:text-gray-400"
                   >
                     No data available
                   </td>
@@ -565,41 +1509,23 @@ export default function AdvancedTableWidget({
                   return (
                     <tr
                       key={row.id}
-                      className={`border-b hover:bg-gray-50 ${rowClassName}`}
+                      className={`border-b border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200 ${rowClassName}`}
                     >
-                      {row.getVisibleCells().map((cell: any, index: number) => {
-                        const isSticky =
-                          display.stickyFirstColumns &&
-                          index < display.stickyFirstColumns;
+                      {row.getVisibleCells().map((cell: any) => {
                         const align =
                           cell.column.columnDef.meta?.align || "left";
-
-                        // คำนวณ left position สำหรับ sticky columns
-                        let leftPosition = 0;
-                        if (isSticky) {
-                          for (let i = 0; i < index; i++) {
-                            leftPosition += 120; // width ของแต่ละ column
-                          }
-                        }
 
                         return (
                           <td
                             key={cell.id}
-                            className={`
-                            border border-gray-200 p-2 text-${align} text-sm
-                            ${isSticky ? "sticky z-20 bg-white" : ""}
-                          `}
+                            className={`border border-gray-200 dark:border-gray-600 p-2 text-${align} text-sm text-gray-900 dark:text-gray-100 transition-colors duration-200`}
                             style={{
-                              ...(isSticky
-                                ? {
-                                    left: `${leftPosition}px`,
-                                    backgroundColor: "white",
-                                    borderRight: "2px solid #e5e7eb",
-                                  }
-                                : {}),
                               minWidth: "120px",
-                              width: "120px",
-                              maxWidth: "120px",
+                              width: "auto",
+                              whiteSpace: "nowrap",
+                              verticalAlign: "top",
+                              padding: "8px 12px",
+                              lineHeight: "1.4",
                             }}
                           >
                             {flexRender(
@@ -614,48 +1540,48 @@ export default function AdvancedTableWidget({
                 })
               )}
 
-              {/* Totals Row */}
-              {totalsRow && (
-                <tr className="bg-gray-100 font-semibold">
+              {/* Totals Row - Only show if enabled AND has data */}
+              {totalsRow && display.showTotalsRow && (
+                <tr className="bg-gray-100 dark:bg-gray-700 font-semibold transition-colors duration-200">
                   {table.getAllColumns().map((column: any, index: number) => {
-                    const isSticky =
-                      display.stickyFirstColumns &&
-                      index < display.stickyFirstColumns;
                     const value = totalsRow[column.id];
-                    const formatter = display.columnFormatters?.[column.id];
-                    const formattedValue = formatter
-                      ? formatValue(value, formatter, formatters)
-                      : value;
+                    const formatterKey = display.columnFormatters?.[column.id];
+                    let formattedValue = value;
 
-                    // คำนวณ left position สำหรับ sticky columns
-                    let leftPosition = 0;
-                    if (isSticky) {
-                      for (let i = 0; i < index; i++) {
-                        leftPosition += 120; // width ของแต่ละ column
-                      }
+                    // Apply formatter or auto-format money columns
+                    if (formatterKey) {
+                      formattedValue = formatValue(
+                        value,
+                        formatterKey,
+                        mergedFormatters
+                      );
+                    } else if (isMoneyField(column.id)) {
+                      formattedValue = formatMoney(value);
                     }
 
                     return (
                       <td
                         key={column.id}
-                        className={`
-                        border border-gray-200 p-2 text-sm
-                        ${isSticky ? "sticky z-20 bg-gray-100" : ""}
-                      `}
+                        className="border border-gray-200 dark:border-gray-600 p-2 text-sm text-gray-900 dark:text-gray-100 transition-colors duration-200"
                         style={{
-                          ...(isSticky
-                            ? {
-                                left: `${leftPosition}px`,
-                                backgroundColor: "#f3f4f6",
-                                borderRight: "2px solid #e5e7eb",
-                              }
-                            : {}),
                           minWidth: "120px",
-                          width: "120px",
-                          maxWidth: "120px",
+                          width: "auto",
+                          whiteSpace: "nowrap",
+                          verticalAlign: "top",
+                          padding: "8px 12px",
+                          lineHeight: "1.4",
+                          textAlign:
+                            display.columnAlignment?.[column.id] ||
+                            (isMoneyField(column.id) ? "right" : "left"),
                         }}
                       >
-                        {index === 0 ? "Total" : formattedValue || ""}
+                        {index === 0
+                          ? "Total"
+                          : formattedValue !== undefined &&
+                            formattedValue !== null &&
+                            formattedValue !== 0
+                          ? formattedValue
+                          : ""}
                       </td>
                     );
                   })}
@@ -668,8 +1594,8 @@ export default function AdvancedTableWidget({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between p-4 border-t bg-gray-50 flex-shrink-0">
-        <div className="text-sm text-gray-600">
+      <div className="flex items-center justify-between p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex-shrink-0 transition-colors duration-200">
+        <div className="text-sm text-gray-600 dark:text-gray-400">
           Showing{" "}
           {table.getState().pagination.pageIndex *
             table.getState().pagination.pageSize +
@@ -682,8 +1608,8 @@ export default function AdvancedTableWidget({
           )}{" "}
           of {table.getFilteredRowModel().rows.length} entries
           {/* Debug info */}
-          <span className="ml-4 text-xs text-blue-600">
-            (Total rows: {aggregatedData.length}, Filtered:{" "}
+          <span className="ml-4 text-xs text-blue-600 dark:text-blue-400">
+            (Total rows: {filteredData.length}, Filtered:{" "}
             {table.getFilteredRowModel().rows.length})
           </span>
         </div>
@@ -692,12 +1618,12 @@ export default function AdvancedTableWidget({
           <button
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
-            className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors duration-200"
           >
             Previous
           </button>
 
-          <span className="text-sm">
+          <span className="text-sm text-gray-900 dark:text-gray-100">
             Page {table.getState().pagination.pageIndex + 1} of{" "}
             {table.getPageCount()}
           </span>
@@ -705,7 +1631,7 @@ export default function AdvancedTableWidget({
           <button
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
-            className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors duration-200"
           >
             Next
           </button>

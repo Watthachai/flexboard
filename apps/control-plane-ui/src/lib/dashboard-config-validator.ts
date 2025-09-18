@@ -29,7 +29,7 @@ interface ThemeConfig {
 }
 
 interface FormatterConfig {
-  kind: 'date' | 'number' | 'string';
+  kind: "date" | "number" | "string";
   timezone?: string;
   pattern?: string;
   precision?: number;
@@ -92,7 +92,7 @@ interface WidgetConfig {
     filters?: FilterConfig[];
     sort?: Array<{
       field: string;
-      dir: 'asc' | 'desc';
+      dir: "asc" | "desc";
     }>;
   };
   display?: {
@@ -185,7 +185,7 @@ export function validateConfigString(jsonString: string): ValidationResult {
       let column: number | undefined;
 
       if (position !== undefined) {
-        const lines = jsonString.substring(0, position).split('\n');
+        const lines = jsonString.substring(0, position).split("\n");
         line = lines.length;
         column = lines[lines.length - 1].length + 1;
       }
@@ -193,11 +193,13 @@ export function validateConfigString(jsonString: string): ValidationResult {
       errors.push({
         message: `JSON Syntax Error: ${error.message}`,
         line,
-        column
+        column,
       });
     } else {
       errors.push({
-        message: `Parse Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        message: `Parse Error: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
       });
     }
 
@@ -210,64 +212,72 @@ export function validateConfigString(jsonString: string): ValidationResult {
   return {
     valid: errors.length === 0,
     errors,
-    warnings
+    warnings,
   };
 }
 
 /**
  * ตรวจสอบ schema structure
  */
-function validateSchema(config: any, errors: ValidationError[], warnings: ValidationError[]): void {
+function validateSchema(
+  config: any,
+  errors: ValidationError[],
+  warnings: ValidationError[]
+): void {
   // Required fields
   const requiredFields = [
-    'schemaVersion',
-    'dashboardId', 
-    'dashboardName',
-    'version',
-    'dataSources',
-    'widgets',
-    'layout'
+    "schemaVersion",
+    "dashboardId",
+    "dashboardName",
+    "version",
+    "dataSources",
+    "widgets",
+    "layout",
   ];
 
   for (const field of requiredFields) {
     if (!(field in config)) {
       errors.push({
         path: field,
-        message: `Required field '${field}' is missing`
+        message: `Required field '${field}' is missing`,
       });
     }
   }
 
   // ตรวจสอบ schema version
   if (config.schemaVersion) {
-    const supportedVersions = ['1.0', '1.1', '1.2', '1.3'];
+    const supportedVersions = ["1.0", "1.1", "1.2", "1.3"];
     if (!supportedVersions.includes(config.schemaVersion)) {
       warnings.push({
-        path: 'schemaVersion',
-        message: `Schema version '${config.schemaVersion}' may not be fully supported. Supported versions: ${supportedVersions.join(', ')}`
+        path: "schemaVersion",
+        message: `Schema version '${
+          config.schemaVersion
+        }' may not be fully supported. Supported versions: ${supportedVersions.join(
+          ", "
+        )}`,
       });
     }
   }
 
   // ตรวจสอบ types
-  if (config.schemaVersion && typeof config.schemaVersion !== 'string') {
+  if (config.schemaVersion && typeof config.schemaVersion !== "string") {
     errors.push({
-      path: 'schemaVersion',
-      message: 'schemaVersion must be a string'
+      path: "schemaVersion",
+      message: "schemaVersion must be a string",
     });
   }
 
-  if (config.dashboardId && typeof config.dashboardId !== 'string') {
+  if (config.dashboardId && typeof config.dashboardId !== "string") {
     errors.push({
-      path: 'dashboardId',
-      message: 'dashboardId must be a string'
+      path: "dashboardId",
+      message: "dashboardId must be a string",
     });
   }
 
-  if (config.version && typeof config.version !== 'number') {
+  if (config.version && typeof config.version !== "number") {
     errors.push({
-      path: 'version',
-      message: 'version must be a number'
+      path: "version",
+      message: "version must be a number",
     });
   }
 
@@ -288,7 +298,7 @@ function validateSchema(config: any, errors: ValidationError[], warnings: Valida
 
   // ตรวจสอบ globalFilters (optional)
   if (config.globalFilters) {
-    validateFilters(config.globalFilters, 'globalFilters', errors, warnings);
+    validateFilters(config.globalFilters, "globalFilters", errors, warnings);
   }
 
   // ตรวจสอบ userFilters (optional)
@@ -305,8 +315,8 @@ function validateSchema(config: any, errors: ValidationError[], warnings: Valida
   if (config.widgets) {
     if (!Array.isArray(config.widgets)) {
       errors.push({
-        path: 'widgets',
-        message: 'widgets must be an array'
+        path: "widgets",
+        message: "widgets must be an array",
       });
     } else {
       config.widgets.forEach((widget: any, index: number) => {
@@ -319,12 +329,17 @@ function validateSchema(config: any, errors: ValidationError[], warnings: Valida
   if (config.dataSources) {
     if (!Array.isArray(config.dataSources)) {
       errors.push({
-        path: 'dataSources',
-        message: 'dataSources must be an array'
+        path: "dataSources",
+        message: "dataSources must be an array",
       });
     } else {
       config.dataSources.forEach((dataSource: any, index: number) => {
-        validateDataSource(dataSource, `dataSources[${index}]`, errors, warnings);
+        validateDataSource(
+          dataSource,
+          `dataSources[${index}]`,
+          errors,
+          warnings
+        );
       });
     }
   }
@@ -336,22 +351,29 @@ function validateSchema(config: any, errors: ValidationError[], warnings: Valida
 /**
  * ตรวจสอบ theme configuration
  */
-function validateTheme(theme: any, errors: ValidationError[], warnings: ValidationError[]): void {
-  if (theme.brandColor && typeof theme.brandColor === 'string') {
+function validateTheme(
+  theme: any,
+  errors: ValidationError[],
+  warnings: ValidationError[]
+): void {
+  if (theme.brandColor && typeof theme.brandColor === "string") {
     if (!theme.brandColor.match(/^#[0-9a-fA-F]{6}$/)) {
       warnings.push({
-        path: 'theme.brandColor',
-        message: 'brandColor should be a valid hex color (e.g., #7c3aed)'
+        path: "theme.brandColor",
+        message: "brandColor should be a valid hex color (e.g., #7c3aed)",
       });
     }
   }
 
   if (theme.statusColors) {
-    ['ok', 'warning', 'danger'].forEach(status => {
-      if (theme.statusColors[status] && !theme.statusColors[status].match(/^#[0-9a-fA-F]{6}$/)) {
+    ["ok", "warning", "danger"].forEach((status) => {
+      if (
+        theme.statusColors[status] &&
+        !theme.statusColors[status].match(/^#[0-9a-fA-F]{6}$/)
+      ) {
         warnings.push({
           path: `theme.statusColors.${status}`,
-          message: `${status} color should be a valid hex color`
+          message: `${status} color should be a valid hex color`,
         });
       }
     });
@@ -361,20 +383,26 @@ function validateTheme(theme: any, errors: ValidationError[], warnings: Validati
 /**
  * ตรวจสอบ formatters configuration
  */
-function validateFormatters(formatters: any, errors: ValidationError[], warnings: ValidationError[]): void {
-  Object.keys(formatters).forEach(key => {
+function validateFormatters(
+  formatters: any,
+  errors: ValidationError[],
+  warnings: ValidationError[]
+): void {
+  Object.keys(formatters).forEach((key) => {
     const formatter = formatters[key];
     if (!formatter.kind) {
       errors.push({
         path: `formatters.${key}.kind`,
-        message: 'Formatter must have a kind field'
+        message: "Formatter must have a kind field",
       });
     } else {
-      const validKinds = ['date', 'number', 'string'];
+      const validKinds = ["date", "number", "string"];
       if (!validKinds.includes(formatter.kind)) {
         errors.push({
           path: `formatters.${key}.kind`,
-          message: `Invalid formatter kind. Must be one of: ${validKinds.join(', ')}`
+          message: `Invalid formatter kind. Must be one of: ${validKinds.join(
+            ", "
+          )}`,
         });
       }
     }
@@ -384,11 +412,15 @@ function validateFormatters(formatters: any, errors: ValidationError[], warnings
 /**
  * ตรวจสอบ transforms configuration
  */
-function validateTransforms(transforms: any, errors: ValidationError[], warnings: ValidationError[]): void {
+function validateTransforms(
+  transforms: any,
+  errors: ValidationError[],
+  warnings: ValidationError[]
+): void {
   if (!Array.isArray(transforms)) {
     errors.push({
-      path: 'transforms',
-      message: 'transforms must be an array'
+      path: "transforms",
+      message: "transforms must be an array",
     });
     return;
   }
@@ -397,13 +429,13 @@ function validateTransforms(transforms: any, errors: ValidationError[], warnings
     if (!transform.as) {
       errors.push({
         path: `transforms[${index}].as`,
-        message: 'Transform must have an "as" field'
+        message: 'Transform must have an "as" field',
       });
     }
     if (!transform.expr) {
       errors.push({
         path: `transforms[${index}].expr`,
-        message: 'Transform must have an "expr" field'
+        message: 'Transform must have an "expr" field',
       });
     }
   });
@@ -412,34 +444,64 @@ function validateTransforms(transforms: any, errors: ValidationError[], warnings
 /**
  * ตรวจสอบ filters configuration
  */
-function validateFilters(filters: any, path: string, errors: ValidationError[], warnings: ValidationError[]): void {
+function validateFilters(
+  filters: any,
+  path: string,
+  errors: ValidationError[],
+  warnings: ValidationError[]
+): void {
   if (!Array.isArray(filters)) {
     errors.push({
       path: path,
-      message: `${path} must be an array`
+      message: `${path} must be an array`,
     });
     return;
   }
 
   filters.forEach((filter: any, index: number) => {
     const filterPath = `${path}[${index}]`;
+
+    // Field is always required
     if (!filter.field) {
       errors.push({
         path: `${filterPath}.field`,
-        message: 'Filter must have a field'
+        message: "Filter must have a field",
       });
     }
-    if (!filter.op) {
-      errors.push({
-        path: `${filterPath}.op`,
-        message: 'Filter must have an operator (op)'
-      });
-    }
-    if (filter.value === undefined) {
-      errors.push({
-        path: `${filterPath}.value`,
-        message: 'Filter must have a value'
-      });
+
+    // For globalFilters, op and value are optional (UI filters don't need them)
+    // For other filters, op and value are required
+    if (path === "globalFilters") {
+      // UI filter: type is required, op and value are optional
+      if (!filter.type && !filter.op) {
+        errors.push({
+          path: `${filterPath}.type`,
+          message:
+            "Global filter must have either type (for UI filters) or op (for automatic filters)",
+        });
+      }
+
+      // If it has op, it must have value (automatic filter)
+      if (filter.op && filter.value === undefined) {
+        errors.push({
+          path: `${filterPath}.value`,
+          message: "Filter with operator must have a value",
+        });
+      }
+    } else {
+      // Standard filters: op and value are required
+      if (!filter.op) {
+        errors.push({
+          path: `${filterPath}.op`,
+          message: "Filter must have an operator (op)",
+        });
+      }
+      if (filter.value === undefined) {
+        errors.push({
+          path: `${filterPath}.value`,
+          message: "Filter must have a value",
+        });
+      }
     }
   });
 }
@@ -447,35 +509,49 @@ function validateFilters(filters: any, path: string, errors: ValidationError[], 
 /**
  * ตรวจสอบ user filters configuration
  */
-function validateUserFilters(userFilters: any, errors: ValidationError[], warnings: ValidationError[]): void {
+function validateUserFilters(
+  userFilters: any,
+  errors: ValidationError[],
+  warnings: ValidationError[]
+): void {
   if (!Array.isArray(userFilters)) {
     errors.push({
-      path: 'userFilters',
-      message: 'userFilters must be an array'
+      path: "userFilters",
+      message: "userFilters must be an array",
     });
     return;
   }
 
   userFilters.forEach((filter: any, index: number) => {
     const filterPath = `userFilters[${index}]`;
-    const requiredFields = ['id', 'field', 'label', 'type'];
-    
-    requiredFields.forEach(field => {
+    const requiredFields = ["id", "field", "label", "type"];
+
+    requiredFields.forEach((field) => {
       if (!filter[field]) {
         errors.push({
           path: `${filterPath}.${field}`,
-          message: `User filter must have a ${field}`
+          message: `User filter must have a ${field}`,
         });
       }
     });
 
     // ตรวจสอบ type ที่รองรับ
     if (filter.type) {
-      const supportedTypes = ['select', 'month-end-dropdown', 'date-range', 'text', 'number'];
+      const supportedTypes = [
+        "select",
+        "month-end-dropdown",
+        "date-range",
+        "text",
+        "number",
+      ];
       if (!supportedTypes.includes(filter.type)) {
         warnings.push({
           path: `${filterPath}.type`,
-          message: `User filter type '${filter.type}' may not be supported. Supported types: ${supportedTypes.join(', ')}`
+          message: `User filter type '${
+            filter.type
+          }' may not be supported. Supported types: ${supportedTypes.join(
+            ", "
+          )}`,
         });
       }
     }
@@ -485,29 +561,41 @@ function validateUserFilters(userFilters: any, errors: ValidationError[], warnin
 /**
  * ตรวจสอบ layout configuration
  */
-function validateLayout(layout: any, errors: ValidationError[], warnings: ValidationError[]): void {
-  const requiredFields = ['type', 'columns', 'rowHeight'];
-  
+function validateLayout(
+  layout: any,
+  errors: ValidationError[],
+  warnings: ValidationError[]
+): void {
+  const requiredFields = ["type", "columns", "rowHeight"];
+
   for (const field of requiredFields) {
     if (!(field in layout)) {
       errors.push({
         path: `layout.${field}`,
-        message: `Required field 'layout.${field}' is missing`
+        message: `Required field 'layout.${field}' is missing`,
       });
     }
   }
 
-  if (layout.columns && (typeof layout.columns !== 'number' || layout.columns < 1 || layout.columns > 24)) {
+  if (
+    layout.columns &&
+    (typeof layout.columns !== "number" ||
+      layout.columns < 1 ||
+      layout.columns > 24)
+  ) {
     errors.push({
-      path: 'layout.columns',
-      message: 'layout.columns must be a number between 1 and 24'
+      path: "layout.columns",
+      message: "layout.columns must be a number between 1 and 24",
     });
   }
 
-  if (layout.rowHeight && (typeof layout.rowHeight !== 'number' || layout.rowHeight < 10)) {
+  if (
+    layout.rowHeight &&
+    (typeof layout.rowHeight !== "number" || layout.rowHeight < 10)
+  ) {
     errors.push({
-      path: 'layout.rowHeight',
-      message: 'layout.rowHeight must be a number >= 10'
+      path: "layout.rowHeight",
+      message: "layout.rowHeight must be a number >= 10",
     });
   }
 
@@ -515,19 +603,19 @@ function validateLayout(layout: any, errors: ValidationError[], warnings: Valida
   if (layout.desktop) {
     if (!Array.isArray(layout.desktop)) {
       errors.push({
-        path: 'layout.desktop',
-        message: 'layout.desktop must be an array'
+        path: "layout.desktop",
+        message: "layout.desktop must be an array",
       });
     } else {
       layout.desktop.forEach((item: any, index: number) => {
         const itemPath = `layout.desktop[${index}]`;
-        const requiredFields = ['widgetId', 'x', 'y', 'width', 'height'];
-        
-        requiredFields.forEach(field => {
+        const requiredFields = ["widgetId", "x", "y", "width", "height"];
+
+        requiredFields.forEach((field) => {
           if (!(field in item)) {
             errors.push({
               path: `${itemPath}.${field}`,
-              message: `Desktop layout item must have ${field}`
+              message: `Desktop layout item must have ${field}`,
             });
           }
         });
@@ -539,24 +627,38 @@ function validateLayout(layout: any, errors: ValidationError[], warnings: Valida
 /**
  * ตรวจสอบ widget configuration
  */
-function validateWidget(widget: any, path: string, errors: ValidationError[], warnings: ValidationError[]): void {
-  const requiredFields = ['id', 'type', 'title', 'dataSource'];
-  
+function validateWidget(
+  widget: any,
+  path: string,
+  errors: ValidationError[],
+  warnings: ValidationError[]
+): void {
+  const requiredFields = ["id", "type", "title", "dataSource"];
+
   for (const field of requiredFields) {
     if (!(field in widget)) {
       errors.push({
         path: `${path}.${field}`,
-        message: `Required field '${field}' is missing`
+        message: `Required field '${field}' is missing`,
       });
     }
   }
 
   // ตรวจสอบ widget types
-  const validWidgetTypes = ['kpi', 'line-chart', 'bar-chart', 'pie-chart', 'table', 'text'];
+  const validWidgetTypes = [
+    "kpi",
+    "line-chart",
+    "bar-chart",
+    "pie-chart",
+    "table",
+    "text",
+  ];
   if (widget.type && !validWidgetTypes.includes(widget.type)) {
     warnings.push({
       path: `${path}.type`,
-      message: `Widget type '${widget.type}' is not in standard types: ${validWidgetTypes.join(', ')}`
+      message: `Widget type '${
+        widget.type
+      }' is not in standard types: ${validWidgetTypes.join(", ")}`,
     });
   }
 
@@ -565,37 +667,48 @@ function validateWidget(widget: any, path: string, errors: ValidationError[], wa
     if (widget.query.measures && !Array.isArray(widget.query.measures)) {
       errors.push({
         path: `${path}.query.measures`,
-        message: 'query.measures must be an array'
+        message: "query.measures must be an array",
       });
     }
 
     if (widget.query.groupBy && !Array.isArray(widget.query.groupBy)) {
       errors.push({
         path: `${path}.query.groupBy`,
-        message: 'query.groupBy must be an array'
+        message: "query.groupBy must be an array",
       });
     }
 
     if (widget.query.filters) {
-      validateFilters(widget.query.filters, `${path}.query.filters`, errors, warnings);
+      validateFilters(
+        widget.query.filters,
+        `${path}.query.filters`,
+        errors,
+        warnings
+      );
     }
   }
 
   // ตรวจสอบ display configuration
   if (widget.display) {
     // ตรวจสอบ advanced table features
-    if (widget.display.widgetKind === 'AdvancedTableWidget') {
-      if (widget.display.columnGroups && !Array.isArray(widget.display.columnGroups)) {
+    if (widget.display.widgetKind === "AdvancedTableWidget") {
+      if (
+        widget.display.columnGroups &&
+        !Array.isArray(widget.display.columnGroups)
+      ) {
         errors.push({
           path: `${path}.display.columnGroups`,
-          message: 'columnGroups must be an array'
+          message: "columnGroups must be an array",
         });
       }
 
-      if (widget.display.rowClassRules && !Array.isArray(widget.display.rowClassRules)) {
+      if (
+        widget.display.rowClassRules &&
+        !Array.isArray(widget.display.rowClassRules)
+      ) {
         errors.push({
           path: `${path}.display.rowClassRules`,
-          message: 'rowClassRules must be an array'
+          message: "rowClassRules must be an array",
         });
       }
     }
@@ -605,42 +718,57 @@ function validateWidget(widget: any, path: string, errors: ValidationError[], wa
 /**
  * ตรวจสอบ data source configuration
  */
-function validateDataSource(dataSource: any, path: string, errors: ValidationError[], warnings: ValidationError[]): void {
-  const requiredFields = ['id', 'type'];
-  
+function validateDataSource(
+  dataSource: any,
+  path: string,
+  errors: ValidationError[],
+  warnings: ValidationError[]
+): void {
+  const requiredFields = ["id", "type"];
+
   for (const field of requiredFields) {
     if (!(field in dataSource)) {
       errors.push({
         path: `${path}.${field}`,
-        message: `Required field '${field}' is missing`
+        message: `Required field '${field}' is missing`,
       });
     }
   }
 
   // ตรวจสอบ data source types
-  const validTypes = ['local', 'api', 'xml', 'csv', 'json', 'database'];
+  const validTypes = ["local", "api", "xml", "csv", "json", "database"];
   if (dataSource.type && !validTypes.includes(dataSource.type)) {
     warnings.push({
       path: `${path}.type`,
-      message: `Data source type '${dataSource.type}' may not be supported. Common types: ${validTypes.join(', ')}`
+      message: `Data source type '${
+        dataSource.type
+      }' may not be supported. Common types: ${validTypes.join(", ")}`,
     });
   }
 
   // ตรวจสอบ endpoint format สำหรับ api type
-  if (dataSource.type === 'api' && dataSource.endpoint && typeof dataSource.endpoint === 'string') {
-    if (!dataSource.endpoint.startsWith('/api/')) {
+  if (
+    dataSource.type === "api" &&
+    dataSource.endpoint &&
+    typeof dataSource.endpoint === "string"
+  ) {
+    if (!dataSource.endpoint.startsWith("/api/")) {
       warnings.push({
         path: `${path}.endpoint`,
-        message: 'API endpoint should typically start with /api/'
+        message: "API endpoint should typically start with /api/",
       });
     }
   }
 
   // ตรวจสอบ refreshInterval
-  if (dataSource.refreshInterval && (typeof dataSource.refreshInterval !== 'number' || dataSource.refreshInterval < 1000)) {
+  if (
+    dataSource.refreshInterval &&
+    (typeof dataSource.refreshInterval !== "number" ||
+      dataSource.refreshInterval < 1000)
+  ) {
     warnings.push({
       path: `${path}.refreshInterval`,
-      message: 'refreshInterval should be at least 1000ms (1 second)'
+      message: "refreshInterval should be at least 1000ms (1 second)",
     });
   }
 }
@@ -648,16 +776,20 @@ function validateDataSource(dataSource: any, path: string, errors: ValidationErr
 /**
  * ตรวจสอบ business logic
  */
-function validateBusinessLogic(config: any, errors: ValidationError[], warnings: ValidationError[]): void {
+function validateBusinessLogic(
+  config: any,
+  errors: ValidationError[],
+  warnings: ValidationError[]
+): void {
   // ตรวจสอบ widget references ใน layout
   if (config.layout && config.layout.desktop && config.widgets) {
     const widgetIds = config.widgets.map((w: any) => w.id);
-    
+
     config.layout.desktop.forEach((layoutItem: any, index: number) => {
       if (layoutItem.widgetId && !widgetIds.includes(layoutItem.widgetId)) {
         errors.push({
           path: `layout.desktop[${index}].widgetId`,
-          message: `Widget '${layoutItem.widgetId}' referenced in layout but not found in widgets`
+          message: `Widget '${layoutItem.widgetId}' referenced in layout but not found in widgets`,
         });
       }
     });
@@ -666,12 +798,12 @@ function validateBusinessLogic(config: any, errors: ValidationError[], warnings:
   // ตรวจสอบ data source references ใน widgets
   if (config.widgets && config.dataSources) {
     const dataSourceIds = config.dataSources.map((ds: any) => ds.id);
-    
+
     config.widgets.forEach((widget: any, index: number) => {
       if (widget.dataSource && !dataSourceIds.includes(widget.dataSource)) {
         errors.push({
           path: `widgets[${index}].dataSource`,
-          message: `Data source '${widget.dataSource}' referenced in widget '${widget.id}' but not found in dataSources`
+          message: `Data source '${widget.dataSource}' referenced in widget '${widget.id}' but not found in dataSources`,
         });
       }
     });
@@ -680,24 +812,34 @@ function validateBusinessLogic(config: any, errors: ValidationError[], warnings:
   // ตรวจสอบ duplicate IDs
   if (config.widgets && Array.isArray(config.widgets)) {
     const widgetIds = config.widgets.map((w: any) => w.id).filter(Boolean);
-    const duplicateIds = widgetIds.filter((id: string, index: number) => widgetIds.indexOf(id) !== index);
-    
+    const duplicateIds = widgetIds.filter(
+      (id: string, index: number) => widgetIds.indexOf(id) !== index
+    );
+
     if (duplicateIds.length > 0) {
       errors.push({
-        path: 'widgets',
-        message: `Duplicate widget IDs found: ${[...new Set(duplicateIds)].join(', ')}`
+        path: "widgets",
+        message: `Duplicate widget IDs found: ${[...new Set(duplicateIds)].join(
+          ", "
+        )}`,
       });
     }
   }
 
   if (config.dataSources && Array.isArray(config.dataSources)) {
-    const dataSourceIds = config.dataSources.map((ds: any) => ds.id).filter(Boolean);
-    const duplicateIds = dataSourceIds.filter((id: string, index: number) => dataSourceIds.indexOf(id) !== index);
-    
+    const dataSourceIds = config.dataSources
+      .map((ds: any) => ds.id)
+      .filter(Boolean);
+    const duplicateIds = dataSourceIds.filter(
+      (id: string, index: number) => dataSourceIds.indexOf(id) !== index
+    );
+
     if (duplicateIds.length > 0) {
       errors.push({
-        path: 'dataSources',
-        message: `Duplicate data source IDs found: ${[...new Set(duplicateIds)].join(', ')}`
+        path: "dataSources",
+        message: `Duplicate data source IDs found: ${[
+          ...new Set(duplicateIds),
+        ].join(", ")}`,
       });
     }
   }
@@ -705,26 +847,31 @@ function validateBusinessLogic(config: any, errors: ValidationError[], warnings:
   // ตรวจสอบ formatter references
   if (config.widgets && config.formatters) {
     const formatterIds = Object.keys(config.formatters);
-    
+
     config.widgets.forEach((widget: any, widgetIndex: number) => {
       if (widget.display && widget.display.valueFormatter) {
         if (!formatterIds.includes(widget.display.valueFormatter)) {
           warnings.push({
             path: `widgets[${widgetIndex}].display.valueFormatter`,
-            message: `Formatter '${widget.display.valueFormatter}' not found in formatters`
+            message: `Formatter '${widget.display.valueFormatter}' not found in formatters`,
           });
         }
       }
 
       if (widget.display && widget.display.columnFormatters) {
-        Object.values(widget.display.columnFormatters).forEach((formatter: any) => {
-          if (typeof formatter === 'string' && !formatterIds.includes(formatter)) {
-            warnings.push({
-              path: `widgets[${widgetIndex}].display.columnFormatters`,
-              message: `Formatter '${formatter}' not found in formatters`
-            });
+        Object.values(widget.display.columnFormatters).forEach(
+          (formatter: any) => {
+            if (
+              typeof formatter === "string" &&
+              !formatterIds.includes(formatter)
+            ) {
+              warnings.push({
+                path: `widgets[${widgetIndex}].display.columnFormatters`,
+                message: `Formatter '${formatter}' not found in formatters`,
+              });
+            }
           }
-        });
+        );
       }
     });
   }
@@ -733,7 +880,10 @@ function validateBusinessLogic(config: any, errors: ValidationError[], warnings:
 /**
  * สร้าง default dashboard config
  */
-export function createDefaultConfig(dashboardId: string, tenantId: string): DashboardConfig {
+export function createDefaultConfig(
+  dashboardId: string,
+  tenantId: string
+): DashboardConfig {
   return {
     schemaVersion: "1.3",
     dashboardId: dashboardId,
@@ -747,26 +897,26 @@ export function createDefaultConfig(dashboardId: string, tenantId: string): Dash
       statusColors: {
         ok: "#10b981",
         warning: "#f59e0b",
-        danger: "#ef4444"
-      }
+        danger: "#ef4444",
+      },
     },
     formatters: {
       currency: {
         kind: "number",
         precision: 2,
         thousandsSep: ",",
-        prefix: "฿"
+        prefix: "฿",
       },
       number: {
         kind: "number",
         precision: 0,
-        thousandsSep: ","
+        thousandsSep: ",",
       },
       date: {
         kind: "date",
         timezone: "Asia/Bangkok",
-        pattern: "dd MMM yyyy"
-      }
+        pattern: "dd MMM yyyy",
+      },
     },
     dataSources: [
       {
@@ -776,7 +926,7 @@ export function createDefaultConfig(dashboardId: string, tenantId: string): Dash
         fieldTypes: {},
         endpoint: `/api/tenants/${tenantId}/data`,
         refreshInterval: 300000,
-      }
+      },
     ],
     widgets: [],
     layout: {
@@ -784,7 +934,7 @@ export function createDefaultConfig(dashboardId: string, tenantId: string): Dash
       columns: 12,
       rowHeight: 50,
       desktop: [],
-      mobile: []
+      mobile: [],
     },
   };
 }
