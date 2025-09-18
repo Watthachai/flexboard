@@ -13,14 +13,11 @@ interface KPIWidgetProps {
   height?: number;
 }
 
-export default function RealKPIWidget({
-  data,
-  config,
-}: KPIWidgetProps) {
+export default function RealKPIWidget({ data, config }: KPIWidgetProps) {
   // Use adaptedConfig if available, otherwise fallback to legacy processing
   let value: number | string = 0;
   let display: any;
-  let title: string = config.title || "";
+  let title: string = config.title || config.adaptedConfig?.title || "";
 
   if (config.adaptedConfig) {
     // Use processed config from chartConfigAdapter
@@ -172,6 +169,11 @@ function getStatusColorByTitle(
   value: number,
   rules: any[] = []
 ): string {
+  // Add null check for title
+  if (!title || typeof title !== "string") {
+    return getStatusColor(value, rules);
+  }
+
   // Determine color based on title for age-based KPIs
   if (title.includes("0-90") || title.includes("Fresh")) {
     return "fresh";
