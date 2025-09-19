@@ -6,6 +6,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { UserService } from "../services/user.service";
 import { db } from "../config/firebase-real";
+import * as admin from "firebase-admin";
 
 // Initialize user service
 const userService = new UserService();
@@ -36,6 +37,19 @@ interface AuthSession {
 
 // In-memory session store (in production, use Redis or database)
 const activeSessions = new Map<string, AuthSession>();
+
+// Clean up expired sessions periodically
+setInterval(() => {
+  const now = Date.now();
+  const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+  for (const [token, session] of activeSessions.entries()) {
+    const sessionAge = now - session.createdAt.getTime();
+    if (sessionAge > maxAge) {
+      activeSessions.delete(token);
+    }
+  }
+}, 60 * 60 * 1000); // Clean up every hour
 
 // Generate session token
 function generateSessionToken(): string {
@@ -108,6 +122,59 @@ export default async function authRoutes(fastify: FastifyInstance) {
           });
         }
 
+        // Check for stored license key in user profile
+        let storedLicenseKey = null;
+        let tenantId = null;
+        let companyName = null;
+
+        try {
+          const usersCollection = admin.firestore().collection("users");
+
+          // Find user by email (primary method for new users)
+          let userDocRef = usersCollection.doc(email);
+          let userDoc = await userDocRef.get();
+          let userData = null;
+
+          if (userDoc.exists) {
+            userData = userDoc.data();
+            console.log(`Found user by email as document ID: ${email}`);
+          } else {
+            // Fallback: Search by email field for legacy users with auto-generated IDs
+            console.log(
+              `User not found by email as doc ID, searching by email field...`
+            );
+            const userQuery = await usersCollection
+              .where("email", "==", email)
+              .limit(1)
+              .get();
+
+            if (!userQuery.empty) {
+              userDocRef = userQuery.docs[0].ref;
+              userDoc = userQuery.docs[0];
+              userData = userDoc.data();
+              console.log(`Found legacy user by email field: ${userDoc.id}`);
+            }
+          }
+
+          if (userData) {
+            // Extract license information from user data
+            storedLicenseKey = userData.licenseKey || null;
+            tenantId = userData.tenantId || null;
+            companyName = userData.companyName || null;
+
+            console.log(`User license info:`, {
+              hasLicenseKey: !!storedLicenseKey,
+              tenantId,
+              companyName,
+            });
+          } else {
+            console.log(`User document not found for license check: ${email}`);
+          }
+        } catch (licenseError) {
+          console.error("Failed to check stored license:", licenseError);
+          // Continue without stored license
+        }
+
         // Create session
         const sessionToken = generateSessionToken();
         const session: AuthSession = {
@@ -116,9 +183,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
           sessionToken,
           createdAt: new Date(),
           lastActivity: new Date(),
+          tenantId: tenantId || undefined,
+          companyName: companyName || undefined,
         };
 
         activeSessions.set(sessionToken, session);
+
+        console.log(
+          `Session created for user: ${user.email}, active sessions: ${activeSessions.size}`
+        );
 
         return reply.send({
           success: true,
@@ -129,6 +202,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
             role: user.role,
           },
           sessionToken,
+          hasStoredLicense: !!storedLicenseKey,
+          storedLicenseKey: storedLicenseKey,
+          tenantId,
+          companyName,
           message: "Authentication successful",
         });
       } catch (error) {
@@ -166,6 +243,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         const sessionToken = authHeader.substring(7);
         const session = activeSessions.get(sessionToken);
+
+        console.log(
+          `License validation - session check: token=${sessionToken?.substring(
+            0,
+            10
+          )}..., found=${!!session}, total sessions=${activeSessions.size}`
+        );
 
         if (!session || session.email !== email) {
           return reply.status(401).send({
@@ -229,6 +313,56 @@ export default async function authRoutes(fastify: FastifyInstance) {
         session.tenantId = tenantId || undefined;
         session.companyName = companyName || undefined;
 
+        // Save license key to user profile after successful validation
+        try {
+          const usersCollection = admin.firestore().collection("users");
+
+          // Find the correct user document (same logic as in login)
+          let userDocRef = usersCollection.doc(email);
+          let userExists = (await userDocRef.get()).exists;
+
+          if (!userExists) {
+            // If not found by email, search by email field to get the correct document ID
+            const userQuery = await usersCollection
+              .where("email", "==", email)
+              .limit(1)
+              .get();
+
+            if (!userQuery.empty) {
+              userDocRef = userQuery.docs[0].ref;
+              userExists = true;
+              console.log(
+                `Found user document by email field: ${userQuery.docs[0].id}`
+              );
+            }
+          }
+
+          if (userExists) {
+            await userDocRef.set(
+              {
+                email,
+                licenseKey,
+                tenantId,
+                companyName,
+                lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+
+            console.log(
+              `License key saved for user: ${email} with tenant: ${tenantId} in document: ${userDocRef.id}`
+            );
+          } else {
+            console.log(`User document not found for saving license: ${email}`);
+          }
+        } catch (saveError) {
+          console.error(
+            "Failed to save license key to user profile:",
+            saveError
+          );
+          // Don't fail the validation if license save fails
+        }
+
         return reply.send({
           success: true,
           license: {
@@ -265,6 +399,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       const sessionToken = authHeader.substring(7);
       const session = activeSessions.get(sessionToken);
+
+      console.log(
+        `GET session validation: token=${sessionToken?.substring(
+          0,
+          10
+        )}..., found=${!!session}, total sessions=${activeSessions.size}`
+      );
 
       if (!session) {
         return reply.status(401).send({
@@ -321,6 +462,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
         }
 
         const session = activeSessions.get(sessionToken);
+
+        console.log(
+          `POST session validation: token=${sessionToken?.substring(
+            0,
+            10
+          )}..., found=${!!session}, total sessions=${activeSessions.size}`
+        );
 
         if (!session) {
           return reply.status(401).send({
@@ -394,19 +542,99 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Clean up expired sessions (run periodically)
-  setInterval(
-    () => {
-      const now = Date.now();
-      const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+  // Save license key to user profile
+  fastify.post("/save-user-license", async (request, reply) => {
+    try {
+      const { email, licenseKey } = request.body as {
+        email: string;
+        licenseKey: string;
+      };
 
-      for (const [token, session] of activeSessions.entries()) {
-        const sessionAge = now - session.createdAt.getTime();
-        if (sessionAge > maxAge) {
-          activeSessions.delete(token);
-        }
+      if (!email || !licenseKey) {
+        return reply.status(400).send({
+          success: false,
+          message: "Email and license key are required",
+        });
       }
-    },
-    60 * 60 * 1000
-  ); // Clean up every hour
+
+      // Update user profile with license key
+      const usersCollection = admin.firestore().collection("users");
+      const userDocRef = usersCollection.doc(email);
+
+      await userDocRef.set(
+        {
+          email,
+          licenseKey,
+          lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      console.log(`License key saved for user: ${email}`);
+
+      return reply.send({
+        success: true,
+        message: "License key saved successfully",
+      });
+    } catch (error) {
+      console.error("Save license error:", error);
+      return reply.status(500).send({
+        success: false,
+        message: "Failed to save license key",
+      });
+    }
+  });
+
+  // Get license key from user profile
+  fastify.get("/get-user-license", async (request, reply) => {
+    try {
+      const { email } = request.query as { email: string };
+
+      if (!email) {
+        return reply.status(400).send({
+          success: false,
+          message: "Email is required",
+        });
+      }
+
+      const usersCollection = admin.firestore().collection("users");
+      const userDoc = await usersCollection.doc(email).get();
+
+      if (!userDoc.exists) {
+        return reply.send({
+          success: true,
+          hasLicense: false,
+          licenseKey: null,
+        });
+      }
+
+      const userData = userDoc.data();
+      const licenseKey = userData?.licenseKey || null;
+
+      return reply.send({
+        success: true,
+        hasLicense: !!licenseKey,
+        licenseKey,
+      });
+    } catch (error) {
+      console.error("Get license error:", error);
+      return reply.status(500).send({
+        success: false,
+        message: "Failed to retrieve license key",
+      });
+    }
+  });
+
+  // Clean up expired sessions (run periodically)
+  setInterval(() => {
+    const now = Date.now();
+    const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+    for (const [token, session] of activeSessions.entries()) {
+      const sessionAge = now - session.createdAt.getTime();
+      if (sessionAge > maxAge) {
+        activeSessions.delete(token);
+      }
+    }
+  }, 60 * 60 * 1000); // Clean up every hour
 }
