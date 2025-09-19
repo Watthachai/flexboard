@@ -71,10 +71,8 @@ export class UserService {
       // Hash password ก่อนบันทึก
       const hashedPassword = await bcrypt.hash(userData.password, 10);
 
-      // Generate unique user ID (skip Firebase Auth due to config issues)
-      const userId = `user_${Date.now()}_${Math.random()
-        .toString(36)
-        .substring(2)}`;
+      // ใช้ email เป็น document ID เพื่อให้ตรงกับระบบ authentication
+      const userId = userData.email;
 
       // เตรียมข้อมูลสำหรับ Firestore
       const user: User = {
@@ -101,7 +99,7 @@ export class UserService {
         status: "active",
       };
 
-      // บันทึกลง Firestore พร้อม password hash (skip Firebase Auth)
+      // บันทึกลง Firestore พร้อม password hash โดยใช้ email เป็น document ID
       await db
         .collection(COLLECTIONS.USERS)
         .doc(userId)
