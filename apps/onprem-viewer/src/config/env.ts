@@ -71,7 +71,7 @@ function getApiUrl(): string {
     case "sandbox":
     default:
       return "https://sandbox.api-flexboard.fittcoreai.com";
-    //case "development":
-    //return "http://localhost:3000";
+    case "development":
+      return "http://localhost:3000";
   }
 }

@@ -38,6 +38,19 @@ interface AuthSession {
 // In-memory session store (in production, use Redis or database)
 const activeSessions = new Map<string, AuthSession>();
 
+// Clean up expired sessions periodically
+setInterval(() => {
+  const now = Date.now();
+  const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+  for (const [token, session] of activeSessions.entries()) {
+    const sessionAge = now - session.createdAt.getTime();
+    if (sessionAge > maxAge) {
+      activeSessions.delete(token);
+    }
+  }
+}, 60 * 60 * 1000); // Clean up every hour
+
 // Generate session token
 function generateSessionToken(): string {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
@@ -116,17 +129,46 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         try {
           const usersCollection = admin.firestore().collection("users");
-          const userDoc = await usersCollection.doc(email).get();
+
+          // Find user by email (primary method for new users)
+          let userDocRef = usersCollection.doc(email);
+          let userDoc = await userDocRef.get();
+          let userData = null;
 
           if (userDoc.exists) {
-            const userData = userDoc.data();
-            storedLicenseKey = userData?.licenseKey;
-            tenantId = userData?.tenantId;
-            companyName = userData?.companyName;
-
+            userData = userDoc.data();
+            console.log(`Found user by email as document ID: ${email}`);
+          } else {
+            // Fallback: Search by email field for legacy users with auto-generated IDs
             console.log(
-              `Found stored license for user: ${email}, hasLicense: ${!!storedLicenseKey}`
+              `User not found by email as doc ID, searching by email field...`
             );
+            const userQuery = await usersCollection
+              .where("email", "==", email)
+              .limit(1)
+              .get();
+
+            if (!userQuery.empty) {
+              userDocRef = userQuery.docs[0].ref;
+              userDoc = userQuery.docs[0];
+              userData = userDoc.data();
+              console.log(`Found legacy user by email field: ${userDoc.id}`);
+            }
+          }
+
+          if (userData) {
+            // Extract license information from user data
+            storedLicenseKey = userData.licenseKey || null;
+            tenantId = userData.tenantId || null;
+            companyName = userData.companyName || null;
+
+            console.log(`User license info:`, {
+              hasLicenseKey: !!storedLicenseKey,
+              tenantId,
+              companyName,
+            });
+          } else {
+            console.log(`User document not found for license check: ${email}`);
           }
         } catch (licenseError) {
           console.error("Failed to check stored license:", licenseError);
@@ -141,11 +183,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
           sessionToken,
           createdAt: new Date(),
           lastActivity: new Date(),
-          tenantId,
-          companyName,
+          tenantId: tenantId || undefined,
+          companyName: companyName || undefined,
         };
 
         activeSessions.set(sessionToken, session);
+
+        console.log(
+          `Session created for user: ${user.email}, active sessions: ${activeSessions.size}`
+        );
 
         return reply.send({
           success: true,
@@ -197,6 +243,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         const sessionToken = authHeader.substring(7);
         const session = activeSessions.get(sessionToken);
+
+        console.log(
+          `License validation - session check: token=${sessionToken?.substring(
+            0,
+            10
+          )}..., found=${!!session}, total sessions=${activeSessions.size}`
+        );
 
         if (!session || session.email !== email) {
           return reply.status(401).send({
@@ -263,22 +316,45 @@ export default async function authRoutes(fastify: FastifyInstance) {
         // Save license key to user profile after successful validation
         try {
           const usersCollection = admin.firestore().collection("users");
-          const userDocRef = usersCollection.doc(email);
 
-          await userDocRef.set(
-            {
-              email,
-              licenseKey,
-              tenantId,
-              companyName,
-              lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-            },
-            { merge: true }
-          );
+          // Find the correct user document (same logic as in login)
+          let userDocRef = usersCollection.doc(email);
+          let userExists = (await userDocRef.get()).exists;
 
-          console.log(
-            `License key saved for user: ${email} with tenant: ${tenantId}`
-          );
+          if (!userExists) {
+            // If not found by email, search by email field to get the correct document ID
+            const userQuery = await usersCollection
+              .where("email", "==", email)
+              .limit(1)
+              .get();
+
+            if (!userQuery.empty) {
+              userDocRef = userQuery.docs[0].ref;
+              userExists = true;
+              console.log(
+                `Found user document by email field: ${userQuery.docs[0].id}`
+              );
+            }
+          }
+
+          if (userExists) {
+            await userDocRef.set(
+              {
+                email,
+                licenseKey,
+                tenantId,
+                companyName,
+                lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+              },
+              { merge: true }
+            );
+
+            console.log(
+              `License key saved for user: ${email} with tenant: ${tenantId} in document: ${userDocRef.id}`
+            );
+          } else {
+            console.log(`User document not found for saving license: ${email}`);
+          }
         } catch (saveError) {
           console.error(
             "Failed to save license key to user profile:",
@@ -323,6 +399,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       const sessionToken = authHeader.substring(7);
       const session = activeSessions.get(sessionToken);
+
+      console.log(
+        `GET session validation: token=${sessionToken?.substring(
+          0,
+          10
+        )}..., found=${!!session}, total sessions=${activeSessions.size}`
+      );
 
       if (!session) {
         return reply.status(401).send({
@@ -379,6 +462,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
         }
 
         const session = activeSessions.get(sessionToken);
+
+        console.log(
+          `POST session validation: token=${sessionToken?.substring(
+            0,
+            10
+          )}..., found=${!!session}, total sessions=${activeSessions.size}`
+        );
 
         if (!session) {
           return reply.status(401).send({
