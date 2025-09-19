@@ -23,32 +23,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get session token from cookies (try both primary and backup)
+    // Get session token from cookies (try all possible versions)
     const sessionToken =
       request.cookies.get("session-token")?.value ||
-      request.cookies.get("session-token-backup")?.value;
+      request.cookies.get("session-token-debug")?.value ||
+      request.cookies.get("session-token-backup")?.value ||
+      request.cookies.get("simple-session")?.value;
+
     const userId =
       request.cookies.get("user-id")?.value ||
+      request.cookies.get("user-id-debug")?.value ||
       request.cookies.get("user-id-backup")?.value;
-    const debugLoginTime = request.cookies.get("debug-login-time")?.value;
-    const debugTestCookie = request.cookies.get("debug-test-cookie")?.value;
 
-    console.log("[UI] License validation - cookies:", {
+    console.log("License validation - cookies:", {
       hasSessionToken: !!sessionToken,
       hasUserId: !!userId,
       sessionTokenLength: sessionToken?.length || 0,
-      debugLoginTime: debugLoginTime || "not found",
-      debugTestCookie: debugTestCookie || "not found",
       allCookieNames: Array.from(request.cookies.getAll()).map((c) => c.name),
       totalCookiesCount: request.cookies.getAll().length,
     });
 
     if (!sessionToken || !userId) {
+      console.log("Missing session token or user ID for license validation");
       console.log(
-        "[UI] Missing session token or user ID for license validation"
-      );
-      console.log(
-        "[UI] Available cookies:",
+        "Available cookies:",
         Object.fromEntries(
           Array.from(request.cookies.getAll()).map((c) => [
             c.name,
@@ -57,7 +55,7 @@ export async function POST(request: NextRequest) {
         )
       );
       console.log(
-        "[UI] Raw cookie header:",
+        "Raw cookie header:",
         request.headers.get("cookie") || "No cookie header"
       );
       return NextResponse.json(
