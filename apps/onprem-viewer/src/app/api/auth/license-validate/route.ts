@@ -91,7 +91,9 @@ export async function POST(request: NextRequest) {
 
     if (controlPlaneResponse.ok && result.success) {
       // License validation successful
-      console.log("[UI] License validation successful, license key already saved by control-plane-api");
+      console.log(
+        "[UI] License validation successful, license key already saved by control-plane-api"
+      );
 
       const response = NextResponse.json({
         success: true,

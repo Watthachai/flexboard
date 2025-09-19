@@ -22,9 +22,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Get session token from cookies or request body
-    const sessionToken = request.cookies.get("session-token")?.value || 
-                         request.cookies.get("session-token-backup")?.value ||
-                         body.sessionToken;
+    const sessionToken =
+      request.cookies.get("session-token")?.value ||
+      request.cookies.get("session-token-backup")?.value ||
+      body.sessionToken;
 
     if (!sessionToken) {
       return NextResponse.json(
@@ -43,7 +44,9 @@ export async function POST(request: NextRequest) {
     });
 
     // Save license key to Control Plane user profile
-    const controlPlaneUrl = envConfig.getControlPlaneApiUrl("/auth/user/update-license");
+    const controlPlaneUrl = envConfig.getControlPlaneApiUrl(
+      "/auth/user/update-license"
+    );
     const controlPlaneResponse = await fetch(controlPlaneUrl, {
       method: "POST",
       headers: {
@@ -62,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     if (controlPlaneResponse.ok && result.success) {
       console.log("[UI] License key saved to user profile successfully");
-      
+
       return NextResponse.json({
         success: true,
         message: "License key saved to user profile",
@@ -70,7 +73,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       console.error("[UI] Failed to save license key to user profile:", result);
-      
+
       return NextResponse.json(
         {
           success: false,

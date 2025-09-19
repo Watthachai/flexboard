@@ -7,19 +7,7 @@
 
 import React, { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  BarChart3,
-  Settings,
-  Package,
-  TrendingUp,
-  Database,
-  FileText,
-  PieChart,
-  Building2,
-  Calendar,
-  Download,
-  AlertTriangle,
-} from "lucide-react";
+import { BarChart3, Settings } from "lucide-react";
 import { VersionDisplay } from "@/components/VersionDisplay";
 
 interface SidebarProps {

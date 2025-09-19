@@ -7,8 +7,6 @@ import * as XLSX from "xlsx";
 import {
   Settings,
   RefreshCw,
-  Eye,
-  EyeOff,
   BarChart3,
   Building2,
   Calendar,
@@ -16,14 +14,15 @@ import {
   AlertTriangle,
   Zap,
   XCircle,
-  TrendingUp,
   FileText,
   Database,
   Trash2,
   ChevronLeft,
   ChevronRight,
-  CalendarDays,
+  ChevronDown,
   Download,
+  Search,
+  X,
 } from "lucide-react";
 interface DatabaseRecord {
   id: number;
@@ -70,6 +69,217 @@ interface ProductAgeBucketSummary {
   };
 }
 
+interface IngestionStatus {
+  lastRun: string | null;
+  nextRun: string | null;
+  totalFiles: number;
+  totalRecords: number;
+  status: "running" | "idle" | "error";
+  recentFiles: Array<{
+    fileName: string;
+    recordCount: number;
+    recordsCreated?: number;
+    recordsUpdated?: number;
+    recordsDeleted?: number;
+    processedAt: string;
+    status: "success" | "error";
+  }>;
+}
+
+// Standalone DateRangePicker component
+const StandaloneDateRangePicker = ({
+  dateFrom,
+  dateTo,
+  setDateFrom,
+  setDateTo,
+}: {
+  dateFrom: string;
+  dateTo: string;
+  setDateFrom: (date: string) => void;
+  setDateTo: (date: string) => void;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const hasDateRange = dateFrom || dateTo;
+
+  const formatDisplayDate = (date: string) => {
+    if (!date) return "";
+    try {
+      return new Date(date).toLocaleDateString("th-TH", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+    } catch {
+      return date;
+    }
+  };
+
+  const getDisplayText = () => {
+    if (dateFrom && dateTo) {
+      return `${formatDisplayDate(dateFrom)} - ${formatDisplayDate(dateTo)}`;
+    } else if (dateFrom) {
+      return `ตั้งแต่ ${formatDisplayDate(dateFrom)}`;
+    } else if (dateTo) {
+      return `ถึง ${formatDisplayDate(dateTo)}`;
+    }
+    return "เลือกช่วงวันที่";
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex items-center justify-between w-full min-w-[320px] px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+          !hasDateRange
+            ? "text-slate-400 dark:text-slate-500"
+            : "text-slate-900 dark:text-slate-200"
+        }`}
+      >
+        <div className="flex items-center">
+          <Calendar className="w-4 h-4 mr-2 text-slate-500" />
+          <span>{getDisplayText()}</span>
+        </div>
+        <ChevronDown className="w-4 h-4" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-20 mt-2 p-4 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg shadow-lg min-w-[320px]">
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                  วันที่เริ่ม
+                </label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                  วันที่สิ้นสุด
+                </label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="px-3 py-1 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+              >
+                ล้างวันที่
+              </button>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="px-4 py-1 text-xs bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600"
+              >
+                ตกลง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Standalone CustomDropdown component to prevent re-render issues
+const StandaloneCustomDropdown = ({
+  value,
+  options,
+  placeholder,
+  onChange,
+  icon: Icon,
+  disabled = false,
+  suffix,
+}: {
+  value: string;
+  options: string[];
+  placeholder: string;
+  onChange: (value: string) => void;
+  icon: React.ComponentType<{ className?: string }>;
+  disabled?: boolean;
+  suffix?: string;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="relative flex items-center">
+      <Icon className="w-4 h-4 mr-2 text-slate-500" />
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => !disabled && setIsOpen(!isOpen)}
+          disabled={disabled}
+          className={`text-sm px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[200px] text-left flex items-center justify-between ${
+            disabled
+              ? "opacity-50 cursor-not-allowed"
+              : "hover:bg-slate-50 dark:hover:bg-slate-600"
+          }`}
+        >
+          <span
+            className={
+              value
+                ? "text-gray-900 dark:text-slate-200"
+                : "text-gray-500 dark:text-slate-400"
+            }
+          >
+            {value || placeholder}
+          </span>
+          <ChevronDown className="w-4 h-4 ml-2" />
+        </button>
+
+        {isOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => setIsOpen(false)}
+            ></div>
+            <div className="absolute z-20 mt-1 w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+              <button
+                onClick={() => {
+                  onChange("");
+                  setIsOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 text-sm text-gray-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-600 border-b border-slate-200 dark:border-slate-600"
+              >
+                {placeholder}
+              </button>
+              {options.map((option) => (
+                <button
+                  key={option}
+                  onClick={() => {
+                    onChange(option);
+                    setIsOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600"
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      {suffix && (
+        <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+          {suffix}
+        </span>
+      )}
+    </div>
+  );
+};
+
 export default function PVSDashboard() {
   const {} = useTheme();
   const [loading, setLoading] = useState(true);
@@ -80,7 +290,6 @@ export default function PVSDashboard() {
     ProductAgeBucketSummary[]
   >([]);
   const [error, setError] = useState<string | null>(null);
-  const [showRawData, setShowRawData] = useState(false);
 
   // Filter states
   const [selectedCorp, setSelectedCorp] = useState<string>("");
@@ -97,6 +306,20 @@ export default function PVSDashboard() {
   const [rawDataPage, setRawDataPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
   const RAW_DATA_PER_PAGE = 100;
+
+  // Search states
+  const [productSearch, setProductSearch] = useState<string>("");
+  const [rawDataSearch, setRawDataSearch] = useState<string>("");
+
+  // Ingestion status state
+  const [ingestionStatus, setIngestionStatus] = useState<IngestionStatus>({
+    lastRun: null,
+    nextRun: null,
+    totalFiles: 0,
+    totalRecords: 0,
+    status: "idle",
+    recentFiles: [],
+  });
 
   const fetchDatabaseData = useCallback(async () => {
     try {
@@ -150,10 +373,37 @@ export default function PVSDashboard() {
     }
   }, []);
 
+  // Fetch ingestion status
+  const fetchIngestionStatus = useCallback(async () => {
+    try {
+      const statusResponse = await fetch("/api/ingestion/status");
+      const statusData = await statusResponse.json();
+
+      if (statusData.success) {
+        setIngestionStatus({
+          lastRun: statusData.data.lastRun,
+          nextRun: statusData.data.nextRun,
+          totalFiles: statusData.data.totalFiles,
+          totalRecords: statusData.data.totalRecords,
+          status: statusData.data.status,
+          recentFiles: statusData.data.recentFiles || [],
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch ingestion status:", error);
+      // Fallback to current time if API fails
+      setIngestionStatus((prev) => ({
+        ...prev,
+        lastRun: new Date().toISOString(),
+        status: "error",
+      }));
+    }
+  }, []);
+
   useEffect(() => {
     fetchDatabaseData();
-  }, [fetchDatabaseData]);
-
+    fetchIngestionStatus();
+  }, [fetchDatabaseData, fetchIngestionStatus]);
   const applyFilters = useCallback(
     (records: DatabaseRecord[]) => {
       let filtered = records;
@@ -341,6 +591,39 @@ export default function PVSDashboard() {
     console.log("======================");
 
     return values;
+  };
+
+  // Calculate age bucket record counts for KPI cards
+  const getAgeBucketCounts = () => {
+    if (!filteredData.length)
+      return {
+        fresh: 0,
+        aging: 0,
+        risk: 0,
+        old: 0,
+      };
+
+    const counts = {
+      fresh: 0, // 0-90 days
+      aging: 0, // 91-180 days
+      risk: 0, // 181-365 days
+      old: 0, // >365 days
+    };
+
+    filteredData.forEach((record) => {
+      const bucket = record.ageBucket;
+
+      if (bucket === "0-90") counts.fresh += 1;
+      else if (bucket === "91-180") counts.aging += 1;
+      else if (bucket === "181-365") counts.risk += 1;
+      else if (bucket === ">365" || bucket === ">360" || bucket === "365+")
+        counts.old += 1;
+      else {
+        counts.old += 1;
+      }
+    });
+
+    return counts;
   };
 
   const formatMoney = (value: number) => {
@@ -664,116 +947,6 @@ export default function PVSDashboard() {
     }
   };
 
-  // Custom DateRangePicker Component
-  const DateRangePicker = () => {
-    const [isOpen, setIsOpen] = useState(false);
-    const hasDateRange = dateFrom || dateTo;
-
-    const formatDisplayDate = (date: string) => {
-      if (!date) return "";
-      try {
-        return new Date(date).toLocaleDateString("th-TH", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-        });
-      } catch {
-        return date;
-      }
-    };
-
-    const getDisplayText = () => {
-      if (dateFrom && dateTo) {
-        return `${formatDisplayDate(dateFrom)} - ${formatDisplayDate(dateTo)}`;
-      } else if (dateFrom) {
-        return `ตั้งแต่ ${formatDisplayDate(dateFrom)}`;
-      } else if (dateTo) {
-        return `ถึง ${formatDisplayDate(dateTo)}`;
-      }
-      return "เลือกช่วงวันที่";
-    };
-
-    return (
-      <div className="relative">
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className={`flex items-center justify-between w-full min-w-[280px] px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-            !hasDateRange
-              ? "text-slate-400 dark:text-slate-500"
-              : "text-slate-900 dark:text-slate-200"
-          }`}
-        >
-          <div className="flex items-center">
-            <CalendarDays className="w-4 h-4 mr-2" />
-            <span>{getDisplayText()}</span>
-          </div>
-          <Calendar className="w-4 h-4 text-slate-400" />
-        </button>
-
-        {isOpen && (
-          <div className="absolute top-full left-0 mt-2 p-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-50 min-w-[320px]">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-medium text-slate-900 dark:text-slate-200">
-                  เลือกช่วงวันที่
-                </h4>
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
-                >
-                  <XCircle className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    ตั้งแต่วันที่
-                  </label>
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    ถึงวันที่
-                  </label>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-between pt-2">
-                <button
-                  onClick={() => {
-                    setDateFrom("");
-                    setDateTo("");
-                  }}
-                  className="px-3 py-1 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700"
-                >
-                  ล้างวันที่
-                </button>
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="px-4 py-1 text-xs bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600"
-                >
-                  ตกลง
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   // Filter Controls Component
   const FilterTabs = ({ showClearAll = true }: { showClearAll?: boolean }) => {
     const hasActiveFilters =
@@ -792,50 +965,37 @@ export default function PVSDashboard() {
 
         <div className="flex flex-wrap items-center gap-4">
           {/* Corp Filter */}
-          <div className="flex items-center">
-            <Building2 className="w-4 h-4 mr-2 text-slate-500" />
-            <select
-              value={selectedCorp}
-              onChange={(e) => handleCorpChange(e.target.value)}
-              className="text-sm px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[150px]"
-            >
-              <option value="">ทุกบริษัท</option>
-              {corps.map((corp) => (
-                <option key={corp} value={corp}>
-                  {corp}
-                </option>
-              ))}
-            </select>
-          </div>
+          <StandaloneCustomDropdown
+            value={selectedCorp}
+            options={corps}
+            placeholder="ทุกบริษัท"
+            onChange={handleCorpChange}
+            icon={Building2}
+          />
 
           {/* Branch Filter */}
-          <div className="flex items-center">
-            <Building2 className="w-4 h-4 mr-2 text-slate-500" />
-            <select
-              value={selectedBranch}
-              onChange={(e) => setSelectedBranch(e.target.value)}
-              className="text-sm px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[150px]"
-              disabled={!selectedCorp && getAvailableBranches().length === 0}
-            >
-              <option value="">
-                {selectedCorp ? "ทุกสาขา" : "เลือกบริษัทก่อน"}
-              </option>
-              {getAvailableBranches().map((branch) => (
-                <option key={branch} value={branch}>
-                  {branch}
-                </option>
-              ))}
-            </select>
-            {selectedCorp && getAvailableBranches().length > 0 && (
-              <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
-                ({getAvailableBranches().length} สาขา)
-              </span>
-            )}
-          </div>
+          <StandaloneCustomDropdown
+            value={selectedBranch}
+            options={getAvailableBranches()}
+            placeholder={selectedCorp ? "ทุกสาขา" : "เลือกบริษัทก่อน"}
+            onChange={setSelectedBranch}
+            icon={Building2}
+            disabled={!selectedCorp && getAvailableBranches().length === 0}
+            suffix={
+              selectedCorp && getAvailableBranches().length > 0
+                ? `(${getAvailableBranches().length} สาขา)`
+                : undefined
+            }
+          />
 
           {/* Date Range Filter */}
           <div className="flex items-center">
-            <DateRangePicker />
+            <StandaloneDateRangePicker
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              setDateFrom={setDateFrom}
+              setDateTo={setDateTo}
+            />
           </div>
 
           {/* Clear Filters Button */}
@@ -853,16 +1013,6 @@ export default function PVSDashboard() {
               ล้างตัวกรอง
             </button>
           )}
-
-          {/* Export Excel Button */}
-          <button
-            onClick={exportToExcel}
-            className="px-4 py-2 bg-emerald-600 dark:bg-emerald-500 text-white rounded-lg hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors flex items-center font-medium"
-            disabled={productSummary.length === 0}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export Excel
-          </button>
         </div>
 
         {hasActiveFilters && (
@@ -882,6 +1032,27 @@ export default function PVSDashboard() {
           </div>
         )}
       </div>
+    );
+  };
+
+  // Search filter functions
+  const getFilteredProductSummary = () => {
+    if (!productSearch.trim()) return productSummary;
+    return productSummary.filter(
+      (product) =>
+        product.prod.toLowerCase().includes(productSearch.toLowerCase()) ||
+        product.corp.toLowerCase().includes(productSearch.toLowerCase()) ||
+        product.branch.toLowerCase().includes(productSearch.toLowerCase())
+    );
+  };
+
+  const getFilteredRawData = () => {
+    if (!rawDataSearch.trim()) return filteredData;
+    return filteredData.filter(
+      (row) =>
+        row.prod.toLowerCase().includes(rawDataSearch.toLowerCase()) ||
+        row.corp.toLowerCase().includes(rawDataSearch.toLowerCase()) ||
+        row.branch.toLowerCase().includes(rawDataSearch.toLowerCase())
     );
   };
 
@@ -951,29 +1122,74 @@ export default function PVSDashboard() {
                   Dashboard Controls
                 </h2>
               </div>
-              <div className="flex space-x-3">
-                <button
-                  onClick={fetchDatabaseData}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  รีเฟรช
-                </button>
-                <button
-                  onClick={() => setShowRawData(!showRawData)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg ${
-                    showRawData
-                      ? "bg-gradient-to-r from-indigo-500 to-indigo-600 text-white"
-                      : "bg-white border border-indigo-200 text-indigo-600 hover:border-indigo-300"
-                  }`}
-                >
-                  {showRawData ? (
-                    <EyeOff className="w-4 h-4 mr-2" />
-                  ) : (
-                    <Eye className="w-4 h-4 mr-2" />
-                  )}
-                  {showRawData ? "ซ่อน" : "แสดง"} ข้อมูลทั้งหมด
-                </button>
+
+              {/* Data Info */}
+              <div className="flex items-center space-x-4">
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-700 dark:to-slate-600 px-6 py-2 rounded-xl border border-blue-200 dark:border-slate-500 flex items-center space-x-6">
+                  <div className="flex items-center space-x-2">
+                    <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      ข้อมูล ณ วันที่:
+                    </div>
+                    <div className="text-lg font-bold text-blue-800 dark:text-blue-200">
+                      {ingestionStatus.lastRun
+                        ? new Date(ingestionStatus.lastRun).toLocaleDateString(
+                            "th-TH",
+                            {
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            }
+                          )
+                        : new Date().toLocaleDateString("th-TH", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      เวลา:
+                    </div>
+                    <div className="text-lg font-bold text-blue-800 dark:text-blue-200">
+                      {ingestionStatus.lastRun
+                        ? new Date(ingestionStatus.lastRun).toLocaleTimeString(
+                            "th-TH",
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              timeZone: "Asia/Bangkok",
+                            }
+                          )
+                        : new Date().toLocaleTimeString("th-TH", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            timeZone: "Asia/Bangkok",
+                          })}{" "}
+                      น.
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      รวม:
+                    </div>
+                    <div className="text-lg font-bold text-blue-800 dark:text-blue-200">
+                      {stats?.totalRecords.toLocaleString() || 0} รายการ
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex space-x-3">
+                  <button
+                    onClick={fetchDatabaseData}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 font-medium shadow-md hover:shadow-lg"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    รีเฟรช
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -986,127 +1202,101 @@ export default function PVSDashboard() {
                   <BarChart3 className="text-white w-6 h-6" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-800 dark:text-slate-200">
-                  มูลค่าตามกลุ่มอายุสินค้า
+                  สรุปตามกลุ่มอายุสินค้า
                 </h3>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* 0-90 Days (Fresh) */}
-                <div className="bg-gradient-to-br from-emerald-400 to-emerald-500 rounded-xl shadow-lg p-5 text-white transform hover:scale-105 transition-all duration-200">
+                <div className="bg-[#dbfce5] rounded-xl shadow-lg p-5 text-gray-800 transform hover:scale-105 transition-all duration-200">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="bg-white/20 rounded-full p-2">
-                      <CheckCircle className="w-6 h-6" />
+                    <div className="bg-green-600/20 rounded-full p-2">
+                      <CheckCircle className="w-6 h-6 text-green-600" />
                     </div>
                   </div>
                   <div className="mb-4">
-                    <div className="text-sm font-medium text-green-100 mb-2">
-                      0-90 Days (Fresh)
+                    <div className="text-sm font-medium text-green-700 mb-2">
+                      สินค้าใหม่ - {getAgeBucketCounts().fresh.toLocaleString()}{" "}
+                      เอกสาร
                     </div>
-                    <div className="text-3xl font-bold">
+                    <div className="text-2xl font-bold text-green-800">
                       {formatMoney(getAgeBucketValues().fresh)}
                     </div>
                   </div>
-                  <div className="border-t border-green-400 pt-4">
-                    <p className="text-green-100 text-sm">สินค้าใหม่</p>
+                  <div className="border-t border-green-600 pt-4">
+                    <p className="text-green-700 text-sm font-medium">
+                      0-90 วัน (Fresh Stock)
+                    </p>
                   </div>
                 </div>
 
                 {/* 91-180 Days (Aging) */}
-                <div className="bg-gradient-to-br from-amber-400 to-amber-500 rounded-xl shadow-lg p-5 text-white transform hover:scale-105 transition-all duration-200">
+                <div className="bg-[#f1fdf4] rounded-xl shadow-lg p-5 text-gray-800 transform hover:scale-105 transition-all duration-200">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="bg-white/20 rounded-full p-2">
-                      <AlertTriangle className="w-6 h-6" />
+                    <div className="bg-green-600/20 rounded-full p-2">
+                      <AlertTriangle className="w-6 h-6 text-green-600" />
                     </div>
                   </div>
                   <div className="mb-4">
-                    <div className="text-sm font-medium text-yellow-100 mb-2">
-                      91-180 Days (Aging)
+                    <div className="text-sm font-medium text-green-700 mb-2">
+                      สินค้าเริ่มเก่า -{" "}
+                      {getAgeBucketCounts().aging.toLocaleString()} เอกสาร
                     </div>
-                    <div className="text-3xl font-bold">
+                    <div className="text-2xl font-bold text-green-800">
                       {formatMoney(getAgeBucketValues().aging)}
                     </div>
                   </div>
-                  <div className="border-t border-yellow-400 pt-4">
-                    <p className="text-yellow-100 text-sm">สินค้าเริ่มเก่า</p>
+                  <div className="border-t border-green-600 pt-4">
+                    <p className="text-green-700 text-sm font-medium">
+                      91-180 วัน (Aging Stock)
+                    </p>
                   </div>
                 </div>
 
                 {/* 181-365 Days (Risk) */}
-                <div className="bg-gradient-to-br from-orange-400 to-orange-500 rounded-xl shadow-lg p-5 text-white transform hover:scale-105 transition-all duration-200">
+                <div className="bg-[#fdfbe6] rounded-xl shadow-lg p-5 text-gray-800 transform hover:scale-105 transition-all duration-200">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="bg-white/20 rounded-full p-2">
-                      <Zap className="w-6 h-6" />
+                    <div className="bg-yellow-600/20 rounded-full p-2">
+                      <Zap className="w-6 h-6 text-yellow-600" />
                     </div>
                   </div>
                   <div className="mb-4">
-                    <div className="text-sm font-medium text-orange-100 mb-2">
-                      181-365 Days (Risk)
+                    <div className="text-sm font-medium text-yellow-700 mb-2">
+                      สินค้าเสี่ยง -{" "}
+                      {getAgeBucketCounts().risk.toLocaleString()} เอกสาร
                     </div>
-                    <div className="text-3xl font-bold">
+                    <div className="text-2xl font-bold text-yellow-800">
                       {formatMoney(getAgeBucketValues().risk)}
                     </div>
                   </div>
-                  <div className="border-t border-orange-400 pt-4">
-                    <p className="text-orange-100 text-sm">สินค้าเสี่ยง</p>
+                  <div className="border-t border-yellow-600 pt-4">
+                    <p className="text-yellow-700 text-sm font-medium">
+                      181-365 วัน (Risk Stock)
+                    </p>
                   </div>
                 </div>
 
                 {/* >365 Days (Old Stock) */}
-                <div className="bg-gradient-to-br from-rose-400 to-rose-500 rounded-xl shadow-lg p-5 text-white transform hover:scale-105 transition-all duration-200">
+                <div className="bg-[#fee2e2] rounded-xl shadow-lg p-5 text-gray-800 transform hover:scale-105 transition-all duration-200">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="bg-white/20 rounded-full p-2">
-                      <XCircle className="w-6 h-6" />
+                    <div className="bg-red-600/20 rounded-full p-2">
+                      <XCircle className="w-6 h-6 text-red-600" />
                     </div>
                   </div>
                   <div className="mb-4">
-                    <div className="text-sm font-medium text-red-100 mb-2">
-                      &gt;365 Days (Old Stock)
+                    <div className="text-sm font-medium text-red-700 mb-2">
+                      สินค้าเก่า - {getAgeBucketCounts().old.toLocaleString()}{" "}
+                      เอกสาร
                     </div>
-                    <div className="text-3xl font-bold">
+                    <div className="text-2xl font-bold text-red-800">
                       {formatMoney(getAgeBucketValues().old)}
                     </div>
                   </div>
-                  <div className="border-t border-red-400 pt-4">
-                    <p className="text-red-100 text-sm">สินค้าเก่า</p>
+                  <div className="border-t border-red-600 pt-4">
+                    <p className="text-red-700 text-sm font-medium">
+                      มากกว่า 365 วัน (Old Stock)
+                    </p>
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Age Bucket Summary */}
-          {stats && Object.keys(stats.ageBucketSummary).length > 0 && (
-            <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-              <div className="flex items-center mb-6">
-                <div className="bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg p-2 mr-3">
-                  <TrendingUp className="text-white w-6 h-6" />
-                </div>
-                <h3 className="text-2xl font-bold text-gray-800">
-                  สรุปตามกลุ่มอายุสินค้า
-                </h3>
-              </div>
-              <p className="text-gray-600 mb-6">จำนวนรายการในแต่ละกลุ่มอายุ</p>
-              <div className="flex flex-wrap gap-4">
-                {Object.entries(stats.ageBucketSummary).map(
-                  ([bucket, count]) => (
-                    <div
-                      key={bucket}
-                      className={`px-6 py-4 rounded-xl font-bold text-lg shadow-lg transform hover:scale-105 transition-all duration-200 ${
-                        bucket === ">365" || bucket === ">360"
-                          ? "bg-gradient-to-r from-red-500 to-red-600 text-white"
-                          : bucket === "0-90"
-                          ? "bg-gradient-to-r from-green-500 to-green-600 text-white"
-                          : "bg-gradient-to-r from-gray-400 to-gray-500 text-white"
-                      }`}
-                    >
-                      <div className="text-center">
-                        <div className="text-2xl font-bold">
-                          {count.toLocaleString()}
-                        </div>
-                        <div className="text-sm opacity-90">{bucket} วัน</div>
-                      </div>
-                    </div>
-                  )
-                )}
               </div>
             </div>
           )}
@@ -1116,9 +1306,9 @@ export default function PVSDashboard() {
 
           {/* Product Summary Table */}
           {productSummary.length > 0 && (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
-              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-8 text-white">
-                <div className="flex items-center justify-between">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border-2 border-gray-200 dark:border-slate-600 overflow-hidden">
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center">
                     <div className="bg-white/20 rounded-lg p-2 mr-4">
                       <FileText className="w-8 h-8" />
@@ -1129,17 +1319,23 @@ export default function PVSDashboard() {
                       </h3>
                       <p className="text-indigo-100 mt-1">
                         แยกตามกลุ่มอายุ - แสดง{" "}
-                        {productSummary.length.toLocaleString()} รายการสินค้า
+                        {getFilteredProductSummary().length.toLocaleString()}{" "}
+                        รายการสินค้า
+                        {productSearch &&
+                          ` (กรองจาก ${productSummary.length.toLocaleString()} รายการ)`}
                       </p>
                     </div>
                   </div>
 
                   {/* Top Pagination Controls */}
-                  {productSummary.length > ITEMS_PER_PAGE && (
+                  {getFilteredProductSummary().length > ITEMS_PER_PAGE && (
                     <div className="flex items-center space-x-4 text-white">
                       <div className="text-sm opacity-90">
                         หน้า {productPage} จาก{" "}
-                        {getTotalPages(productSummary.length, ITEMS_PER_PAGE)}
+                        {getTotalPages(
+                          getFilteredProductSummary().length,
+                          ITEMS_PER_PAGE
+                        )}
                       </div>
                       <div className="flex items-center space-x-2">
                         <button
@@ -1158,14 +1354,14 @@ export default function PVSDashboard() {
                               length: Math.min(
                                 5,
                                 getTotalPages(
-                                  productSummary.length,
+                                  getFilteredProductSummary().length,
                                   ITEMS_PER_PAGE
                                 )
                               ),
                             },
                             (_, i) => {
                               const totalPages = getTotalPages(
-                                productSummary.length,
+                                getFilteredProductSummary().length,
                                 ITEMS_PER_PAGE
                               );
                               let pageNum;
@@ -1201,7 +1397,7 @@ export default function PVSDashboard() {
                             setProductPage(
                               Math.min(
                                 getTotalPages(
-                                  productSummary.length,
+                                  getFilteredProductSummary().length,
                                   ITEMS_PER_PAGE
                                 ),
                                 productPage + 1
@@ -1210,7 +1406,10 @@ export default function PVSDashboard() {
                           }
                           disabled={
                             productPage ===
-                            getTotalPages(productSummary.length, ITEMS_PER_PAGE)
+                            getTotalPages(
+                              getFilteredProductSummary().length,
+                              ITEMS_PER_PAGE
+                            )
                           }
                           className="p-2 rounded-lg bg-white/20 hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
@@ -1220,29 +1419,67 @@ export default function PVSDashboard() {
                     </div>
                   )}
                 </div>
+
+                {/* Search Input */}
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-4 h-4" />
+                    <input
+                      type="text"
+                      placeholder="ค้นหาสินค้า, บริษัท, หรือสาขา..."
+                      value={productSearch}
+                      onChange={(e) => {
+                        setProductSearch(e.target.value);
+                        setProductPage(1); // Reset to first page when searching
+                      }}
+                      className="w-full pl-10 pr-4 py-2 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50"
+                    />
+                    {productSearch && (
+                      <button
+                        onClick={() => {
+                          setProductSearch("");
+                          setProductPage(1);
+                        }}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/70 hover:text-white"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Export Excel Button */}
+                  <button
+                    onClick={exportToExcel}
+                    className="ml-4 px-4 py-2 bg-emerald-600 dark:bg-emerald-500 text-white rounded-lg hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors flex items-center font-medium shadow-md hover:shadow-lg"
+                    disabled={productSummary.length === 0}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export Excel
+                  </button>
+                </div>
               </div>
               <div className="p-8 dark:bg-slate-800">
-                <div className="overflow-x-auto max-h-[600px] relative">
-                  <table className="w-full">
+                <div className="overflow-x-auto max-h-[600px] relative border-2 border-gray-300 dark:border-slate-500 rounded-lg">
+                  <table className="w-full border-collapse">
                     <thead className="sticky top-0 z-10">
-                      <tr className="border-b-2 border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800">
-                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-white dark:bg-slate-800">
+                      <tr className="border-b-3 border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-800">
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           บริษัท
                         </th>
-                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-white dark:bg-slate-800">
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           สาขา
                         </th>
-                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[200px] bg-white dark:bg-slate-800">
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[200px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           สินค้า
                         </th>
-                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-white dark:bg-slate-800">
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           หน่วย
                         </th>
-                        <th className="text-right p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[120px] bg-white dark:bg-slate-800">
+                        <th className="text-right p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[120px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           รวมทั้งหมด
                         </th>
                         <th
-                          className="text-center p-3 bg-emerald-50 dark:bg-emerald-900/50 font-bold text-emerald-700 dark:text-emerald-300 rounded-tl-lg min-w-[100px]"
+                          className="text-center p-3 bg-emerald-50 dark:bg-emerald-900/50 font-bold text-emerald-700 dark:text-emerald-300 rounded-tl-lg min-w-[100px] border-r-2 border-l-2 border-gray-300 dark:border-slate-500"
                           colSpan={2}
                         >
                           <div className="flex items-center justify-center">
@@ -1251,7 +1488,7 @@ export default function PVSDashboard() {
                           </div>
                         </th>
                         <th
-                          className="text-center p-3 bg-amber-50 dark:bg-amber-900/50 font-bold text-amber-700 dark:text-amber-300 min-w-[100px]"
+                          className="text-center p-3 bg-amber-50 dark:bg-amber-900/50 font-bold text-amber-700 dark:text-amber-300 min-w-[100px] border-r-2 border-gray-300 dark:border-slate-500"
                           colSpan={2}
                         >
                           <div className="flex items-center justify-center">
@@ -1260,7 +1497,7 @@ export default function PVSDashboard() {
                           </div>
                         </th>
                         <th
-                          className="text-center p-3 bg-orange-50 dark:bg-orange-900/50 font-bold text-orange-700 dark:text-orange-300 min-w-[100px]"
+                          className="text-center p-3 bg-orange-50 dark:bg-orange-900/50 font-bold text-orange-700 dark:text-orange-300 min-w-[100px] border-r-2 border-gray-300 dark:border-slate-500"
                           colSpan={2}
                         >
                           <div className="flex items-center justify-center">
@@ -1269,7 +1506,7 @@ export default function PVSDashboard() {
                           </div>
                         </th>
                         <th
-                          className="text-center p-3 bg-rose-50 dark:bg-rose-900/50 font-bold text-rose-700 dark:text-rose-300 rounded-tr-lg min-w-[100px]"
+                          className="text-center p-3 bg-rose-50 dark:bg-rose-900/50 font-bold text-rose-700 dark:text-rose-300 rounded-tr-lg min-w-[100px] border-r-2 border-gray-300 dark:border-slate-500"
                           colSpan={2}
                         >
                           <div className="flex items-center justify-center">
@@ -1278,66 +1515,66 @@ export default function PVSDashboard() {
                           </div>
                         </th>
                       </tr>
-                      <tr className="border-b border-gray-200 dark:border-slate-600 text-sm bg-white dark:bg-slate-800">
-                        <th className="bg-white dark:bg-slate-800"></th>
-                        <th className="bg-white dark:bg-slate-800"></th>
-                        <th className="bg-white dark:bg-slate-800"></th>
-                        <th className="bg-white dark:bg-slate-800"></th>
-                        <th className="text-right p-3 text-gray-600 dark:text-slate-400 bg-white dark:bg-slate-800">
+                      <tr className="border-b-2 border-gray-300 dark:border-slate-500 text-sm bg-white dark:bg-slate-800">
+                        <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
+                        <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
+                        <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
+                        <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
+                        <th className="text-right p-3 text-gray-600 dark:text-slate-400 bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           จำนวน / มูลค่า
                         </th>
-                        <th className="text-right p-3 bg-green-50 dark:bg-emerald-900/50 text-green-600 dark:text-emerald-300 font-medium">
+                        <th className="text-right p-3 bg-green-50 dark:bg-emerald-900/50 text-green-600 dark:text-emerald-300 font-medium border-r border-l-2 border-gray-300 dark:border-slate-500">
                           จำนวน
                         </th>
-                        <th className="text-right p-3 bg-green-50 dark:bg-emerald-900/50 text-green-600 dark:text-emerald-300 font-medium">
+                        <th className="text-right p-3 bg-green-50 dark:bg-emerald-900/50 text-green-600 dark:text-emerald-300 font-medium border-r-2 border-gray-300 dark:border-slate-500">
                           มูลค่า
                         </th>
-                        <th className="text-right p-3 bg-yellow-50 dark:bg-amber-900/50 text-yellow-600 dark:text-amber-300 font-medium">
+                        <th className="text-right p-3 bg-yellow-50 dark:bg-amber-900/50 text-yellow-600 dark:text-amber-300 font-medium border-r border-gray-300 dark:border-slate-500">
                           จำนวน
                         </th>
-                        <th className="text-right p-3 bg-yellow-50 dark:bg-amber-900/50 text-yellow-600 dark:text-amber-300 font-medium">
+                        <th className="text-right p-3 bg-yellow-50 dark:bg-amber-900/50 text-yellow-600 dark:text-amber-300 font-medium border-r-2 border-gray-300 dark:border-slate-500">
                           มูลค่า
                         </th>
-                        <th className="text-right p-3 bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-300 font-medium">
+                        <th className="text-right p-3 bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-300 font-medium border-r border-gray-300 dark:border-slate-500">
                           จำนวน
                         </th>
-                        <th className="text-right p-3 bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-300 font-medium">
+                        <th className="text-right p-3 bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-300 font-medium border-r-2 border-gray-300 dark:border-slate-500">
                           มูลค่า
                         </th>
-                        <th className="text-right p-3 bg-red-50 dark:bg-rose-900/50 text-red-600 dark:text-rose-300 font-medium">
+                        <th className="text-right p-3 bg-red-50 dark:bg-rose-900/50 text-red-600 dark:text-rose-300 font-medium border-r border-gray-300 dark:border-slate-500">
                           จำนวน
                         </th>
-                        <th className="text-right p-3 bg-red-50 dark:bg-rose-900/50 text-red-600 dark:text-rose-300 font-medium">
+                        <th className="text-right p-3 bg-red-50 dark:bg-rose-900/50 text-red-600 dark:text-rose-300 font-medium border-r-2 border-gray-300 dark:border-slate-500">
                           มูลค่า
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {getPaginatedData(
-                        productSummary,
+                        getFilteredProductSummary(),
                         productPage,
                         ITEMS_PER_PAGE
                       ).map((product, index) => (
                         <tr
                           key={index}
-                          className="border-b border-gray-100 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors duration-150"
+                          className="border-b-2 border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors duration-150"
                         >
-                          <td className="p-2 font-medium text-gray-700 dark:text-slate-300">
+                          <td className="p-2 font-medium text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
                             {product.corp}
                           </td>
-                          <td className="p-2 text-gray-600 dark:text-slate-400">
+                          <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
                             {product.branch}
                           </td>
                           <td
-                            className="p-2 font-medium text-gray-800 dark:text-slate-200 min-w-[200px]"
+                            className="p-2 font-medium text-gray-800 dark:text-slate-200 min-w-[200px] border-r-2 border-gray-200 dark:border-slate-600"
                             title={product.prod}
                           >
                             {product.prod}
                           </td>
-                          <td className="p-2 text-gray-600 dark:text-slate-400">
+                          <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
                             {product.unitName}
                           </td>
-                          <td className="p-2 text-right">
+                          <td className="p-2 text-right border-r-2 border-gray-200 dark:border-slate-600">
                             <div className="font-bold text-gray-800 dark:text-slate-200 text-sm">
                               {product.totalQty.toLocaleString()}
                             </div>
@@ -1387,10 +1624,10 @@ export default function PVSDashboard() {
           )}
 
           {/* Raw Data Table */}
-          {showRawData && filteredData.length > 0 && (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 overflow-hidden">
+          {filteredData.length > 0 && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border-2 border-gray-200 dark:border-slate-600 overflow-hidden">
               <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-6 text-white">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center">
                     <div className="bg-white/20 rounded-lg p-2 mr-3">
                       <Database className="w-6 h-6" />
@@ -1398,18 +1635,21 @@ export default function PVSDashboard() {
                     <div>
                       <h3 className="text-xl font-bold">ข้อมูลที่กรอง</h3>
                       <p className="text-blue-100 text-sm mt-1">
-                        แสดง {filteredData.length.toLocaleString()} รายการ
-                        จากทั้งหมด {data.length.toLocaleString()} รายการ
+                        แสดง {getFilteredRawData().length.toLocaleString()}{" "}
+                        รายการ จากทั้งหมด {data.length.toLocaleString()} รายการ
                       </p>
                     </div>
                   </div>
 
                   {/* Top Pagination Controls for Raw Data */}
-                  {filteredData.length > RAW_DATA_PER_PAGE && (
+                  {getFilteredRawData().length > RAW_DATA_PER_PAGE && (
                     <div className="flex items-center space-x-4 text-white">
                       <div className="text-sm opacity-90">
                         หน้า {rawDataPage} จาก{" "}
-                        {getTotalPages(filteredData.length, RAW_DATA_PER_PAGE)}
+                        {getTotalPages(
+                          getFilteredRawData().length,
+                          RAW_DATA_PER_PAGE
+                        )}
                       </div>
                       <div className="flex items-center space-x-2">
                         <button
@@ -1428,14 +1668,14 @@ export default function PVSDashboard() {
                               length: Math.min(
                                 5,
                                 getTotalPages(
-                                  filteredData.length,
+                                  getFilteredRawData().length,
                                   RAW_DATA_PER_PAGE
                                 )
                               ),
                             },
                             (_, i) => {
                               const totalPages = getTotalPages(
-                                filteredData.length,
+                                getFilteredRawData().length,
                                 RAW_DATA_PER_PAGE
                               );
                               let pageNum;
@@ -1471,7 +1711,7 @@ export default function PVSDashboard() {
                             setRawDataPage(
                               Math.min(
                                 getTotalPages(
-                                  filteredData.length,
+                                  getFilteredRawData().length,
                                   RAW_DATA_PER_PAGE
                                 ),
                                 rawDataPage + 1
@@ -1481,7 +1721,7 @@ export default function PVSDashboard() {
                           disabled={
                             rawDataPage ===
                             getTotalPages(
-                              filteredData.length,
+                              getFilteredRawData().length,
                               RAW_DATA_PER_PAGE
                             )
                           }
@@ -1493,87 +1733,188 @@ export default function PVSDashboard() {
                     </div>
                   )}
                 </div>
+
+                {/* Search Input */}
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/70 w-4 h-4" />
+                    <input
+                      type="text"
+                      placeholder="ค้นหาข้อมูลดิบ..."
+                      value={rawDataSearch}
+                      onChange={(e) => {
+                        setRawDataSearch(e.target.value);
+                        setRawDataPage(1); // Reset to first page when searching
+                      }}
+                      className="w-full pl-10 pr-4 py-2 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50"
+                    />
+                    {rawDataSearch && (
+                      <button
+                        onClick={() => {
+                          setRawDataSearch("");
+                          setRawDataPage(1);
+                        }}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/70 hover:text-white"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Export CSV Button for Raw Data */}
+                  <button
+                    onClick={() => {
+                      const csvData = [
+                        [
+                          "บริษัท",
+                          "สาขา",
+                          "สินค้า",
+                          "หน่วย",
+                          "จำนวน",
+                          "ราคาต้นทุน",
+                          "มูลค่า",
+                          "อายุ (วัน)",
+                          "กลุ่มอายุ",
+                        ],
+                        ...getFilteredRawData().map((row) => [
+                          row.corp,
+                          row.branch,
+                          row.prod,
+                          row.unitName,
+                          row.qtyFromThisDoc,
+                          row.averageCost || 0,
+                          row.totalValueRow || 0,
+                          row.daysAge,
+                          row.ageBucket,
+                        ]),
+                      ];
+
+                      const csvContent = csvData
+                        .map((row) =>
+                          row
+                            .map((cell) =>
+                              typeof cell === "string" && cell.includes(",")
+                                ? `"${cell}"`
+                                : cell
+                            )
+                            .join(",")
+                        )
+                        .join("\n");
+
+                      const now = new Date();
+                      const dateStr = now.toISOString().split("T")[0];
+                      let filename = `Raw_Data_${dateStr}`;
+
+                      if (selectedCorp) filename += `_${selectedCorp}`;
+                      if (selectedBranch) filename += `_${selectedBranch}`;
+                      if (dateFrom || dateTo) {
+                        const from = dateFrom || "start";
+                        const to = dateTo || "end";
+                        filename += `_${from}_to_${to}`;
+                      }
+                      filename += ".csv";
+
+                      const blob = new Blob(["\uFEFF" + csvContent], {
+                        type: "text/csv;charset=utf-8;",
+                      });
+                      const link = document.createElement("a");
+                      const url = URL.createObjectURL(blob);
+                      link.setAttribute("href", url);
+                      link.setAttribute("download", filename);
+                      link.style.visibility = "hidden";
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="ml-4 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors flex items-center font-medium shadow-md hover:shadow-lg"
+                    disabled={getFilteredRawData().length === 0}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export CSV
+                  </button>
+                </div>
               </div>
 
               <div className="p-8 dark:bg-slate-800">
-                <div className="overflow-x-auto max-h-[600px] relative">
-                  <table className="w-full">
+                <div className="overflow-x-auto max-h-[600px] relative border-2 border-gray-300 dark:border-slate-500 rounded-lg">
+                  <table className="w-full border-collapse">
                     <thead className="sticky top-0 z-10">
-                      <tr className="border-b-2 border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700">
-                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-gray-50 dark:bg-slate-700">
+                      <tr className="border-b-3 border-gray-300 dark:border-slate-500 bg-gray-50 dark:bg-slate-700">
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           บริษัท
                         </th>
-                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-gray-50 dark:bg-slate-700">
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           สาขา
                         </th>
-                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[300px] bg-gray-50 dark:bg-slate-700">
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[300px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           สินค้า
                         </th>
-                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-gray-50 dark:bg-slate-700">
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           หน่วย
                         </th>
-                        <th className="text-right p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-gray-50 dark:bg-slate-700">
+                        <th className="text-right p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           จำนวน
                         </th>
-                        <th className="text-right p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-gray-50 dark:bg-slate-700">
+                        <th className="text-right p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           ราคาต้นทุน
                         </th>
-                        <th className="text-right p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[120px] bg-gray-50 dark:bg-slate-700">
+                        <th className="text-right p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[120px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           มูลค่า
                         </th>
-                        <th className="text-center p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-gray-50 dark:bg-slate-700">
+                        <th className="text-center p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           อายุ (วัน)
                         </th>
-                        <th className="text-center p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-gray-50 dark:bg-slate-700">
+                        <th className="text-center p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           กลุ่มอายุ
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {getPaginatedData(
-                        filteredData,
+                        getFilteredRawData(),
                         rawDataPage,
                         RAW_DATA_PER_PAGE
                       ).map((row, index) => (
                         <tr
                           key={index}
-                          className="border-b border-gray-100 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors duration-150"
+                          className="border-b-2 border-gray-200 dark:border-slate-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors duration-150"
                         >
-                          <td className="p-2 font-medium text-gray-700 dark:text-slate-300">
+                          <td className="p-2 font-medium text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
                             {row.corp}
                           </td>
-                          <td className="p-2 text-gray-600 dark:text-slate-400">
+                          <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
                             {row.branch}
                           </td>
                           <td
-                            className="p-2 font-medium text-gray-800 dark:text-slate-200 min-w-[300px]"
+                            className="p-2 font-medium text-gray-800 dark:text-slate-200 min-w-[300px] border-r-2 border-gray-200 dark:border-slate-600"
                             title={row.prod}
                           >
                             {row.prod}
                           </td>
-                          <td className="p-2 text-gray-600 dark:text-slate-400">
+                          <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
                             {row.unitName}
                           </td>
-                          <td className="p-2 text-right font-bold text-gray-800 dark:text-slate-200">
+                          <td className="p-2 text-right font-bold text-gray-800 dark:text-slate-200 border-r-2 border-gray-200 dark:border-slate-600">
                             {row.qtyFromThisDoc?.toLocaleString()}
                           </td>
-                          <td className="p-2 text-right font-medium text-emerald-600 dark:text-emerald-400">
+                          <td className="p-2 text-right font-medium text-emerald-600 dark:text-emerald-400 border-r-2 border-gray-200 dark:border-slate-600">
                             {formatMoney(row.averageCost || 0)}
                           </td>
-                          <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300">
+                          <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300 border-r-2 border-gray-200 dark:border-slate-600">
                             {formatMoney(row.totalValueRow || 0)}
                           </td>
-                          <td className="p-2 text-center font-bold text-gray-700 dark:text-slate-300">
+                          <td className="p-2 text-center font-bold text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
                             {row.daysAge}
                           </td>
-                          <td className="p-2 text-center">
+                          <td className="p-2 text-center border-r-2 border-gray-200 dark:border-slate-600">
                             <span
                               className={`px-2 py-1 rounded-full text-xs font-bold ${
                                 row.ageBucket === ">365" ||
                                 row.ageBucket === ">360"
                                   ? "bg-rose-500 text-white"
                                   : row.ageBucket === "0-90"
-                                  ? "bg-emerald-500 text-white"
+                                  ? "bg-[#dbfce5] text-gray-800"
                                   : "bg-gray-500 text-white"
                               }`}
                             >

@@ -471,8 +471,9 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
             </div>
             <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
               <p className="text-sm text-green-700 dark:text-green-300">
-                🌐 <strong>Cross-device access:</strong> Your license will be saved to our secure server
-                and automatically applied when you login from other computers or browsers.
+                🌐 <strong>Cross-device access:</strong> Your license will be
+                saved to our secure server and automatically applied when you
+                login from other computers or browsers.
               </p>
             </div>
           </div>

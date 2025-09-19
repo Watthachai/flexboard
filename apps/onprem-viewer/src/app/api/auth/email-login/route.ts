@@ -54,13 +54,17 @@ export async function POST(request: NextRequest) {
 
       // Check if Control Plane API returned stored license information
       let userLicense = null;
-      
+
       try {
         if (result.hasStoredLicense && result.storedLicenseKey) {
-          console.log("[UI] Found stored license in Control Plane API, validating...");
-          
+          console.log(
+            "[UI] Found stored license in Control Plane API, validating..."
+          );
+
           // Validate the stored license key
-          const licenseValidateUrl = envConfig.getControlPlaneApiUrl("/auth/license-validate");
+          const licenseValidateUrl = envConfig.getControlPlaneApiUrl(
+            "/auth/license-validate"
+          );
           const licenseValidateResponse = await fetch(licenseValidateUrl, {
             method: "POST",
             headers: {
@@ -77,12 +81,17 @@ export async function POST(request: NextRequest) {
           const licenseResult = await licenseValidateResponse.json();
           if (licenseValidateResponse.ok && licenseResult.success) {
             userLicense = licenseResult.license;
-            console.log("[UI] Control Plane stored license key validated successfully:", {
-              tenantId: userLicense.tenantId,
-              companyName: userLicense.companyName,
-            });
+            console.log(
+              "[UI] Control Plane stored license key validated successfully:",
+              {
+                tenantId: userLicense.tenantId,
+                companyName: userLicense.companyName,
+              }
+            );
           } else {
-            console.log("[UI] Control Plane stored license key is invalid, will prompt for new key");
+            console.log(
+              "[UI] Control Plane stored license key is invalid, will prompt for new key"
+            );
           }
         } else {
           console.log("[UI] No stored license key found in Control Plane API");

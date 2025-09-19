@@ -113,18 +113,20 @@ export default async function authRoutes(fastify: FastifyInstance) {
         let storedLicenseKey = null;
         let tenantId = null;
         let companyName = null;
-        
+
         try {
           const usersCollection = admin.firestore().collection("users");
           const userDoc = await usersCollection.doc(email).get();
-          
+
           if (userDoc.exists) {
             const userData = userDoc.data();
             storedLicenseKey = userData?.licenseKey;
             tenantId = userData?.tenantId;
             companyName = userData?.companyName;
-            
-            console.log(`Found stored license for user: ${email}, hasLicense: ${!!storedLicenseKey}`);
+
+            console.log(
+              `Found stored license for user: ${email}, hasLicense: ${!!storedLicenseKey}`
+            );
           }
         } catch (licenseError) {
           console.error("Failed to check stored license:", licenseError);
@@ -262,18 +264,26 @@ export default async function authRoutes(fastify: FastifyInstance) {
         try {
           const usersCollection = admin.firestore().collection("users");
           const userDocRef = usersCollection.doc(email);
-          
-          await userDocRef.set({
-            email,
-            licenseKey,
-            tenantId,
-            companyName,
-            lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
 
-          console.log(`License key saved for user: ${email} with tenant: ${tenantId}`);
+          await userDocRef.set(
+            {
+              email,
+              licenseKey,
+              tenantId,
+              companyName,
+              lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          console.log(
+            `License key saved for user: ${email} with tenant: ${tenantId}`
+          );
         } catch (saveError) {
-          console.error("Failed to save license key to user profile:", saveError);
+          console.error(
+            "Failed to save license key to user profile:",
+            saveError
+          );
           // Don't fail the validation if license save fails
         }
 
@@ -445,8 +455,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
   // Save license key to user profile
   fastify.post("/save-user-license", async (request, reply) => {
     try {
-      const { email, licenseKey } = request.body as { email: string; licenseKey: string };
-      
+      const { email, licenseKey } = request.body as {
+        email: string;
+        licenseKey: string;
+      };
+
       if (!email || !licenseKey) {
         return reply.status(400).send({
           success: false,
@@ -457,12 +470,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
       // Update user profile with license key
       const usersCollection = admin.firestore().collection("users");
       const userDocRef = usersCollection.doc(email);
-      
-      await userDocRef.set({
-        email,
-        licenseKey,
-        lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-      }, { merge: true });
+
+      await userDocRef.set(
+        {
+          email,
+          licenseKey,
+          lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
 
       console.log(`License key saved for user: ${email}`);
 
@@ -483,7 +499,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   fastify.get("/get-user-license", async (request, reply) => {
     try {
       const { email } = request.query as { email: string };
-      
+
       if (!email) {
         return reply.status(400).send({
           success: false,
@@ -493,7 +509,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
       const usersCollection = admin.firestore().collection("users");
       const userDoc = await usersCollection.doc(email).get();
-      
+
       if (!userDoc.exists) {
         return reply.send({
           success: true,
@@ -520,18 +536,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
   });
 
   // Clean up expired sessions (run periodically)
-  setInterval(
-    () => {
-      const now = Date.now();
-      const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+  setInterval(() => {
+    const now = Date.now();
+    const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-      for (const [token, session] of activeSessions.entries()) {
-        const sessionAge = now - session.createdAt.getTime();
-        if (sessionAge > maxAge) {
-          activeSessions.delete(token);
-        }
+    for (const [token, session] of activeSessions.entries()) {
+      const sessionAge = now - session.createdAt.getTime();
+      if (sessionAge > maxAge) {
+        activeSessions.delete(token);
       }
-    },
-    60 * 60 * 1000
-  ); // Clean up every hour
+    }
+  }, 60 * 60 * 1000); // Clean up every hour
 }
