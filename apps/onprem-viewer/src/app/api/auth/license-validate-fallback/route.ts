@@ -71,33 +71,46 @@ export async function POST(request: NextRequest) {
 
     if (controlPlaneResponse.ok && result.success) {
       // License validation successful
-      console.log("[UI] License validation (fallback) successful, saving to user profile");
-      
+      console.log(
+        "[UI] License validation (fallback) successful, saving to user profile"
+      );
+
       // Save license key to user profile for cross-device access
       try {
         // Use direct Firebase update instead of Control Plane API
-        const firebaseUpdateResponse = await fetch("/api/firebase/update-user-license", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userId: finalUserId,
-            email,
-            licenseKey,
-            tenantId: result.license?.tenantId,
-            companyName: result.license?.companyName,
-          }),
-        });
-        
+        const firebaseUpdateResponse = await fetch(
+          "/api/firebase/update-user-license",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId: finalUserId,
+              email,
+              licenseKey,
+              tenantId: result.license?.tenantId,
+              companyName: result.license?.companyName,
+            }),
+          }
+        );
+
         if (firebaseUpdateResponse.ok) {
           const updateResult = await firebaseUpdateResponse.json();
-          console.log("[UI] License key saved to Firebase user profile (fallback):", updateResult);
+          console.log(
+            "[UI] License key saved to Firebase user profile (fallback):",
+            updateResult
+          );
         } else {
-          console.warn("[UI] Failed to save license key to Firebase user profile (fallback, validation still successful)");
+          console.warn(
+            "[UI] Failed to save license key to Firebase user profile (fallback, validation still successful)"
+          );
         }
       } catch (error) {
-        console.warn("[UI] Error saving license to Firebase user profile (fallback, validation still successful):", error);
+        console.warn(
+          "[UI] Error saving license to Firebase user profile (fallback, validation still successful):",
+          error
+        );
       }
 
       // License validation successful

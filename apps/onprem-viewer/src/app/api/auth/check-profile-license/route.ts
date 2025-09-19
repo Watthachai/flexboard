@@ -9,10 +9,12 @@ import { envConfig } from "@/config/env";
 export async function GET(request: NextRequest) {
   try {
     // Get session token from cookies
-    const sessionToken = request.cookies.get("session-token")?.value || 
-                         request.cookies.get("session-token-backup")?.value;
-    const userId = request.cookies.get("user-id")?.value || 
-                   request.cookies.get("user-id-backup")?.value;
+    const sessionToken =
+      request.cookies.get("session-token")?.value ||
+      request.cookies.get("session-token-backup")?.value;
+    const userId =
+      request.cookies.get("user-id")?.value ||
+      request.cookies.get("user-id-backup")?.value;
 
     console.log("[UI] Check user profile license - cookies:", {
       hasSessionToken: !!sessionToken,
@@ -30,7 +32,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Check user profile for stored license key
-    const controlPlaneUrl = envConfig.getControlPlaneApiUrl("/auth/user/profile");
+    const controlPlaneUrl =
+      envConfig.getControlPlaneApiUrl("/auth/user/profile");
     const controlPlaneResponse = await fetch(controlPlaneUrl, {
       method: "GET",
       headers: {
@@ -44,7 +47,7 @@ export async function GET(request: NextRequest) {
     if (controlPlaneResponse.ok && result.success && result.profile) {
       // Check if user profile has license key
       const profile = result.profile;
-      
+
       console.log("[UI] User profile loaded:", {
         hasLicenseKey: !!profile.licenseKey,
         tenantId: profile.tenantId,
@@ -54,7 +57,9 @@ export async function GET(request: NextRequest) {
       if (profile.licenseKey && profile.tenantId) {
         // User has license key in profile, validate it
         try {
-          const licenseValidateUrl = envConfig.getControlPlaneApiUrl("/auth/license-validate");
+          const licenseValidateUrl = envConfig.getControlPlaneApiUrl(
+            "/auth/license-validate"
+          );
           const licenseValidateResponse = await fetch(licenseValidateUrl, {
             method: "POST",
             headers: {
@@ -70,10 +75,10 @@ export async function GET(request: NextRequest) {
           });
 
           const licenseResult = await licenseValidateResponse.json();
-          
+
           if (licenseValidateResponse.ok && licenseResult.success) {
             console.log("[UI] Stored license key is valid");
-            
+
             return NextResponse.json({
               success: true,
               hasLicense: true,
