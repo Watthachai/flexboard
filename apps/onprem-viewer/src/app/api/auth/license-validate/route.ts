@@ -23,18 +23,43 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get session token from cookies
-    const sessionToken = request.cookies.get("session-token")?.value;
-    const userId = request.cookies.get("user-id")?.value;
+    // Get session token from cookies (try both primary and backup)
+    const sessionToken =
+      request.cookies.get("session-token")?.value ||
+      request.cookies.get("session-token-backup")?.value;
+    const userId =
+      request.cookies.get("user-id")?.value ||
+      request.cookies.get("user-id-backup")?.value;
+    const debugLoginTime = request.cookies.get("debug-login-time")?.value;
+    const debugTestCookie = request.cookies.get("debug-test-cookie")?.value;
 
-    console.log("License validation - cookies:", {
+    console.log("[UI] License validation - cookies:", {
       hasSessionToken: !!sessionToken,
       hasUserId: !!userId,
       sessionTokenLength: sessionToken?.length || 0,
+      debugLoginTime: debugLoginTime || "not found",
+      debugTestCookie: debugTestCookie || "not found",
+      allCookieNames: Array.from(request.cookies.getAll()).map((c) => c.name),
+      totalCookiesCount: request.cookies.getAll().length,
     });
 
     if (!sessionToken || !userId) {
-      console.log("Missing session token or user ID for license validation");
+      console.log(
+        "[UI] Missing session token or user ID for license validation"
+      );
+      console.log(
+        "[UI] Available cookies:",
+        Object.fromEntries(
+          Array.from(request.cookies.getAll()).map((c) => [
+            c.name,
+            c.value.substring(0, 20) + "...",
+          ])
+        )
+      );
+      console.log(
+        "[UI] Raw cookie header:",
+        request.headers.get("cookie") || "No cookie header"
+      );
       return NextResponse.json(
         {
           success: false,
@@ -66,6 +91,8 @@ export async function POST(request: NextRequest) {
 
     if (controlPlaneResponse.ok && result.success) {
       // License validation successful
+      console.log("[UI] License validation successful, license key already saved by control-plane-api");
+
       const response = NextResponse.json({
         success: true,
         license: result.license,
