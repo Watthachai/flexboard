@@ -39,6 +39,20 @@ const nextConfig: NextConfig = {
   // Output for deployment
   output: "standalone",
 
+  // Webpack configuration for production optimizations
+  webpack: (config, { dev, isServer }) => {
+    // Remove console.log in production build
+    if (!dev && !isServer) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      config.optimization.minimizer.forEach((minimizer: any) => {
+        if (minimizer.constructor.name === "TerserPlugin") {
+          minimizer.options.terserOptions.compress.drop_console = true;
+        }
+      });
+    }
+    return config;
+  },
+
   // Environment variables
   env: {
     HOSTNAME: process.env.HOSTNAME || "0.0.0.0",

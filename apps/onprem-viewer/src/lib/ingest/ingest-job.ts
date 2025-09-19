@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import fs from "fs/promises";
 import path from "path";
 import { XMLParser } from "fast-xml-parser";
@@ -47,6 +48,43 @@ function toString(s?: string | number | null): string {
   if (s === null || s === undefined) return "";
   if (typeof s === "string") return s.trim();
   return String(s);
+}
+
+// Compute derived fields for performance optimization
+function computeDerivedFields(
+  dataDate: Date,
+  docDate: Date,
+  qty: number,
+  cost: number
+) {
+  const qtySafe = Number.isFinite(qty) ? qty : 0;
+  const costSafe = Number.isFinite(cost) ? cost : 0;
+  const totalValueRow = qtySafe * costSafe;
+
+  // Calculate days age
+  const daysAge = Math.floor(
+    (dataDate.getTime() - docDate.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  // Calculate age bucket
+  let ageBucket: string;
+  if (daysAge > 365) {
+    ageBucket = ">365";
+  } else if (daysAge > 180) {
+    ageBucket = "181-365";
+  } else if (daysAge > 90) {
+    ageBucket = "91-180";
+  } else {
+    ageBucket = "0-90";
+  }
+
+  return {
+    qtySafe,
+    costSafe,
+    totalValueRow,
+    daysAge,
+    ageBucket,
+  };
 }
 
 function mapXml(data: unknown): XmlRow[] {
@@ -229,7 +267,7 @@ export async function ingestOnce() {
       console.log(`[ingest] Found ${idsToDelete.length} records to delete`);
 
       // Process in batches to avoid transaction timeout
-      const batchSize = 100;
+      const batchSize = 2000; // Optimized for large datasets (200-300k rows)
       let processedCount = 0;
       let createdCount = 0;
       let updatedCount = 0;
@@ -244,30 +282,55 @@ export async function ingestOnce() {
               const id = Number(r.ID);
               const wasExisting = existingIds.has(id);
 
+              const dataDate = toDateYMD(r.DataDate);
+              const docDate = toDateYMD(r.DocDate);
+              const qty = toNum(r.QtyFromThisDoc);
+              const cost = toNum(r.AverageCost);
+
+              // Compute derived fields for performance
+              const derived = computeDerivedFields(
+                dataDate,
+                docDate,
+                qty,
+                cost
+              );
+
               await tx.inventoryRaw.upsert({
                 where: { id },
                 create: {
                   id,
-                  dataDate: toDateYMD(r.DataDate),
+                  dataDate,
                   corp: toString(r.Corp),
                   branch: toString(r.Branch),
                   prod: toString(r.Prod),
                   unitName: toString(r.UnitName),
                   docNumber: toString(r.DocNumber),
-                  docDate: toDateYMD(r.DocDate),
-                  qtyFromThisDoc: toNum(r.QtyFromThisDoc),
-                  averageCost: toNum(r.AverageCost),
+                  docDate,
+                  qtyFromThisDoc: qty,
+                  averageCost: cost,
+                  // Add computed fields
+                  qtySafe: derived.qtySafe,
+                  costSafe: derived.costSafe,
+                  totalValueRow: derived.totalValueRow,
+                  daysAge: derived.daysAge,
+                  ageBucket: derived.ageBucket,
                 },
                 update: {
-                  dataDate: toDateYMD(r.DataDate),
+                  dataDate,
                   corp: toString(r.Corp),
                   branch: toString(r.Branch),
                   prod: toString(r.Prod),
                   unitName: toString(r.UnitName),
                   docNumber: toString(r.DocNumber),
-                  docDate: toDateYMD(r.DocDate),
-                  qtyFromThisDoc: toNum(r.QtyFromThisDoc),
-                  averageCost: toNum(r.AverageCost),
+                  docDate,
+                  qtyFromThisDoc: qty,
+                  averageCost: cost,
+                  // Update computed fields
+                  qtySafe: derived.qtySafe,
+                  costSafe: derived.costSafe,
+                  totalValueRow: derived.totalValueRow,
+                  daysAge: derived.daysAge,
+                  ageBucket: derived.ageBucket,
                 },
               });
 
@@ -279,7 +342,7 @@ export async function ingestOnce() {
             }
           },
           {
-            timeout: 30000, // 30 seconds timeout
+            timeout: 60000, // 60 seconds timeout for larger batches
           }
         );
 
@@ -305,7 +368,7 @@ export async function ingestOnce() {
               deletedCount += result.count;
             },
             {
-              timeout: 30000,
+              timeout: 60000, // 60 seconds timeout for larger batches
             }
           );
         }

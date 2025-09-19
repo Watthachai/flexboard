@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Data Source Service - Handles local data connections
  */
@@ -276,7 +277,8 @@ class DataSourceService {
     }
   }
 
-  private async fetchXMLData(config: DataSourceConfig): Promise<DataResult> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private async fetchXMLData(_config: DataSourceConfig): Promise<DataResult> {
     // In a real implementation, this would parse the XML file
     // Return empty data until real XML parsing is implemented
 
@@ -288,7 +290,8 @@ class DataSourceService {
     };
   }
 
-  private async fetchCSVData(config: DataSourceConfig): Promise<DataResult> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private async fetchCSVData(_config: DataSourceConfig): Promise<DataResult> {
     // In a real implementation, this would parse the CSV file
     // Return empty data until real CSV parsing is implemented
 
@@ -326,7 +329,7 @@ class DataSourceService {
       const data = await response.json();
 
       // Try to extract array data and columns
-      let arrayData = Array.isArray(data)
+      const arrayData = Array.isArray(data)
         ? data
         : data.data || data.results || [];
       let columns: string[] = [];

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * XML Import API - Handles XML file processing and database updates
  */

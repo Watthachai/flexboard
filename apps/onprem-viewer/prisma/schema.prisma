@@ -1,6 +1,6 @@
 datasource db {
   provider = "sqlite"
-  url      = "file:./data/flexboard.sqlite"
+  url      = "file:./prisma/data/flexboard.sqlite"
 }
 
 generator client {
@@ -30,8 +30,17 @@ model InventoryRaw {
   qtyFromThisDoc Float
   averageCost    Float
 
+  // Computed fields for performance optimization
+  daysAge       Int? // dateDiff(DataDate, DocDate, 'days') - computed during ingest
+  ageBucket     String? // case(daysAge > 365, '>365', daysAge > 180, '181-365', ...) - computed during ingest
+  totalValueRow Float? // qtySafe * costSafe - computed during ingest
+  qtySafe       Float? // coalesce(qtyFromThisDoc, 0) - computed during ingest
+  costSafe      Float? // coalesce(averageCost, 0) - computed during ingest
+
   @@index([dataDate])
   @@index([branch])
   @@index([prod])
   @@index([docNumber])
+  @@index([ageBucket]) // Index for performance on age bucket queries
+  @@index([corp]) // Index for corp filtering
 }

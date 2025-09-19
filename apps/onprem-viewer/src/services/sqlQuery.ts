@@ -1,12 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * SQL Query Service - Handles real SQL database connections and queries
  */
 
 import { Pool as PgPool, PoolConfig as PgPoolConfig } from "pg";
-import mysql, {
-  Pool as MySQLPool,
-  PoolOptions as MySQLPoolOptions,
-} from "mysql2/promise";
+import mysql, { Pool as MySQLPool } from "mysql2/promise";
 import sqlite3 from "sqlite3";
 import { open, Database } from "sqlite";
 

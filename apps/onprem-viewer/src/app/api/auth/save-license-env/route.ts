@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       let envContent = "";
       try {
         envContent = await fs.readFile(envPath, "utf8");
-      } catch (error) {
+      } catch {
         // File doesn't exist, will create new one
         console.log(".env file doesn't exist, creating new one");
       }

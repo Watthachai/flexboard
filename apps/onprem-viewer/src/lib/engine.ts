@@ -117,7 +117,7 @@ function compileExpression(
       );
       if (match) {
         const [, field1, field2, unit] = match;
-        const compiled = (row: any, ctx?: EngineContext) => {
+        const compiled = (row: any) => {
           const val1 = row[field1.trim()] || Date.now();
           const val2 = row[field2.trim()] || 0;
           return dateDiff(val1, val2, unit as any);
@@ -159,6 +159,7 @@ function compileExpression(
 
 const transformCache = new Map<string, CompiledTransform>();
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function compileTransform(transform: any): CompiledTransform {
   const cacheKey = JSON.stringify(transform);
   if (transformCache.has(cacheKey)) {
@@ -236,7 +237,7 @@ function compileTransform(transform: any): CompiledTransform {
     compiled = {
       field: transform.field,
       type: "computed",
-      evaluator: (row: any) => null,
+      evaluator: () => null,
     };
   }
 
@@ -244,6 +245,7 @@ function compileTransform(transform: any): CompiledTransform {
   return compiled;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function applyCompiledTransform(
   row: any,
   compiled: CompiledTransform,
@@ -697,7 +699,8 @@ function evaluateCondition(
 function evaluateValue(
   valueExpr: string,
   row: Row,
-  context: EngineContext
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _context: EngineContext
 ): any {
   const trimmed = valueExpr.trim();
   dlog(`evaluateValue: "${trimmed}"`);
@@ -1060,7 +1063,7 @@ export function sortLimit(
   sort?: { field: string; dir: "asc" | "desc" }[],
   limit?: number
 ) {
-  let r = [...rows];
+  const r = [...rows];
   if (sort?.length) {
     r.sort((a, b) => {
       for (const s of sort) {

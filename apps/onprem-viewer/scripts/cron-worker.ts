@@ -8,7 +8,7 @@
 import cron from "node-cron";
 import { ingestOnce } from "../src/lib/ingest/ingest-job.js";
 
-const CRON_EXPR = process.env.CRON_EXPR || "*/5 * * * *"; // Every 5 minutes
+const CRON_EXPR = process.env.CRON_EXPR || "*/10 * * * *"; // Every 10 minutes
 
 console.log(`[cron-worker] Starting with schedule: ${CRON_EXPR}`);
 

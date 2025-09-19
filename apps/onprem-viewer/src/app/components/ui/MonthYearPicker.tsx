@@ -16,7 +16,6 @@ export default function MonthYearPicker({
   startYear,
   endYear,
   className = "",
-  placeholder = "เลือกปี-เดือน",
 }: MonthYearPickerProps) {
   const currentYear = dayjs().year();
   const defaultStartYear = startYear || 2000; // เปลี่ยนจาก currentYear - 5 เป็น 2000
