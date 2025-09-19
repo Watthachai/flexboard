@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Dashboard Navbar Component
  * Top navigation bar with dashboard selector and user menu
@@ -33,7 +34,6 @@ export default function Navbar({
   breadcrumb = [],
   dashboards = [],
   selectedDashboardId = "",
-  tenantId = "",
   onDashboardChange,
 }: NavbarProps) {
   const { darkMode, toggleDarkMode } = useTheme();

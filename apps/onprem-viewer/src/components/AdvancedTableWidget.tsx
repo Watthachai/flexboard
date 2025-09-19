@@ -167,6 +167,7 @@ interface ColumnGroup {
   cellClass?: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface ColumnConfig {
   field: string;
   label?: string;
@@ -613,42 +614,44 @@ export default function AdvancedTableWidget({
   title,
   preAggregation,
 }: AdvancedTableProps) {
-  // 🔧 Temporary hardcoded formatters as fallback
-  const fallbackFormatters = {
-    money: {
-      kind: "number",
-      precision: 2,
-      thousandsSep: ",",
-      prefix: "฿",
-      roundingMode: "round",
-    },
-    qty: {
-      kind: "number",
-      precision: 0,
-      thousandsSep: ",",
-      roundingMode: "round",
-    },
-    unitCost: {
-      kind: "number",
-      precision: 6,
-      thousandsSep: ",",
-      prefix: "฿",
-      roundingMode: "round",
-    },
-    days: {
-      kind: "number",
-      precision: 0,
-      roundingMode: "round",
-    },
-    date: {
-      kind: "date",
-      timezone: "Asia/Bangkok",
-      pattern: "dd MMM yyyy",
-    },
-  };
+  // Merge provided formatters with fallback - memoized to prevent re-renders
+  const mergedFormatters = useMemo(() => {
+    // 🔧 Temporary hardcoded formatters as fallback
+    const fallbackFormatters = {
+      money: {
+        kind: "number",
+        precision: 2,
+        thousandsSep: ",",
+        prefix: "฿",
+        roundingMode: "round",
+      },
+      qty: {
+        kind: "number",
+        precision: 0,
+        thousandsSep: ",",
+        roundingMode: "round",
+      },
+      unitCost: {
+        kind: "number",
+        precision: 6,
+        thousandsSep: ",",
+        prefix: "฿",
+        roundingMode: "round",
+      },
+      days: {
+        kind: "number",
+        precision: 0,
+        roundingMode: "round",
+      },
+      date: {
+        kind: "date",
+        timezone: "Asia/Bangkok",
+        pattern: "dd MMM yyyy",
+      },
+    };
 
-  // Merge provided formatters with fallback
-  const mergedFormatters = { ...fallbackFormatters, ...formatters };
+    return { ...fallbackFormatters, ...formatters };
+  }, [formatters]);
 
   // Debug logging
   console.log("🔥 AdvancedTableWidget Props:", {
@@ -656,7 +659,6 @@ export default function AdvancedTableWidget({
     dataPreview: data?.slice(0, 2) || [],
     display,
     originalFormatters: formatters,
-    fallbackFormatters,
     mergedFormatters,
     height,
     title,
@@ -943,7 +945,7 @@ export default function AdvancedTableWidget({
     const dataRows = data.map((row) => {
       const formattedRow: any[] = [];
       columnKeys.forEach((key) => {
-        let value = row[key];
+        const value = row[key];
 
         // Apply formatting if specified
         const formatterKey = columnFormatters[key];
@@ -1000,11 +1002,7 @@ export default function AdvancedTableWidget({
 
       if (groupColumns.length > 1) {
         // Merge cells for group header (row 0)
-        const startCol = XLSX.utils.encode_col(colIndex);
-        const endCol = XLSX.utils.encode_col(
-          colIndex + groupColumns.length - 1
-        );
-        worksheet["!merges"].push({
+        worksheet["!merges"]?.push({
           s: { r: 0, c: colIndex },
           e: { r: 0, c: colIndex + groupColumns.length - 1 },
         });

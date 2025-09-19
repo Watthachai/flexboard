@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Enhanced Charts with Custom Tooltips
  * Support for KPI, Bar, Line, Table widgets with proper data handling
@@ -77,7 +78,6 @@ export const KPIWidget: React.FC<KPIProps> = ({
   formatter,
   severity = "ok",
   tooltip,
-  height = 200,
 }) => {
   const severityColors = {
     ok: "text-green-600 bg-green-50 border-green-200",
@@ -111,7 +111,6 @@ export const BarChartWidget: React.FC<ChartProps> = ({
   yAxis,
   formatter,
   tooltip,
-  height = 300,
 }) => {
   if (!data.length) {
     return (
@@ -182,7 +181,6 @@ export const LineChartWidget: React.FC<ChartProps> = ({
   yAxis,
   formatter,
   tooltip,
-  height = 300,
 }) => {
   if (!data.length) {
     return (
@@ -248,7 +246,10 @@ export const LineChartWidget: React.FC<ChartProps> = ({
                             /\{\{\s*format\s+(\w+)\s+'(\w+)'\s*\}\}/g,
                             (match, field, fmt) => formatValue(item[field], fmt)
                           )
-                      : `${item[xAxis]}: ${formatValue(currentValue, formatter)}`}
+                      : `${item[xAxis]}: ${formatValue(
+                          currentValue,
+                          formatter
+                        )}`}
                   </title>
                 </circle>
               </g>
@@ -270,7 +271,6 @@ export const TableWidget: React.FC<TableProps> = ({
   columns,
   formatters = {},
   pageSize = 10,
-  height = 400,
 }) => {
   const [currentPage, setCurrentPage] = React.useState(0);
   const totalPages = Math.ceil(data.length / pageSize);

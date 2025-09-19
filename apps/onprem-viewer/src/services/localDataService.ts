@@ -26,7 +26,7 @@ export class LocalDataService {
   private static instance: LocalDataService;
   private cache: Map<string, { data: DataRecord[]; timestamp: number }> =
     new Map();
-  private readonly CACHE_DURATION = 30000; // 30 seconds
+  private readonly CACHE_DURATION = 30000000; // 30 seconds
 
   static getInstance(): LocalDataService {
     if (!LocalDataService.instance) {

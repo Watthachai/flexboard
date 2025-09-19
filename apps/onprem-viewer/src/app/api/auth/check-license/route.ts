@@ -11,13 +11,26 @@ export async function GET(request: NextRequest) {
     // Get session token from cookies
     const sessionToken = request.cookies.get("session-token")?.value;
     const userId = request.cookies.get("user-id")?.value;
+    const debugLoginTime = request.cookies.get("debug-login-time")?.value;
 
-    console.log("Check user license - cookies:", {
+    console.log("[UI] Check user license - cookies:", {
       hasSessionToken: !!sessionToken,
       hasUserId: !!userId,
+      debugLoginTime: debugLoginTime || "not found",
+      allCookieNames: Array.from(request.cookies.getAll()).map((c) => c.name),
     });
 
     if (!sessionToken || !userId) {
+      console.log("[UI] Missing authentication cookies for license check");
+      console.log(
+        "[UI] Available cookies:",
+        Object.fromEntries(
+          Array.from(request.cookies.getAll()).map((c) => [
+            c.name,
+            c.value.substring(0, 20) + "...",
+          ])
+        )
+      );
       return NextResponse.json(
         {
           success: false,

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Real Table Widget with Recharts-style data processing
  * Supports complex queries, filtering, sorting, and formatting
@@ -15,15 +16,13 @@ interface RealTableWidgetProps {
 export default function RealTableWidget({
   data,
   config,
-  height = 300,
-}: RealTableWidgetProps) {
+}: Omit<RealTableWidgetProps, "height">) {
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   // Use adaptedConfig if available, otherwise fallback to legacy processing
   let tableData: any[];
   let columns: Array<{ field: string; title: string; formatter?: string }>;
-  let display: any;
   let title: string = config.title || "";
 
   if (config.adaptedConfig) {
@@ -36,7 +35,6 @@ export default function RealTableWidget({
       title: col,
       formatter: config.adaptedConfig.display?.columnFormatters?.[col],
     }));
-    display = config.adaptedConfig.display;
     title = config.adaptedConfig.title;
   } else {
     // Legacy processing for backward compatibility
@@ -54,7 +52,7 @@ export default function RealTableWidget({
       formatter?: string;
     }>;
     columns = columnObjects; // Use the objects directly
-    display = config.display;
+    // display = config.display; // Not used in current implementation
   }
 
   if (!tableData || tableData.length === 0) {
@@ -318,7 +316,8 @@ function processTableData(
   }
 
   // Determine columns
-  let columns: Array<{ field: string; title: string; formatter?: string }> = [];
+  const columns: Array<{ field: string; title: string; formatter?: string }> =
+    [];
 
   if (query?.dimensions && query?.measures) {
     // Use specified dimensions and measures

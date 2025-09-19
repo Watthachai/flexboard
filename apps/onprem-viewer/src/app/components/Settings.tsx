@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Settings Component
  * Contains file upload functionality and system preferences
@@ -29,7 +30,6 @@ interface FilePathHistory {
 
 export default function Settings({
   onDataUploaded,
-  manifest,
   uploadedData = [],
 }: SettingsProps) {
   const [fileUploading, setFileUploading] = useState(false);
@@ -84,8 +84,8 @@ export default function Settings({
     const platform = navigator.platform.toLowerCase().includes("win")
       ? "Windows"
       : navigator.platform.toLowerCase().includes("mac")
-        ? "macOS"
-        : "Other";
+      ? "macOS"
+      : "Other";
 
     const newEntry: FilePathHistory = {
       path: filePath,
@@ -143,7 +143,11 @@ export default function Settings({
           data = result.records || [];
         } catch (xmlError) {
           throw new Error(
-            `Failed to parse XML: ${xmlError instanceof Error ? xmlError.message : "Invalid XML format"}`
+            `Failed to parse XML: ${
+              xmlError instanceof Error
+                ? xmlError.message
+                : "Invalid XML format"
+            }`
           );
         }
       } else {
@@ -359,8 +363,8 @@ export default function Settings({
                     uploadStatus.includes("Error")
                       ? "bg-red-50 text-red-700 dark:bg-red-900/50 dark:text-red-300 border border-red-200 dark:border-red-800"
                       : uploadStatus.includes("Successfully")
-                        ? "bg-green-50 text-green-700 dark:bg-green-900/50 dark:text-green-300 border border-green-200 dark:border-green-800"
-                        : "bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                      ? "bg-green-50 text-green-700 dark:bg-green-900/50 dark:text-green-300 border border-green-200 dark:border-green-800"
+                      : "bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
                   }`}
                 >
                   {uploadStatus}

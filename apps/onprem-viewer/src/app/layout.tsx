@@ -8,8 +8,11 @@
 import { useEffect, useState } from "react";
 import { VersionDisplay } from "@/components/VersionDisplay";
 import { ThemeProvider, useTheme } from "@/app/components/context/ThemeContext";
+import { SessionStorage, type SessionData } from "@/utils/sessionStorage";
 import "./globals.css";
-import "@/services/autoStartService";
+// import "@/services/autoStartService"; // Temporarily disabled
+// Import logger to auto-disable console in production
+import "@/utils/logger";
 
 interface UserSession {
   email: string;
@@ -93,6 +96,11 @@ export default function RootLayout({
     if (typeof window !== "undefined" && window.localStorage) {
       localStorage.setItem("userSession", JSON.stringify(newSession));
     }
+
+    // Redirect to PVS Dashboard after successful login
+    if (typeof window !== "undefined") {
+      window.location.href = "/pvs";
+    }
   };
 
   if (loading) {
@@ -155,11 +163,46 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
   const [licenseKey, setLicenseKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [debugInfo, setDebugInfo] = useState<{
+    cookies?: Array<{ name: string; hasValue: boolean; valueLength: number }>;
+    cookieNames?: string[];
+    timestamp?: string;
+    clientCookies?: string[];
+    clientCookieCount?: number;
+  } | null>(null);
   interface UserInfo {
     email: string;
   }
 
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+
+  // Debug function to check cookies
+  const checkCookieDebug = async () => {
+    try {
+      // Check client-side cookies first
+      const clientCookies = document.cookie
+        .split(";")
+        .map((c) => c.trim())
+        .filter((c) => c);
+      console.log("[DEBUG] Client-side cookies:", clientCookies);
+
+      // Check server-side cookies via API
+      const response = await fetch("/api/debug/cookies", {
+        credentials: "include",
+      });
+      const result = await response.json();
+
+      setDebugInfo({
+        ...result,
+        clientCookies: clientCookies,
+        clientCookieCount: clientCookies.length,
+      });
+      console.log("[DEBUG] Server cookie info:", result);
+      console.log("[DEBUG] Client cookie info:", clientCookies);
+    } catch (error) {
+      console.error("[DEBUG] Failed to check cookies:", error);
+    }
+  };
 
   // Load saved license key from localStorage on component mount
   useEffect(() => {
@@ -261,12 +304,41 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // Email login successful, check if user already has license
+        // Email login successful
         setUserInfo(result.user);
         setError("");
 
-        // Auto-check if user has existing license
-        await checkUserLicense(result.user);
+        // Save session data to localStorage as fallback
+        if (SessionStorage.isAvailable() && result.sessionToken) {
+          const sessionData: SessionData = {
+            sessionToken: result.sessionToken,
+            userId: result.user.uid,
+            email: result.user.email,
+            license: result.license || undefined,
+            timestamp: new Date().toISOString(),
+          };
+          SessionStorage.save(sessionData);
+        }
+
+        // Check if user already has stored license on server
+        if (result.hasStoredLicense && result.license) {
+          console.log("[UI] User has stored license, logging in directly");
+          // User has stored license, login directly
+          onLogin({
+            email: result.user.email,
+            tenantId: result.license.tenantId,
+            companyName: result.license.companyName,
+            features: result.license.features,
+            expiryDate: result.license.expiryDate,
+          });
+          return; // Exit early, no need for license step
+        } else {
+          console.log(
+            "[UI] No stored license found, checking for saved license key"
+          );
+          // No stored license, try to check for locally saved license key
+          await checkUserLicense(result.user);
+        }
       } else {
         setError(result.message || "Login failed");
       }
@@ -285,8 +357,8 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
     setError("");
 
     try {
-      // Validate license key with current user
-      const response = await fetch("/api/auth/license-validate", {
+      // First try normal license validation (with cookies)
+      let response = await fetch("/api/auth/license-validate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -298,7 +370,35 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
         }),
       });
 
-      const result = await response.json();
+      let result = await response.json();
+
+      // If failed due to missing session (cookies not working), try fallback with localStorage
+      if (!response.ok && result.message?.includes("Authentication required")) {
+        console.log("[UI] Cookies failed, trying localStorage fallback");
+        const sessionData = SessionStorage.load();
+
+        if (sessionData && sessionData.sessionToken && sessionData.userId) {
+          response = await fetch("/api/auth/license-validate-fallback", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              licenseKey,
+              email: userInfo?.email,
+              sessionToken: sessionData.sessionToken,
+              userId: sessionData.userId,
+            }),
+          });
+
+          result = await response.json();
+          console.log("[UI] Fallback license validation result:", {
+            success: result.success,
+          });
+        } else {
+          throw new Error("No session data available for fallback");
+        }
+      }
 
       if (response.ok && result.success) {
         // License validation successful - save license key to localStorage
@@ -358,9 +458,24 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
               Welcome, {userInfo?.email}
             </h2>
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              Please enter your company license key. This will be saved to your
-              account for future logins.
+              Please enter your company license key. This will be permanently
+              saved to your account, so you won&apos;t need to enter it again
+              for future logins.
             </p>
+            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                💡 <strong>One-time setup:</strong> After entering your license
+                key, you can login with just your email and password from any
+                device.
+              </p>
+            </div>
+            <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <p className="text-sm text-green-700 dark:text-green-300">
+                🌐 <strong>Cross-device access:</strong> Your license will be
+                saved to our secure server and automatically applied when you
+                login from other computers or browsers.
+              </p>
+            </div>
           </div>
 
           {/* License Form */}
@@ -563,6 +678,89 @@ function LoginScreen({ onLogin }: LoginScreenProps) {
         <div className="flex justify-center pt-4">
           <VersionDisplay variant="minimal" />
         </div>
+
+        {/* Debug Section (Development Only) */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="mt-6 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+            <div className="text-center mb-2 space-x-2">
+              <button
+                type="button"
+                onClick={checkCookieDebug}
+                className="text-xs bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
+              >
+                🍪 Debug Cookies
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const response = await fetch("/api/test/cookie-echo", {
+                      credentials: "include",
+                    });
+                    const result = await response.json();
+                    console.log("[ECHO] Cookie echo result:", result);
+                    alert(
+                      `Cookie Echo:\nRaw: ${
+                        result.rawCookieHeader || "none"
+                      }\nCount: ${result.cookieCount}`
+                    );
+                  } catch (error) {
+                    console.error("[ECHO] Failed:", error);
+                    alert("Echo test failed - check console");
+                  }
+                }}
+                className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600"
+              >
+                📡 Echo Test
+              </button>
+            </div>
+            {debugInfo && (
+              <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                <div>
+                  <strong>Server Cookies:</strong>{" "}
+                  {debugInfo.cookieNames?.join(", ") || "none"}
+                </div>
+                <div>
+                  <strong>Client Cookies:</strong>{" "}
+                  {debugInfo.clientCookieCount || 0} found
+                </div>
+                <div>
+                  <strong>Timestamp:</strong> {debugInfo.timestamp}
+                </div>
+                {debugInfo.clientCookies &&
+                  debugInfo.clientCookies.length > 0 && (
+                    <div className="text-[10px] space-y-1">
+                      <div>
+                        <strong>Client cookie details:</strong>
+                      </div>
+                      {debugInfo.clientCookies.map(
+                        (cookie: string, index: number) => (
+                          <div key={index}>{cookie.substring(0, 50)}...</div>
+                        )
+                      )}
+                    </div>
+                  )}
+                {debugInfo.cookies?.map(
+                  (
+                    cookie: {
+                      name: string;
+                      hasValue: boolean;
+                      valueLength: number;
+                    },
+                    index: number
+                  ) => (
+                    <div key={index} className="text-[10px]">
+                      Server: {cookie.name}:{" "}
+                      {cookie.hasValue
+                        ? `${cookie.valueLength} chars`
+                        : "empty"}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

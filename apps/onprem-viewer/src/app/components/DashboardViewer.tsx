@@ -9,14 +9,13 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { manifestSyncService } from "../../services/manifestSync";
 import { localDataService } from "../../services/localDataService";
-import { generateMonthEndDates } from "../../lib/engine";
 import {
   adaptKPIWidget,
   adaptChartWidget,
   adaptTableWidget,
 } from "../../lib/chartConfigAdapter";
 import { MultiSelectDropdown } from "../../components/MultiSelectDropdown";
-import { BarChart, LineChart, PieChart, ActionBar } from "./charts";
+import { PieChart, ActionBar } from "./charts";
 import RealKPIWidget from "./charts/RealKPIWidget";
 import RealBarChart from "./charts/RealBarChart";
 import RealLineChart from "./charts/RealLineChart";
@@ -27,6 +26,8 @@ import AdvancedTableWidget from "../../components/AdvancedTableWidget";
 import LoadingSpinner from "./ui/LoadingSpinner";
 import MonthYearPicker from "./ui/MonthYearPicker";
 import DateRangePicker from "./DateRangePicker";
+import { useHighPerformanceData } from "../../hooks/useHighPerformanceData";
+import { HighPerformanceDataService } from "../../services/highPerformanceDataService";
 import {
   validateAndFixLayout,
   convertToMobileLayout,
@@ -186,7 +187,9 @@ interface WidgetConfigValidation {
   missingColumns: string[];
 }
 
+//#!TODO: THIS อาจจะใช้ทีหลัง
 // Validate widget configurations against file columns
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const validateWidgetConfigs = (
   widgets: Widget[],
   fileColumns: string[]
@@ -230,12 +233,8 @@ export default function DashboardViewer({
   const [uploadedData, setUploadedData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
-  const [processingProgress, setProcessingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [screenWidth, setScreenWidth] = useState<number>(1200); // Default desktop width
-  const [userFilterValues, setUserFilterValues] = useState<
-    Record<string, string>
-  >({});
   const [dateFilter, setDateFilter] = useState<string>("all"); // New date filter state
   const [dateRangeFilter, setDateRangeFilter] = useState<{
     startDate: string;
@@ -245,8 +244,51 @@ export default function DashboardViewer({
     Record<string, any>
   >({}); // New global filter state for Corp, Branch, etc.
 
+  // High-performance data service hook
+  const {
+    kpiData,
+
+    rawData,
+    kpiLoading,
+
+    rawLoading,
+    isHighPerformanceMode,
+    totalRecords,
+    refreshAll,
+  } = useHighPerformanceData({
+    autoDetect: true,
+    initialFilters: {},
+  });
+
   // Ref to track if data loading has been initiated
   const dataLoadingInitiated = useRef(false);
+
+  // Store refreshAll in ref to avoid dependency loop
+  const refreshAllRef = useRef(refreshAll);
+  refreshAllRef.current = refreshAll;
+
+  // High-performance mode: Refresh data when global filters change
+  useEffect(() => {
+    if (isHighPerformanceMode) {
+      console.log(
+        "🚀 [HighPerf] Filters changed, refreshing data via SQL pushdown",
+        { globalFilters: globalFilterValues, dateRange: dateRangeFilter }
+      );
+      const filterParams =
+        HighPerformanceDataService.convertGlobalFiltersToParams(
+          globalFilterValues
+        );
+
+      // Add date range filters
+      if (dateRangeFilter) {
+        filterParams.dateFrom = dateRangeFilter.startDate;
+        filterParams.dateTo = dateRangeFilter.endDate;
+      }
+
+      console.log("🚀 [HighPerf] Sending filter params to APIs:", filterParams);
+      refreshAllRef.current(filterParams);
+    }
+  }, [globalFilterValues, dateRangeFilter, isHighPerformanceMode]);
 
   // Handle screen resize for responsive behavior
   useEffect(() => {
@@ -429,9 +471,6 @@ export default function DashboardViewer({
       console.log("� Loading data from API...");
 
       try {
-        // Simulate initial progress
-        setProcessingProgress(10);
-
         // Try to load from API first - with ALL data for accuracy
         const apiData = await localDataService.fetchData({
           id: "uploaded-xml",
@@ -440,15 +479,10 @@ export default function DashboardViewer({
           method: "GET",
         });
 
-        setProcessingProgress(50);
-
         if (apiData && apiData.length > 0) {
           // Transform field names from snake_case to PascalCase
-          setProcessingProgress(70);
           const transformedData = transformDataToPascalCase(apiData);
-          setProcessingProgress(90);
           setUploadedData(transformedData);
-          setProcessingProgress(100);
 
           console.log("✅ Successfully loaded data from API:", {
             recordCount: transformedData.length,
@@ -461,19 +495,16 @@ export default function DashboardViewer({
           // Clear loading state immediately after successful API load
           setTimeout(() => {
             setDataLoading(false);
-            setProcessingProgress(0);
           }, 300);
           return;
         }
       } catch (error) {
         console.error("❌ Failed to load data from API:", error);
         console.log("🔄 Falling back to localStorage...");
-        setProcessingProgress(30);
       }
 
       // Fallback to localStorage
       try {
-        setProcessingProgress(40);
         const savedData = localStorage.getItem("uploadedData");
         const savedFileName = localStorage.getItem("uploadedFileName");
         const savedTimestamp = localStorage.getItem("uploadedDataTimestamp");
@@ -488,11 +519,8 @@ export default function DashboardViewer({
         });
 
         if (savedData) {
-          setProcessingProgress(60);
           const parsedData = JSON.parse(savedData);
-          setProcessingProgress(80);
           const transformedData = transformDataToPascalCase(parsedData);
-          setProcessingProgress(100);
           setUploadedData(transformedData);
 
           console.log("✅ Successfully loaded data from localStorage:", {
@@ -505,26 +533,21 @@ export default function DashboardViewer({
           // Clear loading state immediately after successful localStorage load
           setTimeout(() => {
             setDataLoading(false);
-            setProcessingProgress(0);
           }, 300);
         } else {
           console.log("⚠️ No data found in localStorage or API");
-          setProcessingProgress(100);
 
           // Clear loading state when no data found
           setTimeout(() => {
             setDataLoading(false);
-            setProcessingProgress(0);
           }, 300);
         }
       } catch (fallbackError) {
         console.error("❌ Failed to load fallback data:", fallbackError);
-        setProcessingProgress(100);
 
         // Clear loading state on error
         setTimeout(() => {
           setDataLoading(false);
-          setProcessingProgress(0);
         }, 300);
       }
     };
@@ -580,37 +603,49 @@ export default function DashboardViewer({
       );
     }
 
-    // Apply date filter to uploaded data
-    let filteredData = uploadedData;
+    // Apply date filter to data
+    // Use high-performance data if available, otherwise fallback to uploadedData
+    const sourceData =
+      isHighPerformanceMode && rawData?.rows ? rawData.rows : uploadedData;
+    let filteredData = sourceData;
 
     // Apply global filters (Corp, Branch, etc.)
-    if (Object.keys(globalFilterValues).length > 0 && uploadedData.length > 0) {
-      console.log("🎯 Applying global filters:", globalFilterValues);
+    if (Object.keys(globalFilterValues).length > 0 && sourceData.length > 0) {
+      console.log(
+        "🎯 Applying global filters:",
+        globalFilterValues,
+        "Mode:",
+        isHighPerformanceMode ? "🚀 SQL" : "🐌 Frontend"
+      );
 
-      filteredData = filteredData.filter((row) => {
-        return Object.entries(globalFilterValues).every(
-          ([field, selectedValues]) => {
-            if (!selectedValues || selectedValues.length === 0) return true;
+      // In high-performance mode, filters are already applied via SQL
+      if (!isHighPerformanceMode) {
+        filteredData = filteredData.filter((row) => {
+          return Object.entries(globalFilterValues).every(
+            ([field, selectedValues]) => {
+              if (!selectedValues || selectedValues.length === 0) return true;
 
-            const rowValue = row[field];
-            const isMatch = selectedValues.includes(rowValue);
+              const rowValue = row[field];
+              const isMatch = selectedValues.includes(rowValue);
 
-            console.log("🎯 Filter check:", {
-              field,
-              rowValue,
-              selectedValues,
-              isMatch,
-            });
+              console.log("🎯 Filter check:", {
+                field,
+                rowValue,
+                selectedValues,
+                isMatch,
+              });
 
-            return isMatch;
-          }
-        );
-      });
+              return isMatch;
+            }
+          );
+        });
+      }
 
       console.log("🎯 After global filtering:", {
-        originalLength: uploadedData.length,
+        originalLength: sourceData.length,
         filteredLength: filteredData.length,
         appliedFilters: globalFilterValues,
+        mode: isHighPerformanceMode ? "SQL Pushdown" : "Frontend Filter",
       });
     }
 
@@ -618,9 +653,10 @@ export default function DashboardViewer({
     if (dateFilter !== "all" && filteredData.length > 0) {
       console.log("🗓️ Date filtering:", {
         dateFilter,
-        originalDataLength: uploadedData.length,
-        filteredDataLength: filteredData.length, // ใช้ filteredData แทน uploadedData
-        sampleDataDate: filteredData[0]?.DataDate, // ใช้ filteredData แทน uploadedData
+        originalDataLength: sourceData.length,
+        filteredDataLength: filteredData.length,
+        sampleDataDate: filteredData[0]?.DataDate,
+        mode: isHighPerformanceMode ? "SQL Pushdown" : "Frontend Filter",
       });
 
       // Handle new YYYY-MM format from MonthYearPicker
@@ -683,7 +719,12 @@ export default function DashboardViewer({
     }
 
     // Apply date range filter
-    if (dateRangeFilter && dateRangeFilter.startDate && dateRangeFilter.endDate && filteredData.length > 0) {
+    if (
+      dateRangeFilter &&
+      dateRangeFilter.startDate &&
+      dateRangeFilter.endDate &&
+      filteredData.length > 0
+    ) {
       console.log("📅 Date range filtering:", {
         startDate: dateRangeFilter.startDate,
         endDate: dateRangeFilter.endDate,
@@ -692,7 +733,7 @@ export default function DashboardViewer({
 
       const startDate = new Date(dateRangeFilter.startDate);
       const endDate = new Date(dateRangeFilter.endDate);
-      
+
       // Set time to start and end of day for accurate comparison
       startDate.setHours(0, 0, 0, 0);
       endDate.setHours(23, 59, 59, 999);
@@ -700,12 +741,12 @@ export default function DashboardViewer({
       filteredData = filteredData.filter((row) => {
         const dataDateStr = row.DataDate ? row.DataDate.split("T")[0] : "";
         if (!dataDateStr) return false;
-        
+
         const dataDate = new Date(dataDateStr);
         dataDate.setHours(12, 0, 0, 0); // Set to noon to avoid timezone issues
-        
+
         const isInRange = dataDate >= startDate && dataDate <= endDate;
-        
+
         console.log("📅 Date range comparison:", {
           dataDate: dataDateStr,
           startDate: dateRangeFilter.startDate,
@@ -716,7 +757,9 @@ export default function DashboardViewer({
         return isInRange;
       });
 
-      console.log(`✅ Date range filtering complete: ${filteredData.length} rows match the range ${dateRangeFilter.startDate} to ${dateRangeFilter.endDate}`);
+      console.log(
+        `✅ Date range filtering complete: ${filteredData.length} rows match the range ${dateRangeFilter.startDate} to ${dateRangeFilter.endDate}`
+      );
     } else {
       console.log("📅 No date range filtering applied");
     }
@@ -734,32 +777,91 @@ export default function DashboardViewer({
     // Use chartConfigAdapter to process data and create chart configs
     switch (widget.type) {
       case "kpi": {
-        const kpiConfig = adaptKPIWidget(widget, filteredData, manifest!);
-        console.log("📊 KPI Config:", kpiConfig);
+        // Use high-performance KPI data if available
+        let kpiValue: number;
+        let isLoading: boolean;
+        const performanceMode = isHighPerformanceMode
+          ? "🚀 SQL Pushdown"
+          : "🐌 Frontend Filtering";
+
+        if (isHighPerformanceMode && kpiData) {
+          // Extract KPI value from SQL pushdown data based on widget's filter
+          const ageBucketFilter = widget.query?.filters?.find(
+            (f: any) => f.field === "AgeBucket"
+          );
+          if (ageBucketFilter) {
+            const bucketValue = ageBucketFilter.value;
+            if (bucketValue === "0-90") {
+              kpiValue = kpiData.value_0_90;
+            } else if (bucketValue === "91-180") {
+              kpiValue = kpiData.value_91_180;
+            } else if (bucketValue === "181-365") {
+              kpiValue = kpiData.value_181_365;
+            } else if (bucketValue === ">365") {
+              kpiValue = kpiData.value_365_plus;
+            } else {
+              kpiValue = kpiData.totalValue;
+            }
+          } else {
+            kpiValue = kpiData.totalValue;
+          }
+          isLoading = kpiLoading;
+        } else {
+          // Fallback to frontend calculation
+          const kpiConfig = adaptKPIWidget(widget, filteredData, manifest!);
+          kpiValue =
+            typeof kpiConfig.value === "number"
+              ? kpiConfig.value
+              : parseFloat(kpiConfig.value?.toString() || "0");
+          isLoading = dataLoading;
+        }
+
+        console.log("📊 KPI Performance Mode:", {
+          mode: performanceMode,
+          dataSource: isHighPerformanceMode
+            ? "SQL pushdown kpiData"
+            : "frontend calculation",
+          value: kpiValue,
+          isLoading,
+          widget: widget.id,
+        });
+
+        const titleWithPerformance = `${widget.title} (${performanceMode})`;
 
         return (
           <RealKPIWidget
-            data={[{ value: kpiConfig.value }]}
+            data={[{ value: kpiValue }]}
             config={{
               ...widget,
-              adaptedConfig: kpiConfig,
+              title: titleWithPerformance,
+              adaptedConfig: { value: kpiValue },
             }}
-            height={maxChartHeight}
           />
         );
       }
 
       case "bar":
       case "line": {
-        const chartConfig = adaptChartWidget(widget, filteredData, manifest!);
+        const chartData =
+          isHighPerformanceMode && rawData ? rawData.rows : filteredData;
+        const performanceMode = isHighPerformanceMode
+          ? "🚀 SQL Pushdown"
+          : "🐌 Frontend Filtering";
+        const chartConfig = adaptChartWidget(
+          widget,
+          chartData || [],
+          manifest!
+        );
         console.log("📊 Chart Config:", chartConfig);
 
+        const titleWithPerformance = `${widget.title} (${performanceMode})`;
         const Component = widget.type === "bar" ? RealBarChart : RealLineChart;
         return (
           <Component
             data={chartConfig.data}
             config={{
               ...widget,
+              title: titleWithPerformance,
               adaptedConfig: chartConfig,
             }}
             height={maxChartHeight}
@@ -768,7 +870,31 @@ export default function DashboardViewer({
       }
 
       case "table": {
-        const tableConfig = adaptTableWidget(widget, filteredData, manifest!);
+        // Use high-performance data if available, otherwise fallback to filtered data
+        const tableData =
+          isHighPerformanceMode && rawData ? rawData.rows : filteredData;
+        const isLoading = isHighPerformanceMode ? rawLoading : dataLoading;
+        const performanceMode = isHighPerformanceMode
+          ? "🚀 SQL Pushdown"
+          : "🐌 Frontend Filtering";
+
+        console.log("📊 Table Performance Mode:", {
+          mode: performanceMode,
+          dataSource: isHighPerformanceMode
+            ? "SQL pushdown rawData"
+            : "filtered uploadedData",
+          recordCount: tableData?.length || 0,
+          isLoading,
+          totalRecords: isHighPerformanceMode
+            ? totalRecords
+            : uploadedData.length,
+        });
+
+        const tableConfig = adaptTableWidget(
+          widget,
+          tableData || [],
+          manifest!
+        );
         console.log("📊 Table Config:", tableConfig);
 
         // Use AdvancedTableWidget if columnGroups are defined
@@ -781,25 +907,47 @@ export default function DashboardViewer({
               : "no formatters",
           });
 
+          const titleWithPerformance = `${widget.title} (${performanceMode})`;
+
+          if (isLoading) {
+            return (
+              <div className="p-4 text-center">
+                <LoadingSpinner />
+                <p>Loading {performanceMode}...</p>
+              </div>
+            );
+          }
+
           return (
             <AdvancedTableWidget
               data={tableConfig.data}
               display={widget.display}
               formatters={manifest?.formatters || {}}
               height={maxChartHeight}
-              title={widget.title}
+              title={titleWithPerformance}
             />
           );
         } else {
           // Fallback to original RealTableWidget
+          const titleWithPerformance = `${widget.title} (${performanceMode})`;
+
+          if (isLoading) {
+            return (
+              <div className="p-4 text-center">
+                <LoadingSpinner />
+                <p>Loading {performanceMode}...</p>
+              </div>
+            );
+          }
+
           return (
             <RealTableWidget
               data={tableConfig.data}
               config={{
                 ...widget,
+                title: titleWithPerformance,
                 adaptedConfig: tableConfig,
               }}
-              height={maxChartHeight}
             />
           );
         }
@@ -826,7 +974,11 @@ export default function DashboardViewer({
       case "pareto":
         return (
           <RealParetoChart
-            data={uploadedData}
+            data={
+              isHighPerformanceMode && rawData?.rows
+                ? rawData.rows
+                : uploadedData
+            }
             config={widget}
             height={maxChartHeight}
           />
@@ -835,7 +987,11 @@ export default function DashboardViewer({
       case "stackedBar":
         return (
           <RealStackedBarChart
-            data={uploadedData}
+            data={
+              isHighPerformanceMode && rawData?.rows
+                ? rawData.rows
+                : uploadedData
+            }
             config={widget}
             height={maxChartHeight}
           />
@@ -1106,7 +1262,7 @@ export default function DashboardViewer({
       )}
 
       {/* Temporary Debug Info - Remove after testing */}
-      {process.env.NODE_ENV === "production" && (
+      {process.env.NODE_ENV === "development" && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 text-xs">
           <strong>Debug Info:</strong>
           <br />
@@ -1135,6 +1291,11 @@ export default function DashboardViewer({
           <br />
           Current Date Filter: &quot;{dateFilter}&quot;
           <br />
+          Performance Mode:{" "}
+          {isHighPerformanceMode ? "🚀 SQL Pushdown" : "🐌 Frontend Filtering"}
+          <br />
+          Total Records: {totalRecords.toLocaleString()}
+          <br />
           Current Global Filters: {JSON.stringify(globalFilterValues)}
           <br />
           Sample Data Date:{" "}
@@ -1158,13 +1319,7 @@ export default function DashboardViewer({
 
       {/* Show loading screen when data is being loaded */}
       {dataLoading && (
-        <LoadingSpinner
-          size="lg"
-          text="Loading data..."
-          progress={processingProgress}
-          showProgress={true}
-          className="mb-4"
-        />
+        <LoadingSpinner size="lg" text="Loading data..." className="mb-4" />
       )}
 
       {/* Show upload prompt if no data and not loading */}
@@ -1242,7 +1397,7 @@ export default function DashboardViewer({
       </div>
 
       {/* Layout Debug Info (Development only) */}
-      {process.env.NODE_ENV === "production" && (
+      {process.env.NODE_ENV === "development" && (
         <div className="mt-8 space-y-4">
           {/* Current Layout Analysis */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * OnPrem Dashboard Creation API - Creates dashboards from JSON manifests
  */
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Return all stored dashboards
     const dashboards = getStoredDashboards();
