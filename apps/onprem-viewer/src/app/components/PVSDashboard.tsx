@@ -977,7 +977,7 @@ export default function PVSDashboard() {
           <StandaloneCustomDropdown
             value={selectedBranch}
             options={getAvailableBranches()}
-            placeholder={selectedCorp ? "ทุกสาขา" : "เลือกบริษัทก่อน"}
+            placeholder={selectedCorp ? "ทุกสาขา" : "ทุกสาขา"}
             onChange={setSelectedBranch}
             icon={Building2}
             disabled={!selectedCorp && getAvailableBranches().length === 0}
