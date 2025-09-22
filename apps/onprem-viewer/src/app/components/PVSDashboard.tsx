@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardLayout from "./layout/DashboardLayout";
 import { useTheme } from "@/app/components/context/ThemeContext";
+import SearchLoading from "@/app/components/ui/SearchLoading";
+import EmptyState from "@/app/components/ui/EmptyState";
 import * as XLSX from "xlsx";
 import {
   Settings,
@@ -23,6 +25,7 @@ import {
   Download,
   Search,
   X,
+  Loader2,
 } from "lucide-react";
 interface DatabaseRecord {
   id: number;
@@ -31,6 +34,7 @@ interface DatabaseRecord {
   prod: string;
   unitName: string;
   docDate: string;
+  docNumber: string; // เพิ่มฟิลด์หมายเลขเอกสาร
   dataDate: string;
   qtyFromThisDoc: number;
   averageCost: number;
@@ -86,7 +90,7 @@ interface IngestionStatus {
   }>;
 }
 
-// Standalone DateRangePicker component
+// Modern GitHub-style DateRangePicker component with calendar and preset options
 const StandaloneDateRangePicker = ({
   dateFrom,
   dateTo,
@@ -99,7 +103,19 @@ const StandaloneDateRangePicker = ({
   setDateTo: (date: string) => void;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const hasDateRange = dateFrom || dateTo;
+  const [viewDate, setViewDate] = useState(new Date());
+  const [selectedPreset, setSelectedPreset] = useState<string>("");
+
+  // Local state for temporary selections (only applied when user clicks "Update")
+  const [tempDateFrom, setTempDateFrom] = useState(dateFrom);
+  const [tempDateTo, setTempDateTo] = useState(dateTo);
+  const [tempSelectedPreset, setTempSelectedPreset] = useState<string>("");
+
+  // Sync temp values when props change
+  useEffect(() => {
+    setTempDateFrom(dateFrom);
+    setTempDateTo(dateTo);
+  }, [dateFrom, dateTo]);
 
   const formatDisplayDate = (date: string) => {
     if (!date) return "";
@@ -114,7 +130,140 @@ const StandaloneDateRangePicker = ({
     }
   };
 
+  const getDateRange = (preset: string) => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (preset) {
+      case "today":
+        return {
+          from: today.toISOString().split("T")[0],
+          to: today.toISOString().split("T")[0],
+          label: "วันนี้",
+        };
+      case "yesterday": {
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        return {
+          from: yesterday.toISOString().split("T")[0],
+          to: yesterday.toISOString().split("T")[0],
+          label: "เมื่อวาน",
+        };
+      }
+      case "last7days": {
+        const last7 = new Date(today);
+        last7.setDate(last7.getDate() - 6);
+        return {
+          from: last7.toISOString().split("T")[0],
+          to: today.toISOString().split("T")[0],
+          label: "7 วันที่แล้ว",
+        };
+      }
+      case "last14days": {
+        const last14 = new Date(today);
+        last14.setDate(last14.getDate() - 13);
+        return {
+          from: last14.toISOString().split("T")[0],
+          to: today.toISOString().split("T")[0],
+          label: "14 วันที่แล้ว",
+        };
+      }
+      case "last30days": {
+        const last30 = new Date(today);
+        last30.setDate(last30.getDate() - 29);
+        return {
+          from: last30.toISOString().split("T")[0],
+          to: today.toISOString().split("T")[0],
+          label: "30 วันที่แล้ว",
+        };
+      }
+      case "thisweek": {
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay());
+        return {
+          from: startOfWeek.toISOString().split("T")[0],
+          to: today.toISOString().split("T")[0],
+          label: "สัปดาห์นี้",
+        };
+      }
+      case "lastweek": {
+        const lastWeekEnd = new Date(today);
+        lastWeekEnd.setDate(today.getDate() - today.getDay() - 1);
+        const lastWeekStart = new Date(lastWeekEnd);
+        lastWeekStart.setDate(lastWeekEnd.getDate() - 6);
+        return {
+          from: lastWeekStart.toISOString().split("T")[0],
+          to: lastWeekEnd.toISOString().split("T")[0],
+          label: "สัปดาห์ที่แล้ว",
+        };
+      }
+      case "thismonth": {
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        return {
+          from: startOfMonth.toISOString().split("T")[0],
+          to: today.toISOString().split("T")[0],
+          label: "เดือนนี้",
+        };
+      }
+      case "lastmonth": {
+        const lastMonthStart = new Date(
+          today.getFullYear(),
+          today.getMonth() - 1,
+          1
+        );
+        const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+        return {
+          from: lastMonthStart.toISOString().split("T")[0],
+          to: lastMonthEnd.toISOString().split("T")[0],
+          label: "เดือนที่แล้ว",
+        };
+      }
+      default:
+        return null;
+    }
+  };
+
+  const presets = [
+    { key: "today", label: "วันนี้" },
+    { key: "yesterday", label: "เมื่อวาน" },
+    { key: "last7days", label: "7 วันที่แล้ว" },
+    { key: "last14days", label: "14 วันที่แล้ว" },
+    { key: "last30days", label: "30 วันที่แล้ว" },
+    { key: "thisweek", label: "สัปดาห์นี้" },
+    { key: "lastweek", label: "สัปดาห์ที่แล้ว" },
+    { key: "thismonth", label: "เดือนนี้" },
+    { key: "lastmonth", label: "เดือนที่แล้ว" },
+  ];
+
+  const handlePresetClick = (presetKey: string) => {
+    const range = getDateRange(presetKey);
+    if (range) {
+      setTempDateFrom(range.from);
+      setTempDateTo(range.to);
+      setTempSelectedPreset(presetKey);
+    }
+  };
+
+  const handleApply = () => {
+    setDateFrom(tempDateFrom);
+    setDateTo(tempDateTo);
+    setSelectedPreset(tempSelectedPreset);
+    setIsOpen(false);
+  };
+
+  const handleCancel = () => {
+    setTempDateFrom(dateFrom);
+    setTempDateTo(dateTo);
+    setTempSelectedPreset("");
+    setIsOpen(false);
+  };
+
   const getDisplayText = () => {
+    if (selectedPreset) {
+      const preset = presets.find((p) => p.key === selectedPreset);
+      if (preset) return preset.label;
+    }
+
     if (dateFrom && dateTo) {
       return `${formatDisplayDate(dateFrom)} - ${formatDisplayDate(dateTo)}`;
     } else if (dateFrom) {
@@ -125,12 +274,145 @@ const StandaloneDateRangePicker = ({
     return "เลือกช่วงวันที่";
   };
 
+  const getCurrentTempSelection = () => {
+    for (const preset of presets) {
+      const range = getDateRange(preset.key);
+      if (range && range.from === tempDateFrom && range.to === tempDateTo) {
+        return preset.key;
+      }
+    }
+    return "";
+  };
+
+  const currentTempSelection = getCurrentTempSelection();
+
+  // Calendar generation functions
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
+
+  const isDateInTempRange = (date: string) => {
+    if (!tempDateFrom || !tempDateTo) return false;
+    return date >= tempDateFrom && date <= tempDateTo;
+  };
+
+  const isDateTempSelected = (date: string) => {
+    return date === tempDateFrom || date === tempDateTo;
+  };
+
+  const handleDateClick = (dateStr: string) => {
+    if (!tempDateFrom || (tempDateFrom && tempDateTo)) {
+      // Start new selection
+      setTempDateFrom(dateStr);
+      setTempDateTo("");
+      setTempSelectedPreset("");
+    } else if (dateStr >= tempDateFrom) {
+      // Complete selection
+      setTempDateTo(dateStr);
+    } else {
+      // New start date
+      setTempDateFrom(dateStr);
+      setTempDateTo("");
+    }
+  };
+
+  const renderCalendar = (date: Date, isLeft: boolean = true) => {
+    const daysInMonth = getDaysInMonth(date);
+    const firstDay = getFirstDayOfMonth(date);
+    const days = [];
+
+    // Empty cells for days before month starts
+    for (let i = 0; i < firstDay; i++) {
+      days.push(<div key={`empty-${i}`} className="w-8 h-8"></div>);
+    }
+
+    // Days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const isInRange = isDateInTempRange(dateStr);
+      const isSelected = isDateTempSelected(dateStr);
+      const isToday = dateStr === new Date().toISOString().split("T")[0];
+
+      days.push(
+        <button
+          key={day}
+          onClick={() => handleDateClick(dateStr)}
+          className={`w-8 h-8 text-sm rounded-md flex items-center justify-center hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors ${
+            isSelected
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : isInRange
+              ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
+              : isToday
+              ? "bg-gray-200 dark:bg-gray-600 font-bold"
+              : "text-gray-700 dark:text-gray-300"
+          }`}
+        >
+          {day}
+        </button>
+      );
+    }
+
+    return (
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-4">
+          {isLeft && (
+            <button
+              onClick={() =>
+                setViewDate(new Date(date.getFullYear(), date.getMonth() - 1))
+              }
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          )}
+          <h3 className="font-medium text-gray-900 dark:text-gray-100 mx-2">
+            {date.toLocaleDateString("th-TH", {
+              month: "long",
+              year: "numeric",
+            })}
+          </h3>
+          {!isLeft && (
+            <button
+              onClick={() =>
+                setViewDate(new Date(date.getFullYear(), date.getMonth() + 1))
+              }
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Day headers */}
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"].map((day) => (
+            <div
+              key={day}
+              className="w-8 h-8 flex items-center justify-center text-xs font-medium text-gray-500 dark:text-gray-400"
+            >
+              {day}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar days */}
+        <div className="grid grid-cols-7 gap-1">{days}</div>
+      </div>
+    );
+  };
+
   return (
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center justify-between w-full min-w-[320px] px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-          !hasDateRange
+        className={`flex items-center justify-between w-full min-w-[240px] px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
+          !dateFrom && !dateTo
             ? "text-slate-400 dark:text-slate-500"
             : "text-slate-900 dark:text-slate-200"
         }`}
@@ -143,48 +425,84 @@ const StandaloneDateRangePicker = ({
       </button>
 
       {isOpen && (
-        <div className="absolute z-20 mt-2 p-4 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg shadow-lg min-w-[320px]">
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  วันที่เริ่ม
-                </label>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  วันที่สิ้นสุด
-                </label>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200"
-                />
+        <div className="absolute z-20 mt-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg shadow-xl min-w-[680px]">
+          <div className="flex">
+            {/* Left sidebar with presets */}
+            <div className="w-48 border-r border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 rounded-l-lg">
+              <div className="p-4">
+                <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
+                  เลือกช่วงวันที่
+                </h3>
+                <div className="space-y-1">
+                  {presets.map((preset) => (
+                    <button
+                      key={preset.key}
+                      onClick={() => handlePresetClick(preset.key)}
+                      className={`w-full px-3 py-2 text-left text-sm rounded-md transition-colors ${
+                        currentTempSelection === preset.key
+                          ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium"
+                          : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                  <div className="pt-2 border-t border-gray-200 dark:border-gray-600 mt-2">
+                    <button
+                      onClick={() => setTempSelectedPreset("")}
+                      className={`w-full px-3 py-2 text-left text-sm rounded-md transition-colors ${
+                        !currentTempSelection
+                          ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium"
+                          : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      กำหนดเอง...
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="flex justify-end space-x-2 pt-2">
-              <button
-                onClick={() => {
-                  setDateFrom("");
-                  setDateTo("");
-                }}
-                className="px-3 py-1 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-              >
-                ล้างวันที่
-              </button>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="px-4 py-1 text-xs bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600"
-              >
-                ตกลง
-              </button>
+
+            {/* Right side with calendar */}
+            <div className="flex-1">
+              <div className="flex">
+                {/* Current month */}
+                {renderCalendar(viewDate, true)}
+
+                {/* Next month */}
+                {renderCalendar(
+                  new Date(viewDate.getFullYear(), viewDate.getMonth() + 1),
+                  false
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-gray-200 dark:border-gray-600 flex justify-between items-center">
+                <button
+                  onClick={() => {
+                    setTempDateFrom("");
+                    setTempDateTo("");
+                    setTempSelectedPreset("");
+                  }}
+                  className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                >
+                  ล้างทั้งหมด
+                </button>
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={handleCancel}
+                    className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    onClick={handleApply}
+                    className="px-4 py-1.5 text-sm bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600"
+                  >
+                    อัปเดต
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -309,7 +627,16 @@ export default function PVSDashboard() {
 
   // Search states
   const [productSearch, setProductSearch] = useState<string>("");
+  const [debouncedProductSearch, setDebouncedProductSearch] =
+    useState<string>("");
+  const [isProductSearching, setIsProductSearching] = useState<boolean>(false);
   const [rawDataSearch, setRawDataSearch] = useState<string>("");
+  const [debouncedRawDataSearch, setDebouncedRawDataSearch] =
+    useState<string>("");
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+
+  // Export loading state
+  const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false);
 
   // Ingestion status state
   const [ingestionStatus, setIngestionStatus] = useState<IngestionStatus>({
@@ -320,6 +647,46 @@ export default function PVSDashboard() {
     status: "idle",
     recentFiles: [],
   });
+
+  // Debounce effect for product search
+  useEffect(() => {
+    if (productSearch.trim()) {
+      setIsProductSearching(true);
+    }
+
+    const timer = setTimeout(() => {
+      setDebouncedProductSearch(productSearch);
+      setProductPage(1); // Reset to first page when searching
+      setIsProductSearching(false);
+    }, 500); // 500ms delay
+
+    return () => {
+      clearTimeout(timer);
+      if (productSearch.trim()) {
+        setIsProductSearching(false);
+      }
+    };
+  }, [productSearch]);
+
+  // Debounce effect for raw data search
+  useEffect(() => {
+    if (rawDataSearch.trim()) {
+      setIsSearching(true);
+    }
+
+    const timer = setTimeout(() => {
+      setDebouncedRawDataSearch(rawDataSearch);
+      setRawDataPage(1); // Reset to first page when searching
+      setIsSearching(false);
+    }, 500); // 500ms delay
+
+    return () => {
+      clearTimeout(timer);
+      if (rawDataSearch.trim()) {
+        setIsSearching(false);
+      }
+    };
+  }, [rawDataSearch]);
 
   const fetchDatabaseData = useCallback(async () => {
     try {
@@ -488,13 +855,18 @@ export default function PVSDashboard() {
   };
 
   // Apply filters when filter values change
+  // Use a debounced approach for date filtering to prevent filtering while user is still selecting dates
   useEffect(() => {
-    if (data.length > 0) {
-      applyFilters(data);
-      // Reset pagination when filters change
-      setProductPage(1);
-      setRawDataPage(1);
-    }
+    const timer = setTimeout(() => {
+      if (data.length > 0) {
+        applyFilters(data);
+        // Reset pagination when filters change
+        setProductPage(1);
+        setRawDataPage(1);
+      }
+    }, 300); // Wait 300ms before applying filters
+
+    return () => clearTimeout(timer);
   }, [selectedCorp, selectedBranch, dateFrom, dateTo, data, applyFilters]);
 
   // Reset pagination when data changes
@@ -914,6 +1286,193 @@ export default function PVSDashboard() {
     }
   };
 
+  // Export Raw Data to Excel function
+  const exportRawDataToExcel = async () => {
+    if (isExportingExcel) return; // Prevent multiple clicks
+
+    try {
+      setIsExportingExcel(true);
+
+      // Add a small delay to show loading state
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Get filtered data
+      const filteredRawData = getFilteredRawData();
+
+      // Create a new workbook
+      const wb = XLSX.utils.book_new();
+
+      // Create worksheet data with proper structure
+      const wsData: (string | number)[][] = [];
+
+      // Add header row
+      wsData.push([
+        "บริษัท",
+        "สาขา",
+        "หมายเลขเอกสาร",
+        "สินค้า",
+        "หน่วย",
+        "จำนวน",
+        "ราคาต้นทุน",
+        "มูลค่า",
+        "อายุ (วัน)",
+        "กลุ่มอายุ",
+        "วันที่เอกสาร",
+        "วันที่ข้อมูล",
+      ]);
+
+      // Helper function to format date
+      const formatDate = (dateString: string) => {
+        if (!dateString) return "";
+        try {
+          const date = new Date(dateString);
+          // Format as DD/MM/YYYY
+          return date.toLocaleDateString("th-TH", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          });
+        } catch {
+          return dateString;
+        }
+      };
+
+      // Add data rows
+      filteredRawData.forEach((row) => {
+        wsData.push([
+          row.corp || "",
+          row.branch || "",
+          row.docNumber || "",
+          row.prod || "",
+          row.unitName || "",
+          row.qtyFromThisDoc || 0,
+          row.averageCost || 0,
+          row.totalValueRow || 0,
+          row.daysAge || 0,
+          row.ageBucket || "",
+          formatDate(row.docDate || ""),
+          formatDate(row.dataDate || ""),
+        ]);
+      });
+
+      // Create worksheet
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      // Set column widths
+      ws["!cols"] = [
+        { wch: 15 }, // บริษัท
+        { wch: 15 }, // สาขา
+        { wch: 18 }, // หมายเลขเอกสาร
+        { wch: 40 }, // สินค้า - wider for product names
+        { wch: 12 }, // หน่วย
+        { wch: 12 }, // จำนวน
+        { wch: 15 }, // ราคาต้นทุน
+        { wch: 18 }, // มูลค่า
+        { wch: 12 }, // อายุ (วัน)
+        { wch: 15 }, // กลุ่มอายุ
+        { wch: 15 }, // วันที่เอกสาร
+        { wch: 15 }, // วันที่ข้อมูล
+      ];
+
+      // Apply styles to cells
+      const range = XLSX.utils.decode_range(ws["!ref"] || "A1");
+
+      for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (!ws[cellAddress]) continue;
+
+          // Header row styling (Row 1)
+          if (R === 0) {
+            ws[cellAddress].s = {
+              font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
+              fill: { fgColor: { rgb: "4472C4" } }, // Blue background
+              alignment: { horizontal: "center", vertical: "center" },
+              border: {
+                top: { style: "thin", color: { rgb: "000000" } },
+                bottom: { style: "thin", color: { rgb: "000000" } },
+                left: { style: "thin", color: { rgb: "000000" } },
+                right: { style: "thin", color: { rgb: "000000" } },
+              },
+            };
+          }
+          // Data rows
+          else {
+            let fillColor = "FFFFFF"; // Default white
+
+            // Apply age bucket colors based on age group column (column 9)
+            if (C === 9) {
+              // กลุ่มอายุ column
+              const ageBucket = ws[cellAddress].v;
+              if (ageBucket === "0-90") {
+                fillColor = "E2EFDA"; // Light green
+              } else if (ageBucket === "91-180" || ageBucket === "90-180") {
+                fillColor = "FFF2CC"; // Light yellow
+              } else if (ageBucket === "181-365" || ageBucket === "180-360") {
+                fillColor = "FCE4D6"; // Light orange
+              } else if (ageBucket === ">365" || ageBucket === ">360") {
+                fillColor = "FFEBE9"; // Light red
+              }
+            }
+
+            ws[cellAddress].s = {
+              font: { sz: 10 },
+              fill: { fgColor: { rgb: fillColor } },
+              alignment: {
+                horizontal: C >= 5 && C <= 8 ? "right" : "left", // Right align for numeric columns
+                vertical: "center",
+              },
+              border: {
+                top: { style: "thin", color: { rgb: "CCCCCC" } },
+                bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+                left: { style: "thin", color: { rgb: "CCCCCC" } },
+                right: { style: "thin", color: { rgb: "CCCCCC" } },
+              },
+            };
+
+            // Format numbers
+            if (typeof ws[cellAddress].v === "number") {
+              if (C === 5 || C === 8) {
+                // จำนวน and อายุ (วัน) - integers
+                ws[cellAddress].z = "#,##0";
+              } else if (C === 6 || C === 7) {
+                // ราคาต้นทุน and มูลค่า - decimals
+                ws[cellAddress].z = "#,##0.00";
+              }
+            }
+          }
+        }
+      }
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, "Raw Data");
+
+      // Generate filename with current date and filter info
+      const now = new Date();
+      const dateStr = now.toISOString().split("T")[0];
+      let filename = `Raw_Data_${dateStr}`;
+
+      if (selectedCorp) filename += `_${selectedCorp}`;
+      if (selectedBranch) filename += `_${selectedBranch}`;
+      if (dateFrom || dateTo) {
+        filename += "_";
+        if (dateFrom) filename += dateFrom;
+        if (dateTo) filename += "_to_" + dateTo;
+      }
+      filename += ".xlsx";
+
+      // Write and download the file
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error("Raw Data Excel export failed:", error);
+
+      // Show user-friendly error message
+      alert("การ export Excel ล้มเหลว กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setIsExportingExcel(false);
+    }
+  };
+
   // Get available branches for selected corporation
   const getAvailableBranches = () => {
     if (!selectedCorp) {
@@ -1037,22 +1596,28 @@ export default function PVSDashboard() {
 
   // Search filter functions
   const getFilteredProductSummary = () => {
-    if (!productSearch.trim()) return productSummary;
+    if (!debouncedProductSearch.trim()) return productSummary;
+    const searchTerm = debouncedProductSearch.toLowerCase();
     return productSummary.filter(
       (product) =>
-        product.prod.toLowerCase().includes(productSearch.toLowerCase()) ||
-        product.corp.toLowerCase().includes(productSearch.toLowerCase()) ||
-        product.branch.toLowerCase().includes(productSearch.toLowerCase())
+        product.prod.toLowerCase().includes(searchTerm) ||
+        product.corp.toLowerCase().includes(searchTerm) ||
+        product.branch.toLowerCase().includes(searchTerm) ||
+        (product.unitName &&
+          product.unitName.toLowerCase().includes(searchTerm))
     );
   };
 
   const getFilteredRawData = () => {
-    if (!rawDataSearch.trim()) return filteredData;
+    if (!debouncedRawDataSearch.trim()) return filteredData;
+    const searchTerm = debouncedRawDataSearch.toLowerCase();
     return filteredData.filter(
       (row) =>
-        row.prod.toLowerCase().includes(rawDataSearch.toLowerCase()) ||
-        row.corp.toLowerCase().includes(rawDataSearch.toLowerCase()) ||
-        row.branch.toLowerCase().includes(rawDataSearch.toLowerCase())
+        row.prod.toLowerCase().includes(searchTerm) ||
+        row.corp.toLowerCase().includes(searchTerm) ||
+        row.branch.toLowerCase().includes(searchTerm) ||
+        (row.docNumber && row.docNumber.toLowerCase().includes(searchTerm)) ||
+        (row.unitName && row.unitName.toLowerCase().includes(searchTerm))
     );
   };
 
@@ -1475,8 +2040,13 @@ export default function PVSDashboard() {
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           หน่วย
                         </th>
-                        <th className="text-right p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[120px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
-                          รวมทั้งหมด
+                        <th
+                          className="text-center p-3 bg-gray-50 dark:bg-slate-800 font-bold text-gray-700 dark:text-slate-300 rounded-tl-lg min-w-[100px] border-r-2 border-gray-300 dark:border-slate-500"
+                          colSpan={2}
+                        >
+                          <div className="flex items-center justify-center">
+                            รวมทั้งหมด
+                          </div>
                         </th>
                         <th
                           className="text-center p-3 bg-emerald-50 dark:bg-emerald-900/50 font-bold text-emerald-700 dark:text-emerald-300 rounded-tl-lg min-w-[100px] border-r-2 border-l-2 border-gray-300 dark:border-slate-500"
@@ -1520,8 +2090,11 @@ export default function PVSDashboard() {
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
-                        <th className="text-right p-3 text-gray-600 dark:text-slate-400 bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
-                          จำนวน / มูลค่า
+                        <th className="text-right p-3 bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-400 font-medium border-r border-l-2 border-gray-300 dark:border-slate-500">
+                          จำนวน
+                        </th>
+                        <th className="text-right p-3 bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-400 font-medium border-r-2 border-gray-300 dark:border-slate-500">
+                          มูลค่า
                         </th>
                         <th className="text-right p-3 bg-green-50 dark:bg-emerald-900/50 text-green-600 dark:text-emerald-300 font-medium border-r border-l-2 border-gray-300 dark:border-slate-500">
                           จำนวน
@@ -1550,72 +2123,129 @@ export default function PVSDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {getPaginatedData(
-                        getFilteredProductSummary(),
-                        productPage,
-                        ITEMS_PER_PAGE
-                      ).map((product, index) => (
-                        <tr
-                          key={index}
-                          className="border-b-2 border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors duration-150"
-                        >
-                          <td className="p-2 font-medium text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
-                            {product.corp}
-                          </td>
-                          <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
-                            {product.branch}
-                          </td>
-                          <td
-                            className="p-2 font-medium text-gray-800 dark:text-slate-200 min-w-[200px] border-r-2 border-gray-200 dark:border-slate-600"
-                            title={product.prod}
-                          >
-                            {product.prod}
-                          </td>
-                          <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
-                            {product.unitName}
-                          </td>
-                          <td className="p-2 text-right border-r-2 border-gray-200 dark:border-slate-600">
-                            <div className="font-bold text-gray-800 dark:text-slate-200 text-sm">
-                              {product.totalQty.toLocaleString()}
-                            </div>
-                            <div className="text-emerald-600 dark:text-emerald-400 font-bold">
-                              {formatMoney(product.totalValue)}
-                            </div>
-                          </td>
-
-                          {/* 0-90 days */}
-                          <td className="p-2 text-right bg-emerald-50 dark:bg-emerald-900/30 font-bold text-emerald-700 dark:text-emerald-300">
-                            {product.ageBuckets["0-90"].qty.toLocaleString()}
-                          </td>
-                          <td className="p-2 text-right bg-emerald-50 dark:bg-emerald-900/30 font-bold text-emerald-800 dark:text-emerald-200">
-                            {formatMoney(product.ageBuckets["0-90"].value)}
-                          </td>
-
-                          {/* 90-180 days */}
-                          <td className="p-2 text-right bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-300">
-                            {product.ageBuckets["90-180"].qty.toLocaleString()}
-                          </td>
-                          <td className="p-2 text-right bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-800 dark:text-amber-200">
-                            {formatMoney(product.ageBuckets["90-180"].value)}
-                          </td>
-
-                          {/* 180-360 days */}
-                          <td className="p-2 text-right bg-orange-50 dark:bg-orange-900/30 font-bold text-orange-700 dark:text-orange-300">
-                            {product.ageBuckets["180-360"].qty.toLocaleString()}
-                          </td>
-                          <td className="p-2 text-right bg-orange-50 dark:bg-orange-900/30 font-bold text-orange-800 dark:text-orange-200">
-                            {formatMoney(product.ageBuckets["180-360"].value)}
-                          </td>
-
-                          {/* >360 days */}
-                          <td className="p-2 text-right bg-rose-50 dark:bg-rose-900/30 font-bold text-rose-700 dark:text-rose-300">
-                            {product.ageBuckets[">360"].qty.toLocaleString()}
-                          </td>
-                          <td className="p-2 text-right bg-rose-50 dark:bg-rose-900/30 font-bold text-rose-800 dark:text-rose-200">
-                            {formatMoney(product.ageBuckets[">360"].value)}
+                      {isProductSearching ? (
+                        <tr>
+                          <td colSpan={14} className="p-0">
+                            <SearchLoading
+                              message="กำลังค้นหาสินค้า..."
+                              size="md"
+                              className="py-12"
+                            />
                           </td>
                         </tr>
-                      ))}
+                      ) : getFilteredProductSummary().length === 0 ? (
+                        <tr>
+                          <td colSpan={14} className="p-0">
+                            <EmptyState
+                              type={
+                                debouncedProductSearch.trim()
+                                  ? "search"
+                                  : productSummary.length === 0
+                                  ? "no-data"
+                                  : "filter"
+                              }
+                              size="md"
+                              className="py-12"
+                              title={
+                                debouncedProductSearch.trim()
+                                  ? "ไม่พบสินค้าที่ค้นหา"
+                                  : productSummary.length === 0
+                                  ? "ไม่มีข้อมูลสินค้า"
+                                  : "ไม่มีสินค้าที่ตรงกับเงื่อนไข"
+                              }
+                              description={
+                                debouncedProductSearch.trim()
+                                  ? `ไม่พบสินค้าที่ตรงกับ "${debouncedProductSearch}"`
+                                  : productSummary.length === 0
+                                  ? "ยังไม่มีข้อมูลสินค้าที่จะแสดงในขณะนี้"
+                                  : "ลองปรับเปลี่ยนตัวกรองหรือช่วงวันที่"
+                              }
+                              actionLabel={
+                                debouncedProductSearch.trim()
+                                  ? "ล้างการค้นหา"
+                                  : undefined
+                              }
+                              onAction={
+                                debouncedProductSearch.trim()
+                                  ? () => {
+                                      setProductSearch("");
+                                      setProductPage(1);
+                                    }
+                                  : undefined
+                              }
+                            />
+                          </td>
+                        </tr>
+                      ) : (
+                        getPaginatedData(
+                          getFilteredProductSummary(),
+                          productPage,
+                          ITEMS_PER_PAGE
+                        ).map((product, index) => (
+                          <tr
+                            key={index}
+                            className="border-b-2 border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors duration-150"
+                          >
+                            <td className="p-2 font-medium text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
+                              {product.corp}
+                            </td>
+                            <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
+                              {product.branch}
+                            </td>
+                            <td
+                              className="p-2 font-medium text-gray-800 dark:text-slate-200 min-w-[200px] border-r-2 border-gray-200 dark:border-slate-600"
+                              title={product.prod}
+                            >
+                              {product.prod}
+                            </td>
+                            <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
+                              {product.unitName}
+                            </td>
+                            <td className="p-2 text-right font-bold text-gray-800 dark:text-slate-200 bg-gray-50 dark:bg-slate-800 border-r border-l-2 border-gray-200 dark:border-slate-600">
+                              {product.totalQty.toLocaleString()}
+                            </td>
+                            <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300 bg-gray-50 dark:bg-slate-800 border-r-2 border-gray-200 dark:border-slate-600">
+                              {formatMoney(product.totalValue)}
+                            </td>
+
+                            {/* 0-90 days */}
+                            <td className="p-2 text-right bg-emerald-50 dark:bg-emerald-900/30 font-bold text-emerald-700 dark:text-emerald-300">
+                              {product.ageBuckets["0-90"].qty.toLocaleString()}
+                            </td>
+                            <td className="p-2 text-right bg-emerald-50 dark:bg-emerald-900/30 font-bold text-emerald-800 dark:text-emerald-200">
+                              {formatMoney(product.ageBuckets["0-90"].value)}
+                            </td>
+
+                            {/* 90-180 days */}
+                            <td className="p-2 text-right bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-300">
+                              {product.ageBuckets[
+                                "90-180"
+                              ].qty.toLocaleString()}
+                            </td>
+                            <td className="p-2 text-right bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-800 dark:text-amber-200">
+                              {formatMoney(product.ageBuckets["90-180"].value)}
+                            </td>
+
+                            {/* 180-360 days */}
+                            <td className="p-2 text-right bg-orange-50 dark:bg-orange-900/30 font-bold text-orange-700 dark:text-orange-300">
+                              {product.ageBuckets[
+                                "180-360"
+                              ].qty.toLocaleString()}
+                            </td>
+                            <td className="p-2 text-right bg-orange-50 dark:bg-orange-900/30 font-bold text-orange-800 dark:text-orange-200">
+                              {formatMoney(product.ageBuckets["180-360"].value)}
+                            </td>
+
+                            {/* >360 days */}
+                            <td className="p-2 text-right bg-rose-50 dark:bg-rose-900/30 font-bold text-rose-700 dark:text-rose-300">
+                              {product.ageBuckets[">360"].qty.toLocaleString()}
+                            </td>
+                            <td className="p-2 text-right bg-rose-50 dark:bg-rose-900/30 font-bold text-rose-800 dark:text-rose-200">
+                              {formatMoney(product.ageBuckets[">360"].value)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -1761,77 +2391,29 @@ export default function PVSDashboard() {
                     )}
                   </div>
 
-                  {/* Export CSV Button for Raw Data */}
+                  {/* Export Excel Button for Raw Data */}
                   <button
-                    onClick={() => {
-                      const csvData = [
-                        [
-                          "บริษัท",
-                          "สาขา",
-                          "สินค้า",
-                          "หน่วย",
-                          "จำนวน",
-                          "ราคาต้นทุน",
-                          "มูลค่า",
-                          "อายุ (วัน)",
-                          "กลุ่มอายุ",
-                        ],
-                        ...getFilteredRawData().map((row) => [
-                          row.corp,
-                          row.branch,
-                          row.prod,
-                          row.unitName,
-                          row.qtyFromThisDoc,
-                          row.averageCost || 0,
-                          row.totalValueRow || 0,
-                          row.daysAge,
-                          row.ageBucket,
-                        ]),
-                      ];
-
-                      const csvContent = csvData
-                        .map((row) =>
-                          row
-                            .map((cell) =>
-                              typeof cell === "string" && cell.includes(",")
-                                ? `"${cell}"`
-                                : cell
-                            )
-                            .join(",")
-                        )
-                        .join("\n");
-
-                      const now = new Date();
-                      const dateStr = now.toISOString().split("T")[0];
-                      let filename = `Raw_Data_${dateStr}`;
-
-                      if (selectedCorp) filename += `_${selectedCorp}`;
-                      if (selectedBranch) filename += `_${selectedBranch}`;
-                      if (dateFrom || dateTo) {
-                        const from = dateFrom || "start";
-                        const to = dateTo || "end";
-                        filename += `_${from}_to_${to}`;
-                      }
-                      filename += ".csv";
-
-                      const blob = new Blob(["\uFEFF" + csvContent], {
-                        type: "text/csv;charset=utf-8;",
-                      });
-                      const link = document.createElement("a");
-                      const url = URL.createObjectURL(blob);
-                      link.setAttribute("href", url);
-                      link.setAttribute("download", filename);
-                      link.style.visibility = "hidden";
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      URL.revokeObjectURL(url);
-                    }}
-                    className="ml-4 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors flex items-center font-medium shadow-md hover:shadow-lg"
-                    disabled={getFilteredRawData().length === 0}
+                    onClick={exportRawDataToExcel}
+                    className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center font-medium shadow-md hover:shadow-lg ${
+                      isExportingExcel
+                        ? "bg-gray-500 cursor-not-allowed"
+                        : "bg-green-600 dark:bg-green-500 hover:bg-green-700 dark:hover:bg-green-600"
+                    }`}
+                    disabled={
+                      getFilteredRawData().length === 0 || isExportingExcel
+                    }
                   >
-                    <Download className="w-4 h-4 mr-2" />
-                    Export CSV
+                    {isExportingExcel ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        กำลังประมวลผล...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 mr-2" />
+                        Export Excel
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1846,6 +2428,9 @@ export default function PVSDashboard() {
                         </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           สาขา
+                        </th>
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[120px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
+                          หมายเลขเอกสาร
                         </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[300px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           สินค้า
@@ -1871,58 +2456,116 @@ export default function PVSDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {getPaginatedData(
-                        getFilteredRawData(),
-                        rawDataPage,
-                        RAW_DATA_PER_PAGE
-                      ).map((row, index) => (
-                        <tr
-                          key={index}
-                          className="border-b-2 border-gray-200 dark:border-slate-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors duration-150"
-                        >
-                          <td className="p-2 font-medium text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
-                            {row.corp}
-                          </td>
-                          <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
-                            {row.branch}
-                          </td>
-                          <td
-                            className="p-2 font-medium text-gray-800 dark:text-slate-200 min-w-[300px] border-r-2 border-gray-200 dark:border-slate-600"
-                            title={row.prod}
-                          >
-                            {row.prod}
-                          </td>
-                          <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
-                            {row.unitName}
-                          </td>
-                          <td className="p-2 text-right font-bold text-gray-800 dark:text-slate-200 border-r-2 border-gray-200 dark:border-slate-600">
-                            {row.qtyFromThisDoc?.toLocaleString()}
-                          </td>
-                          <td className="p-2 text-right font-medium text-emerald-600 dark:text-emerald-400 border-r-2 border-gray-200 dark:border-slate-600">
-                            {formatMoney(row.averageCost || 0)}
-                          </td>
-                          <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300 border-r-2 border-gray-200 dark:border-slate-600">
-                            {formatMoney(row.totalValueRow || 0)}
-                          </td>
-                          <td className="p-2 text-center font-bold text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
-                            {row.daysAge}
-                          </td>
-                          <td className="p-2 text-center border-r-2 border-gray-200 dark:border-slate-600">
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-bold ${
-                                row.ageBucket === ">365" ||
-                                row.ageBucket === ">360"
-                                  ? "bg-rose-500 text-white"
-                                  : row.ageBucket === "0-90"
-                                  ? "bg-[#dbfce5] text-gray-800"
-                                  : "bg-gray-500 text-white"
-                              }`}
-                            >
-                              {row.ageBucket}
-                            </span>
+                      {isSearching ? (
+                        <tr>
+                          <td colSpan={10} className="p-0">
+                            <SearchLoading
+                              message="กำลังค้นหาข้อมูล..."
+                              size="md"
+                              className="py-12"
+                            />
                           </td>
                         </tr>
-                      ))}
+                      ) : getFilteredRawData().length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="p-0">
+                            <EmptyState
+                              type={
+                                debouncedRawDataSearch.trim()
+                                  ? "search"
+                                  : filteredData.length === 0
+                                  ? "no-data"
+                                  : "filter"
+                              }
+                              size="md"
+                              className="py-12"
+                              title={
+                                debouncedRawDataSearch.trim()
+                                  ? "ไม่พบผลการค้นหา"
+                                  : filteredData.length === 0
+                                  ? "ไม่มีข้อมูล"
+                                  : "ไม่มีข้อมูลที่ตรงกับเงื่อนไข"
+                              }
+                              description={
+                                debouncedRawDataSearch.trim()
+                                  ? `ไม่พบข้อมูลที่ตรงกับ "${debouncedRawDataSearch}"`
+                                  : filteredData.length === 0
+                                  ? "ยังไม่มีข้อมูลที่จะแสดงในขณะนี้"
+                                  : "ลองปรับเปลี่ยนตัวกรองหรือช่วงวันที่"
+                              }
+                              actionLabel={
+                                debouncedRawDataSearch.trim()
+                                  ? "ล้างการค้นหา"
+                                  : undefined
+                              }
+                              onAction={
+                                debouncedRawDataSearch.trim()
+                                  ? () => {
+                                      setRawDataSearch("");
+                                      setRawDataPage(1);
+                                    }
+                                  : undefined
+                              }
+                            />
+                          </td>
+                        </tr>
+                      ) : (
+                        getPaginatedData(
+                          getFilteredRawData(),
+                          rawDataPage,
+                          RAW_DATA_PER_PAGE
+                        ).map((row, index) => (
+                          <tr
+                            key={index}
+                            className="border-b-2 border-gray-200 dark:border-slate-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors duration-150"
+                          >
+                            <td className="p-2 font-medium text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
+                              {row.corp}
+                            </td>
+                            <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
+                              {row.branch}
+                            </td>
+                            <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
+                              {row.docNumber || "N/A"}
+                            </td>
+                            <td
+                              className="p-2 font-medium text-gray-800 dark:text-slate-200 min-w-[300px] border-r-2 border-gray-200 dark:border-slate-600"
+                              title={row.prod}
+                            >
+                              {row.prod}
+                            </td>
+                            <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
+                              {row.unitName}
+                            </td>
+                            <td className="p-2 text-right font-bold text-gray-800 dark:text-slate-200 border-r-2 border-gray-200 dark:border-slate-600">
+                              {row.qtyFromThisDoc?.toLocaleString()}
+                            </td>
+                            <td className="p-2 text-right font-medium text-emerald-600 dark:text-emerald-400 border-r-2 border-gray-200 dark:border-slate-600">
+                              {formatMoney(row.averageCost || 0)}
+                            </td>
+                            <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300 border-r-2 border-gray-200 dark:border-slate-600">
+                              {formatMoney(row.totalValueRow || 0)}
+                            </td>
+                            <td className="p-2 text-center font-bold text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
+                              {row.daysAge}
+                            </td>
+                            <td className="p-2 text-center border-r-2 border-gray-200 dark:border-slate-600">
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                  row.ageBucket === ">365" ||
+                                  row.ageBucket === ">360"
+                                    ? "bg-rose-500 text-white"
+                                    : row.ageBucket === "0-90"
+                                    ? "bg-[#dbfce5] text-gray-800"
+                                    : "bg-gray-500 text-white"
+                                }`}
+                              >
+                                {row.ageBucket}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
