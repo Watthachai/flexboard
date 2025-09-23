@@ -135,73 +135,20 @@ const StandaloneDateRangePicker = ({
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     switch (preset) {
-      case "today":
-        return {
-          from: today.toISOString().split("T")[0],
-          to: today.toISOString().split("T")[0],
-          label: "วันนี้",
-        };
-      case "yesterday": {
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        return {
-          from: yesterday.toISOString().split("T")[0],
-          to: yesterday.toISOString().split("T")[0],
-          label: "เมื่อวาน",
-        };
-      }
-      case "last7days": {
-        const last7 = new Date(today);
-        last7.setDate(last7.getDate() - 6);
-        return {
-          from: last7.toISOString().split("T")[0],
-          to: today.toISOString().split("T")[0],
-          label: "7 วันที่แล้ว",
-        };
-      }
-      case "last14days": {
-        const last14 = new Date(today);
-        last14.setDate(last14.getDate() - 13);
-        return {
-          from: last14.toISOString().split("T")[0],
-          to: today.toISOString().split("T")[0],
-          label: "14 วันที่แล้ว",
-        };
-      }
-      case "last30days": {
-        const last30 = new Date(today);
-        last30.setDate(last30.getDate() - 29);
-        return {
-          from: last30.toISOString().split("T")[0],
-          to: today.toISOString().split("T")[0],
-          label: "30 วันที่แล้ว",
-        };
-      }
-      case "thisweek": {
-        const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - today.getDay());
-        return {
-          from: startOfWeek.toISOString().split("T")[0],
-          to: today.toISOString().split("T")[0],
-          label: "สัปดาห์นี้",
-        };
-      }
-      case "lastweek": {
-        const lastWeekEnd = new Date(today);
-        lastWeekEnd.setDate(today.getDate() - today.getDay() - 1);
-        const lastWeekStart = new Date(lastWeekEnd);
-        lastWeekStart.setDate(lastWeekEnd.getDate() - 6);
-        return {
-          from: lastWeekStart.toISOString().split("T")[0],
-          to: lastWeekEnd.toISOString().split("T")[0],
-          label: "สัปดาห์ที่แล้ว",
-        };
-      }
       case "thismonth": {
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+        // Format as YYYY-MM-DD without timezone conversion
+        const fromStr = `${startOfMonth.getFullYear()}-${String(
+          startOfMonth.getMonth() + 1
+        ).padStart(2, "0")}-${String(startOfMonth.getDate()).padStart(2, "0")}`;
+        const toStr = `${today.getFullYear()}-${String(
+          today.getMonth() + 1
+        ).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
         return {
-          from: startOfMonth.toISOString().split("T")[0],
-          to: today.toISOString().split("T")[0],
+          from: fromStr,
+          to: toStr,
           label: "เดือนนี้",
         };
       }
@@ -212,9 +159,21 @@ const StandaloneDateRangePicker = ({
           1
         );
         const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+
+        // Format as YYYY-MM-DD without timezone conversion
+        const fromStr = `${lastMonthStart.getFullYear()}-${String(
+          lastMonthStart.getMonth() + 1
+        ).padStart(2, "0")}-${String(lastMonthStart.getDate()).padStart(
+          2,
+          "0"
+        )}`;
+        const toStr = `${lastMonthEnd.getFullYear()}-${String(
+          lastMonthEnd.getMonth() + 1
+        ).padStart(2, "0")}-${String(lastMonthEnd.getDate()).padStart(2, "0")}`;
+
         return {
-          from: lastMonthStart.toISOString().split("T")[0],
-          to: lastMonthEnd.toISOString().split("T")[0],
+          from: fromStr,
+          to: toStr,
           label: "เดือนที่แล้ว",
         };
       }
@@ -224,13 +183,6 @@ const StandaloneDateRangePicker = ({
   };
 
   const presets = [
-    { key: "today", label: "วันนี้" },
-    { key: "yesterday", label: "เมื่อวาน" },
-    { key: "last7days", label: "7 วันที่แล้ว" },
-    { key: "last14days", label: "14 วันที่แล้ว" },
-    { key: "last30days", label: "30 วันที่แล้ว" },
-    { key: "thisweek", label: "สัปดาห์นี้" },
-    { key: "lastweek", label: "สัปดาห์ที่แล้ว" },
     { key: "thismonth", label: "เดือนนี้" },
     { key: "lastmonth", label: "เดือนที่แล้ว" },
   ];
