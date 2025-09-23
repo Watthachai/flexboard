@@ -1,7 +1,5 @@
 /**
- * OnPrem Viewer - Authenticat    // Validate with Control Plane API
-    const controlPlaneUrl = envConfig.getControlPlaneApiUrl("/auth/validate");
-    const controlPlaneResponse = await fetch(controlPlaneUrl, {Validation API Route
+ * OnPrem Viewer - Authentication Validation API Route
  * Validates current user session
  */
 
@@ -36,66 +34,112 @@ export async function GET(request: NextRequest) {
 
     // Validate session with Control Plane API
     const controlPlaneUrl = envConfig.getControlPlaneApiUrl("/auth/validate");
-    const controlPlaneResponse = await fetch(controlPlaneUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${sessionToken}`,
-      },
-      body: JSON.stringify({
-        sessionToken,
-        userId,
-      }),
-    });
 
-    const result = await controlPlaneResponse.json();
+    try {
+      const controlPlaneResponse = await fetch(controlPlaneUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify({
+          sessionToken,
+          userId,
+        }),
+        // Add timeout to prevent hanging
+        signal: AbortSignal.timeout(10000), // 10 seconds timeout
+      });
 
-    if (controlPlaneResponse.ok && result.success) {
-      // Check if we have license information in cookies
-      if (tenantId && companyName) {
-        return NextResponse.json({
+      const result = await controlPlaneResponse.json();
+
+      if (controlPlaneResponse.ok && result.success) {
+        // Refresh cookies to extend session
+        const response = NextResponse.json({
           success: true,
           user: result.user,
           license: {
-            tenantId,
-            companyName,
-            features: [], // Default features
-            expiryDate: new Date(
-              Date.now() + 365 * 24 * 60 * 60 * 1000
-            ).toISOString(), // Default 1 year
+            tenantId: tenantId || result.user?.tenantId,
+            companyName: companyName || result.user?.companyName,
+            features: result.user?.features || [],
+            expiryDate:
+              result.user?.expiryDate ||
+              new Date(
+                Date.now() + 24 * 60 * 60 * 1000 // 24 hours default
+              ).toISOString(),
           },
         });
+
+        // Set cookies with extended expiry (7 days)
+        const cookieOptions = {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "lax" as const,
+          maxAge: 7 * 24 * 60 * 60, // 7 days
+          path: "/",
+        };
+
+        response.cookies.set("session-token", sessionToken, cookieOptions);
+        response.cookies.set("user-id", userId, cookieOptions);
+
+        if (tenantId) {
+          response.cookies.set("tenant-id", tenantId, cookieOptions);
+        }
+        if (companyName) {
+          response.cookies.set("company-name", companyName, cookieOptions);
+        }
+
+        return response;
       } else {
-        // No license information found
+        console.log("Control plane validation failed:", result);
+        // Fall through to session cleanup
+      }
+    } catch (controlPlaneError) {
+      console.error("Control plane API error:", controlPlaneError);
+
+      // If control plane is down, allow session to continue if we have basic info
+      if (tenantId && companyName) {
+        console.log("Control plane unreachable, using cached session");
         return NextResponse.json({
           success: true,
-          user: result.user,
-          session: {
-            email: result.user.email,
-            tenantId: tenantId || result.user.tenantId,
-            companyName: companyName || result.user.companyName,
-            features: result.user.features || [],
-            expiryDate: result.user.expiryDate,
+          user: { email: userId }, // Basic user info
+          license: {
+            tenantId,
+            companyName,
+            features: [],
+            expiryDate: new Date(
+              Date.now() + 24 * 60 * 60 * 1000
+            ).toISOString(),
           },
         });
       }
-    } else {
-      // Session is invalid, clear cookies
-      const response = NextResponse.json(
-        {
-          success: false,
-          message: "Session expired",
-        },
-        { status: 401 }
-      );
-
-      response.cookies.delete("session-token");
-      response.cookies.delete("user-id");
-      response.cookies.delete("tenant-id");
-      response.cookies.delete("company-name");
-
-      return response;
+      // Fall through to session cleanup if no cached info
     }
+
+    // Session is invalid or expired, clear cookies
+    console.log("Clearing invalid session cookies");
+    const response = NextResponse.json(
+      {
+        success: false,
+        message: "Session expired or invalid",
+      },
+      { status: 401 }
+    );
+
+    // Clear cookies properly
+    const clearCookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax" as const,
+      maxAge: 0,
+      path: "/",
+    };
+
+    response.cookies.set("session-token", "", clearCookieOptions);
+    response.cookies.set("user-id", "", clearCookieOptions);
+    response.cookies.set("tenant-id", "", clearCookieOptions);
+    response.cookies.set("company-name", "", clearCookieOptions);
+
+    return response;
   } catch (error) {
     console.error("Session validation error:", error);
     return NextResponse.json(
