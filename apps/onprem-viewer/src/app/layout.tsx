@@ -5,7 +5,7 @@
  */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { VersionDisplay } from "@/components/VersionDisplay";
 import { ThemeProvider, useTheme } from "@/app/components/context/ThemeContext";
 import { SessionStorage, type SessionData } from "@/utils/sessionStorage";
@@ -29,11 +29,142 @@ export default function RootLayout({
 }) {
   const [session, setSession] = useState<UserSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const isCheckingSession = useRef(false);
 
+  const checkSession = useCallback(async () => {
+    // Prevent multiple simultaneous session checks
+    if (isCheckingSession.current) {
+      console.log("Session check already in progress, skipping...");
+      return;
+    }
+
+    isCheckingSession.current = true;
+
+    try {
+      // Check Firebase session using HTTP-only cookies
+      const response = await fetch("/api/auth/validate", {
+        credentials: "include", // Include HTTP-only cookies
+        cache: "no-cache", // Prevent caching of auth checks
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.user && result.license) {
+          const newSession = {
+            email: result.user.email,
+            tenantId: result.license.tenantId,
+            companyName: result.license.companyName,
+            branchNames: result.license.branchNames || [],
+            features: result.license.features || [],
+            expiryDate: result.license.expiryDate,
+          };
+
+          console.log("Session valid:", {
+            email: newSession.email,
+            tenantId: newSession.tenantId,
+            companyName: newSession.companyName,
+          });
+
+          setSession(newSession);
+          setLoading(false);
+
+          // Save session to localStorage as fallback
+          if (typeof window !== "undefined" && window.localStorage) {
+            localStorage.setItem("userSession", JSON.stringify(newSession));
+          }
+
+          return;
+        }
+      }
+
+      // If authentication fails, clear localStorage and session
+      console.log("Authentication failed or expired");
+      if (typeof window !== "undefined" && window.localStorage) {
+        localStorage.removeItem("userSession");
+
+        // Check if we have a fallback session in localStorage
+        const savedSession = localStorage.getItem("userSession");
+        if (savedSession) {
+          try {
+            const sessionData = JSON.parse(savedSession);
+            // Only use saved session if license hasn't expired
+            if (
+              sessionData.expiryDate &&
+              new Date(sessionData.expiryDate) > new Date()
+            ) {
+              console.log("Using cached session as fallback");
+              setSession(sessionData);
+              setLoading(false);
+              return;
+            }
+          } catch (parseError) {
+            console.error("Failed to parse cached session:", parseError);
+            localStorage.removeItem("userSession");
+          }
+        }
+      }
+
+      setSession(null);
+    } catch (error) {
+      console.error("Session check failed:", error);
+
+      // Try using localStorage fallback
+      if (typeof window !== "undefined" && window.localStorage) {
+        const savedSession = localStorage.getItem("userSession");
+        if (savedSession) {
+          try {
+            const sessionData = JSON.parse(savedSession);
+            // Only use saved session if license hasn't expired
+            if (
+              sessionData.expiryDate &&
+              new Date(sessionData.expiryDate) > new Date()
+            ) {
+              console.log("Using cached session during error");
+              setSession(sessionData);
+              setLoading(false);
+              return;
+            }
+          } catch (parseError) {
+            console.error("Failed to parse cached session:", parseError);
+            localStorage.removeItem("userSession");
+          }
+        }
+      }
+
+      setSession(null);
+    } finally {
+      setLoading(false);
+      isCheckingSession.current = false;
+    }
+  }, []);
+
+  // Session validation - run only once on mount
   useEffect(() => {
     checkSession();
-    // Check if we have a saved session as fallback
-    if (typeof window !== "undefined" && window.localStorage) {
+  }, [checkSession]);
+
+  // Periodic session refresh - run only once on mount
+  useEffect(() => {
+    const refreshInterval = setInterval(() => {
+      console.log("Periodic session refresh...");
+      if (!isCheckingSession.current) {
+        checkSession();
+      }
+    }, 30 * 60 * 1000); // 30 minutes
+
+    // Clean up interval on unmount
+    return () => clearInterval(refreshInterval);
+  }, [checkSession]);
+
+  // Initial localStorage check
+  useEffect(() => {
+    // Check if we have a saved session as fallback during initial load
+    if (
+      typeof window !== "undefined" &&
+      window.localStorage &&
+      !session &&
+      loading
+    ) {
       const savedSession = localStorage.getItem("userSession");
       if (savedSession) {
         try {
@@ -43,6 +174,7 @@ export default function RootLayout({
             sessionData.expiryDate &&
             new Date(sessionData.expiryDate) > new Date()
           ) {
+            console.log("Using cached session on initial load");
             setSession(sessionData);
             setLoading(false);
           } else {
@@ -55,38 +187,7 @@ export default function RootLayout({
         }
       }
     }
-  }, []);
-
-  const checkSession = async () => {
-    try {
-      // Check Firebase session using HTTP-only cookies
-      const response = await fetch("/api/auth/validate", {
-        credentials: "include", // Include HTTP-only cookies
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && result.user && result.license) {
-          setSession({
-            email: result.user.email,
-            tenantId: result.license.tenantId,
-            companyName: result.license.companyName,
-            features: result.license.features,
-            expiryDate: result.license.expiryDate,
-          });
-        } else {
-          setSession(null);
-        }
-      } else {
-        setSession(null);
-      }
-    } catch (error) {
-      console.error("Session check failed:", error);
-      setSession(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [session, loading]);
 
   const handleLogin = (newSession: UserSession) => {
     setSession(newSession);
