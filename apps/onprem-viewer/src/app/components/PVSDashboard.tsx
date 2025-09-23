@@ -63,6 +63,7 @@ interface ProductAgeBucketSummary {
   unitName: string;
   corp: string;
   branch: string;
+  docNumber: string; // เพิ่มหมายเลขเอกสาร
   totalQty: number;
   totalValue: number;
   ageBuckets: {
@@ -761,7 +762,9 @@ export default function PVSDashboard() {
     const productMap = new Map<string, ProductAgeBucketSummary>();
 
     records.forEach((record) => {
-      const key = `${record.prod}_${record.corp}_${record.branch}`;
+      const key = `${record.prod}_${record.corp}_${record.branch}_${
+        record.docNumber || "NO_DOC"
+      }`;
 
       if (!productMap.has(key)) {
         productMap.set(key, {
@@ -769,6 +772,7 @@ export default function PVSDashboard() {
           unitName: record.unitName,
           corp: record.corp,
           branch: record.branch,
+          docNumber: record.docNumber || "N/A",
           totalQty: 0,
           totalValue: 0,
           ageBuckets: {
@@ -954,7 +958,22 @@ export default function PVSDashboard() {
     return new Intl.NumberFormat("th-TH", {
       style: "currency",
       currency: "THB",
-      minimumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
+  const formatQuantity = (value: number) => {
+    return new Intl.NumberFormat("th-TH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
+  const formatUnitCost = (value: number) => {
+    return new Intl.NumberFormat("th-TH", {
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 4,
     }).format(value);
   };
 
@@ -967,9 +986,30 @@ export default function PVSDashboard() {
       // Create worksheet data with proper structure
       const wsData: (string | number)[][] = [];
 
-      // Add main header row with groupings (Row 1)
+      // Add title rows
+      // Get company and branch from filter or use default
+      const companyName = selectedCorp || "All Companies";
+      const branchName = selectedBranch || "All Branches";
+      const headerTitle = `${companyName} (${branchName})`;
+
+      wsData.push([""]); // Empty row
+      wsData.push([headerTitle]); // Company name with branch - in column A
+      wsData.push(["Inventory Aging Report"]); // Report name - in column A
+
+      // Add current date
+      const currentDate = new Date();
+      const currentDateStr = currentDate.toLocaleDateString("th-TH", {
+        day: "numeric",
+        month: "numeric",
+        year: "numeric",
+      });
+      wsData.push([currentDateStr]); // Date - in column A
+      wsData.push([""]); // Empty row
+
+      // Add main header row with groupings
       wsData.push([
         "Product Info",
+        "",
         "",
         "",
         "",
@@ -989,29 +1029,31 @@ export default function PVSDashboard() {
       wsData.push([
         "สินค้า",
         "หน่วย",
-        "",
-        "",
-        "Quantity",
-        "Total Value",
-        "Quantity",
-        "Value",
-        "Quantity",
-        "Value",
-        "Quantity",
-        "Value",
-        "Quantity",
-        "Value",
+        "ราคาทุน",
+        "", // คอลัมน์ว่าง
+        "", // คอลัมน์ว่าง
+        "Quantity", // Total Quantity
+        "Total Value", // Total Value
+        "Quantity", // 0-90 Quantity
+        "Value", // 0-90 Value
+        "Quantity", // 91-180 Quantity
+        "Value", // 91-180 Value
+        "Quantity", // 181-365 Quantity
+        "Value", // 181-365 Value
+        "Quantity", // >365 Quantity
+        "Value", // >365 Value
       ]);
 
-      // Add data rows
-      productSummary.forEach((product) => {
+      // Add data rows from filtered product summary
+      getFilteredProductSummary().forEach((product) => {
         wsData.push([
           product.prod,
           product.unitName,
-          "", // Empty columns for alignment
-          "",
-          product.totalQty,
-          product.totalValue,
+          product.totalValue / product.totalQty || 0, // ราคาทุน
+          "", // Empty column for alignment
+          "", // Empty column for alignment
+          product.totalQty, // Total Quantity
+          product.totalValue, // Total Value
           product.ageBuckets["0-90"].qty,
           product.ageBuckets["0-90"].value,
           product.ageBuckets["90-180"].qty,
@@ -1030,6 +1072,7 @@ export default function PVSDashboard() {
       ws["!cols"] = [
         { wch: 50 }, // Product name - wider
         { wch: 10 }, // Unit
+        { wch: 12 }, // Unit Cost - ราคาทุน
         { wch: 8 }, // Empty
         { wch: 8 }, // Empty
         { wch: 12 }, // Total Quantity
@@ -1044,20 +1087,27 @@ export default function PVSDashboard() {
         { wch: 15 }, // >365 Value
       ];
 
-      // Define merges for grouped headers
+      // Define merges for title and grouped headers
       ws["!merges"] = [
-        // Product Info group (A1:D1)
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
-        // Total group (E1:F1)
-        { s: { r: 0, c: 4 }, e: { r: 0, c: 5 } },
-        // 0-90 Days group (G1:H1)
-        { s: { r: 0, c: 6 }, e: { r: 0, c: 7 } },
-        // 91-180 Days group (I1:J1)
-        { s: { r: 0, c: 8 }, e: { r: 0, c: 9 } },
-        // 181-365 Days group (K1:L1)
-        { s: { r: 0, c: 10 }, e: { r: 0, c: 11 } },
-        // Over 365 Days group (M1:N1)
-        { s: { r: 0, c: 12 }, e: { r: 0, c: 13 } },
+        // Company name (row 2, merge across all columns)
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 14 } },
+        // Report name (row 3, merge across all columns)
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 14 } },
+        // Date (row 4, merge across all columns)
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 14 } },
+
+        // Product Info group (row 6) - รวม Unit Cost ด้วย
+        { s: { r: 5, c: 0 }, e: { r: 5, c: 4 } },
+        // Total group
+        { s: { r: 5, c: 5 }, e: { r: 5, c: 6 } },
+        // 0-90 Days group
+        { s: { r: 5, c: 7 }, e: { r: 5, c: 8 } },
+        // 91-180 Days group
+        { s: { r: 5, c: 9 }, e: { r: 5, c: 10 } },
+        // 181-365 Days group
+        { s: { r: 5, c: 11 }, e: { r: 5, c: 12 } },
+        // Over 365 Days group
+        { s: { r: 5, c: 13 }, e: { r: 5, c: 14 } },
       ];
 
       // Apply styles to cells
@@ -1068,8 +1118,15 @@ export default function PVSDashboard() {
           const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
           if (!ws[cellAddress]) continue;
 
-          // Header row styling (Row 1)
-          if (R === 0) {
+          // Title rows styling (Company name, Report name, Date)
+          if (R === 1 || R === 2 || R === 3) {
+            ws[cellAddress].s = {
+              alignment: { horizontal: "center", vertical: "center" },
+              font: { bold: true, size: R === 1 ? 14 : 12 },
+            };
+          }
+          // Main header row styling (Row 6 - Product Info, Total, etc.)
+          else if (R === 5) {
             ws[cellAddress].s = {
               font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
               fill: { fgColor: { rgb: "4472C4" } }, // Blue background
@@ -1082,8 +1139,8 @@ export default function PVSDashboard() {
               },
             };
           }
-          // Sub header row styling (Row 2)
-          else if (R === 1) {
+          // Sub header row styling (Row 7)
+          else if (R === 6) {
             ws[cellAddress].s = {
               font: { bold: true, sz: 11 },
               fill: { fgColor: { rgb: "D9E2F3" } }, // Light blue background
@@ -1096,8 +1153,8 @@ export default function PVSDashboard() {
               },
             };
           }
-          // Data rows
-          else {
+          // Data rows (starting from row 8)
+          else if (R >= 7) {
             let fillColor = "FFFFFF"; // Default white
 
             // Apply age bucket colors
@@ -1154,6 +1211,11 @@ export default function PVSDashboard() {
 
       if (selectedCorp) filename += `_${selectedCorp}`;
       if (selectedBranch) filename += `_${selectedBranch}`;
+      if (debouncedProductSearch.trim()) {
+        filename += `_search_${debouncedProductSearch
+          .trim()
+          .replace(/[^a-zA-Z0-9ก-๛]/g, "_")}`;
+      }
       if (dateFrom || dateTo) {
         filename += "_";
         if (dateFrom) filename += dateFrom;
@@ -1173,6 +1235,11 @@ export default function PVSDashboard() {
 
       if (selectedCorp) fallbackFilename += `_${selectedCorp}`;
       if (selectedBranch) fallbackFilename += `_${selectedBranch}`;
+      if (debouncedProductSearch.trim()) {
+        fallbackFilename += `_search_${debouncedProductSearch
+          .trim()
+          .replace(/[^a-zA-Z0-9ก-๛]/g, "_")}`;
+      }
       if (dateFrom || dateTo) {
         fallbackFilename += "_";
         if (dateFrom) fallbackFilename += dateFrom;
@@ -1184,6 +1251,7 @@ export default function PVSDashboard() {
         [
           "Product Info",
           "Unit",
+          "Unit Cost",
           "Total Quantity",
           "Total Value",
           "0-90 Days Qty",
@@ -1195,9 +1263,10 @@ export default function PVSDashboard() {
           "Over 365 Days Qty",
           "Over 365 Days Value",
         ],
-        ...productSummary.map((product) => [
+        ...getFilteredProductSummary().map((product) => [
           product.prod,
           product.unitName,
+          product.totalValue / product.totalQty || 0, // ราคาทุน
           product.totalQty,
           product.totalValue,
           product.ageBuckets["0-90"].qty,
@@ -1257,6 +1326,23 @@ export default function PVSDashboard() {
       // Create worksheet data with proper structure
       const wsData: (string | number)[][] = [];
 
+      // Add title rows
+      const currentDate = new Date().toLocaleDateString("th-TH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+
+      // Get company and branch from filter or use default
+      const companyName = selectedCorp || "All Companies";
+      const branchName = selectedBranch || "All Branches";
+      const headerTitle = `${companyName} (${branchName})`;
+
+      wsData.push([headerTitle]); // Company name with branch
+      wsData.push(["Inventory Aging Report (Raw Data)"]); // Report name
+      wsData.push([`Report Date: ${currentDate}`]); // Current date
+      wsData.push([]); // Empty row
+
       // Add header row
       wsData.push([
         "บริษัท",
@@ -1310,6 +1396,13 @@ export default function PVSDashboard() {
       // Create worksheet
       const ws = XLSX.utils.aoa_to_sheet(wsData);
 
+      // Add merge cells for title rows
+      ws["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } }, // Company name (row 1, all columns)
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 11 } }, // Report name (row 2, all columns)
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 11 } }, // Date (row 3, all columns)
+      ];
+
       // Set column widths
       ws["!cols"] = [
         { wch: 15 }, // บริษัท
@@ -1334,8 +1427,15 @@ export default function PVSDashboard() {
           const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
           if (!ws[cellAddress]) continue;
 
-          // Header row styling (Row 1)
-          if (R === 0) {
+          // Title rows styling (Company name, Report name, Date)
+          if (R === 0 || R === 1 || R === 2) {
+            ws[cellAddress].s = {
+              alignment: { horizontal: "center", vertical: "center" },
+              font: { bold: true, size: R === 0 ? 14 : 12 },
+            };
+          }
+          // Header row styling (Row 5)
+          else if (R === 4) {
             ws[cellAddress].s = {
               font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
               fill: { fgColor: { rgb: "4472C4" } }, // Blue background
@@ -1348,8 +1448,8 @@ export default function PVSDashboard() {
               },
             };
           }
-          // Data rows
-          else {
+          // Data rows (starting from row 6)
+          else if (R >= 5) {
             let fillColor = "FFFFFF"; // Default white
 
             // Apply age bucket colors based on age group column (column 9)
@@ -1406,6 +1506,11 @@ export default function PVSDashboard() {
 
       if (selectedCorp) filename += `_${selectedCorp}`;
       if (selectedBranch) filename += `_${selectedBranch}`;
+      if (debouncedRawDataSearch.trim()) {
+        filename += `_search_${debouncedRawDataSearch
+          .trim()
+          .replace(/[^a-zA-Z0-9ก-๛]/g, "_")}`;
+      }
       if (dateFrom || dateTo) {
         filename += "_";
         if (dateFrom) filename += dateFrom;
@@ -1968,7 +2073,7 @@ export default function PVSDashboard() {
                   <button
                     onClick={exportToExcel}
                     className="ml-4 px-4 py-2 bg-emerald-600 dark:bg-emerald-500 text-white rounded-lg hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors flex items-center font-medium shadow-md hover:shadow-lg"
-                    disabled={productSummary.length === 0}
+                    disabled={getFilteredProductSummary().length === 0}
                   >
                     <Download className="w-4 h-4 mr-2" />
                     Export Excel
@@ -1986,11 +2091,17 @@ export default function PVSDashboard() {
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           สาขา
                         </th>
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[120px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
+                          หมายเลขเอกสาร
+                        </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[200px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           สินค้า
                         </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           หน่วย
+                        </th>
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[120px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
+                          ราคาทุน
                         </th>
                         <th
                           className="text-center p-3 bg-gray-50 dark:bg-slate-800 font-bold text-gray-700 dark:text-slate-300 rounded-tl-lg min-w-[100px] border-r-2 border-gray-300 dark:border-slate-500"
@@ -2042,6 +2153,8 @@ export default function PVSDashboard() {
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
+                        <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
+                        <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="text-right p-3 bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-400 font-medium border-r border-l-2 border-gray-300 dark:border-slate-500">
                           จำนวน
                         </th>
@@ -2077,7 +2190,7 @@ export default function PVSDashboard() {
                     <tbody>
                       {isProductSearching ? (
                         <tr>
-                          <td colSpan={14} className="p-0">
+                          <td colSpan={16} className="p-0">
                             <SearchLoading
                               message="กำลังค้นหาสินค้า..."
                               size="md"
@@ -2087,7 +2200,7 @@ export default function PVSDashboard() {
                         </tr>
                       ) : getFilteredProductSummary().length === 0 ? (
                         <tr>
-                          <td colSpan={14} className="p-0">
+                          <td colSpan={16} className="p-0">
                             <EmptyState
                               type={
                                 debouncedProductSearch.trim()
@@ -2144,6 +2257,9 @@ export default function PVSDashboard() {
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
                               {product.branch}
                             </td>
+                            <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
+                              {product.docNumber}
+                            </td>
                             <td
                               className="p-2 font-medium text-gray-800 dark:text-slate-200 min-w-[200px] border-r-2 border-gray-200 dark:border-slate-600"
                               title={product.prod}
@@ -2153,8 +2269,13 @@ export default function PVSDashboard() {
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
                               {product.unitName}
                             </td>
+                            <td className="p-2 text-right text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
+                              {formatUnitCost(
+                                product.totalValue / product.totalQty || 0
+                              )}
+                            </td>
                             <td className="p-2 text-right font-bold text-gray-800 dark:text-slate-200 bg-gray-50 dark:bg-slate-800 border-r border-l-2 border-gray-200 dark:border-slate-600">
-                              {product.totalQty.toLocaleString()}
+                              {formatQuantity(product.totalQty)}
                             </td>
                             <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300 bg-gray-50 dark:bg-slate-800 border-r-2 border-gray-200 dark:border-slate-600">
                               {formatMoney(product.totalValue)}
@@ -2162,7 +2283,7 @@ export default function PVSDashboard() {
 
                             {/* 0-90 days */}
                             <td className="p-2 text-right bg-emerald-50 dark:bg-emerald-900/30 font-bold text-emerald-700 dark:text-emerald-300">
-                              {product.ageBuckets["0-90"].qty.toLocaleString()}
+                              {formatQuantity(product.ageBuckets["0-90"].qty)}
                             </td>
                             <td className="p-2 text-right bg-emerald-50 dark:bg-emerald-900/30 font-bold text-emerald-800 dark:text-emerald-200">
                               {formatMoney(product.ageBuckets["0-90"].value)}
@@ -2170,9 +2291,7 @@ export default function PVSDashboard() {
 
                             {/* 90-180 days */}
                             <td className="p-2 text-right bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-300">
-                              {product.ageBuckets[
-                                "90-180"
-                              ].qty.toLocaleString()}
+                              {formatQuantity(product.ageBuckets["90-180"].qty)}
                             </td>
                             <td className="p-2 text-right bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-800 dark:text-amber-200">
                               {formatMoney(product.ageBuckets["90-180"].value)}
@@ -2180,9 +2299,9 @@ export default function PVSDashboard() {
 
                             {/* 180-360 days */}
                             <td className="p-2 text-right bg-orange-50 dark:bg-orange-900/30 font-bold text-orange-700 dark:text-orange-300">
-                              {product.ageBuckets[
-                                "180-360"
-                              ].qty.toLocaleString()}
+                              {formatQuantity(
+                                product.ageBuckets["180-360"].qty
+                              )}
                             </td>
                             <td className="p-2 text-right bg-orange-50 dark:bg-orange-900/30 font-bold text-orange-800 dark:text-orange-200">
                               {formatMoney(product.ageBuckets["180-360"].value)}
@@ -2190,7 +2309,7 @@ export default function PVSDashboard() {
 
                             {/* >360 days */}
                             <td className="p-2 text-right bg-rose-50 dark:bg-rose-900/30 font-bold text-rose-700 dark:text-rose-300">
-                              {product.ageBuckets[">360"].qty.toLocaleString()}
+                              {formatQuantity(product.ageBuckets[">360"].qty)}
                             </td>
                             <td className="p-2 text-right bg-rose-50 dark:bg-rose-900/30 font-bold text-rose-800 dark:text-rose-200">
                               {formatMoney(product.ageBuckets[">360"].value)}
@@ -2490,10 +2609,10 @@ export default function PVSDashboard() {
                               {row.unitName}
                             </td>
                             <td className="p-2 text-right font-bold text-gray-800 dark:text-slate-200 border-r-2 border-gray-200 dark:border-slate-600">
-                              {row.qtyFromThisDoc?.toLocaleString()}
+                              {formatQuantity(row.qtyFromThisDoc || 0)}
                             </td>
                             <td className="p-2 text-right font-medium text-emerald-600 dark:text-emerald-400 border-r-2 border-gray-200 dark:border-slate-600">
-                              {formatMoney(row.averageCost || 0)}
+                              {formatUnitCost(row.averageCost || 0)}
                             </td>
                             <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300 border-r-2 border-gray-200 dark:border-slate-600">
                               {formatMoney(row.totalValueRow || 0)}
