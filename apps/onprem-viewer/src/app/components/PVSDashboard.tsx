@@ -979,6 +979,23 @@ export default function PVSDashboard() {
 
   // Export to Excel function with proper XLSX format and styling
   const exportToExcel = () => {
+    // Helper function to extract product code and name
+    const extractProductInfo = (productString: string) => {
+      // Try to find pattern like "BU001- " or "BU001A- " at the beginning
+      const match = productString.match(/^([A-Z0-9]+[A-Z]?)-\s*(.*)$/);
+      if (match) {
+        return {
+          code: match[1],
+          name: match[2].trim(),
+        };
+      }
+      // If no pattern found, treat whole string as name with empty code
+      return {
+        code: "",
+        name: productString,
+      };
+    };
+
     try {
       // Create a new workbook
       const wb = XLSX.utils.book_new();
@@ -1013,6 +1030,7 @@ export default function PVSDashboard() {
         "",
         "",
         "",
+        "",
         "Total",
         "",
         "0-90 Days",
@@ -1027,7 +1045,8 @@ export default function PVSDashboard() {
 
       // Add sub header row (Row 2)
       wsData.push([
-        "สินค้า",
+        "รหัสสินค้า", // Product Code
+        "ชื่อสินค้า", // Product Name
         "หน่วย",
         "ราคาทุน",
         "", // คอลัมน์ว่าง
@@ -1044,10 +1063,19 @@ export default function PVSDashboard() {
         "Value", // >365 Value
       ]);
 
+      // Sort products by product code
+      const sortedProducts = getFilteredProductSummary().sort((a, b) => {
+        const aInfo = extractProductInfo(a.prod);
+        const bInfo = extractProductInfo(b.prod);
+        return aInfo.code.localeCompare(bInfo.code);
+      });
+
       // Add data rows from filtered product summary
-      getFilteredProductSummary().forEach((product) => {
+      sortedProducts.forEach((product) => {
+        const productInfo = extractProductInfo(product.prod);
         wsData.push([
-          product.prod,
+          productInfo.code, // Product Code
+          productInfo.name, // Product Name
           product.unitName,
           product.totalValue / product.totalQty || 0, // ราคาทุน
           "", // Empty column for alignment
@@ -1070,7 +1098,8 @@ export default function PVSDashboard() {
 
       // Set column widths
       ws["!cols"] = [
-        { wch: 50 }, // Product name - wider
+        { wch: 15 }, // Product Code
+        { wch: 40 }, // Product Name - wider
         { wch: 10 }, // Unit
         { wch: 12 }, // Unit Cost - ราคาทุน
         { wch: 8 }, // Empty
@@ -1090,24 +1119,24 @@ export default function PVSDashboard() {
       // Define merges for title and grouped headers
       ws["!merges"] = [
         // Company name (row 2, merge across all columns)
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 14 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 15 } },
         // Report name (row 3, merge across all columns)
-        { s: { r: 2, c: 0 }, e: { r: 2, c: 14 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 15 } },
         // Date (row 4, merge across all columns)
-        { s: { r: 3, c: 0 }, e: { r: 3, c: 14 } },
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 15 } },
 
-        // Product Info group (row 6) - รวม Unit Cost ด้วย
-        { s: { r: 5, c: 0 }, e: { r: 5, c: 4 } },
+        // Product Info group (row 6) - รวม Product Code, Name, Unit, Unit Cost
+        { s: { r: 5, c: 0 }, e: { r: 5, c: 5 } },
         // Total group
-        { s: { r: 5, c: 5 }, e: { r: 5, c: 6 } },
+        { s: { r: 5, c: 6 }, e: { r: 5, c: 7 } },
         // 0-90 Days group
-        { s: { r: 5, c: 7 }, e: { r: 5, c: 8 } },
+        { s: { r: 5, c: 8 }, e: { r: 5, c: 9 } },
         // 91-180 Days group
-        { s: { r: 5, c: 9 }, e: { r: 5, c: 10 } },
+        { s: { r: 5, c: 10 }, e: { r: 5, c: 11 } },
         // 181-365 Days group
-        { s: { r: 5, c: 11 }, e: { r: 5, c: 12 } },
+        { s: { r: 5, c: 12 }, e: { r: 5, c: 13 } },
         // Over 365 Days group
-        { s: { r: 5, c: 13 }, e: { r: 5, c: 14 } },
+        { s: { r: 5, c: 14 }, e: { r: 5, c: 15 } },
       ];
 
       // Apply styles to cells
@@ -1158,16 +1187,16 @@ export default function PVSDashboard() {
             let fillColor = "FFFFFF"; // Default white
 
             // Apply age bucket colors
-            if (C >= 6 && C <= 7) {
+            if (C >= 8 && C <= 9) {
               // 0-90 days - Light green
               fillColor = "E2EFDA";
-            } else if (C >= 8 && C <= 9) {
+            } else if (C >= 10 && C <= 11) {
               // 91-180 days - Light yellow
               fillColor = "FFF2CC";
-            } else if (C >= 10 && C <= 11) {
+            } else if (C >= 12 && C <= 13) {
               // 181-365 days - Light orange
               fillColor = "FCE4D6";
-            } else if (C >= 12 && C <= 13) {
+            } else if (C >= 14 && C <= 15) {
               // Over 365 days - Light red
               fillColor = "FFEBE9";
             }
@@ -1176,7 +1205,7 @@ export default function PVSDashboard() {
               font: { sz: 10 },
               fill: { fgColor: { rgb: fillColor } },
               alignment: {
-                horizontal: C >= 4 ? "right" : "left",
+                horizontal: C >= 5 ? "right" : "left", // Right align for numeric columns (starting from column 6)
                 vertical: "center",
               },
               border: {
@@ -1188,9 +1217,9 @@ export default function PVSDashboard() {
             };
 
             // Format numbers
-            if (typeof ws[cellAddress].v === "number" && C >= 4) {
+            if (typeof ws[cellAddress].v === "number" && C >= 5) {
               if (C % 2 === 1) {
-                // Value columns (odd indices after column 4)
+                // Value columns (odd indices after column 5)
                 ws[cellAddress].z = "#,##0.00"; // Number format with 2 decimals
               } else {
                 // Quantity columns
@@ -1249,7 +1278,8 @@ export default function PVSDashboard() {
 
       const csvData = [
         [
-          "Product Info",
+          "Product Code",
+          "Product Name",
           "Unit",
           "Unit Cost",
           "Total Quantity",
@@ -1263,21 +1293,31 @@ export default function PVSDashboard() {
           "Over 365 Days Qty",
           "Over 365 Days Value",
         ],
-        ...getFilteredProductSummary().map((product) => [
-          product.prod,
-          product.unitName,
-          product.totalValue / product.totalQty || 0, // ราคาทุน
-          product.totalQty,
-          product.totalValue,
-          product.ageBuckets["0-90"].qty,
-          product.ageBuckets["0-90"].value,
-          product.ageBuckets["90-180"].qty,
-          product.ageBuckets["90-180"].value,
-          product.ageBuckets["180-360"].qty,
-          product.ageBuckets["180-360"].value,
-          product.ageBuckets[">360"].qty,
-          product.ageBuckets[">360"].value,
-        ]),
+        ...getFilteredProductSummary()
+          .sort((a, b) => {
+            const aInfo = extractProductInfo(a.prod);
+            const bInfo = extractProductInfo(b.prod);
+            return aInfo.code.localeCompare(bInfo.code);
+          })
+          .map((product) => {
+            const productInfo = extractProductInfo(product.prod);
+            return [
+              productInfo.code,
+              productInfo.name,
+              product.unitName,
+              product.totalValue / product.totalQty || 0, // ราคาทุน
+              product.totalQty,
+              product.totalValue,
+              product.ageBuckets["0-90"].qty,
+              product.ageBuckets["0-90"].value,
+              product.ageBuckets["90-180"].qty,
+              product.ageBuckets["90-180"].value,
+              product.ageBuckets["180-360"].qty,
+              product.ageBuckets["180-360"].value,
+              product.ageBuckets[">360"].qty,
+              product.ageBuckets[">360"].value,
+            ];
+          }),
       ];
 
       const csvContent = csvData
