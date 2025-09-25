@@ -979,23 +979,6 @@ export default function PVSDashboard() {
 
   // Export to Excel function with proper XLSX format and styling
   const exportToExcel = () => {
-    // Helper function to extract product code and name
-    const extractProductInfo = (productString: string) => {
-      // Try to find pattern like "BU001- " or "BU001A- " at the beginning
-      const match = productString.match(/^([A-Z0-9]+[A-Z]?)-\s*(.*)$/);
-      if (match) {
-        return {
-          code: match[1],
-          name: match[2].trim(),
-        };
-      }
-      // If no pattern found, treat whole string as name with empty code
-      return {
-        code: "",
-        name: productString,
-      };
-    };
-
     try {
       // Create a new workbook
       const wb = XLSX.utils.book_new();
@@ -1028,10 +1011,8 @@ export default function PVSDashboard() {
         "Product Info",
         "",
         "",
-        "",
-        "",
-        "",
         "Total",
+        "",
         "",
         "0-90 Days",
         "",
@@ -1045,13 +1026,11 @@ export default function PVSDashboard() {
 
       // Add sub header row (Row 2)
       wsData.push([
-        "รหัสสินค้า", // Product Code
-        "ชื่อสินค้า", // Product Name
+        "ชื่อสินค้า", // Product Name (full name)
         "หน่วย",
         "ราคาทุน",
-        "", // คอลัมน์ว่าง
-        "", // คอลัมน์ว่าง
         "Quantity", // Total Quantity
+        "Unit Cost", // Total Unit Cost
         "Total Value", // Total Value
         "Quantity", // 0-90 Quantity
         "Value", // 0-90 Value
@@ -1063,24 +1042,19 @@ export default function PVSDashboard() {
         "Value", // >365 Value
       ]);
 
-      // Sort products by product code
+      // Sort products by product name
       const sortedProducts = getFilteredProductSummary().sort((a, b) => {
-        const aInfo = extractProductInfo(a.prod);
-        const bInfo = extractProductInfo(b.prod);
-        return aInfo.code.localeCompare(bInfo.code);
+        return a.prod.localeCompare(b.prod);
       });
 
       // Add data rows from filtered product summary
       sortedProducts.forEach((product) => {
-        const productInfo = extractProductInfo(product.prod);
         wsData.push([
-          productInfo.code, // Product Code
-          productInfo.name, // Product Name
+          product.prod, // Product Name (full name)
           product.unitName,
           product.totalValue / product.totalQty || 0, // ราคาทุน
-          "", // Empty column for alignment
-          "", // Empty column for alignment
           product.totalQty, // Total Quantity
+          product.totalValue / product.totalQty || 0, // Unit Cost
           product.totalValue, // Total Value
           product.ageBuckets["0-90"].qty,
           product.ageBuckets["0-90"].value,
@@ -1098,13 +1072,11 @@ export default function PVSDashboard() {
 
       // Set column widths
       ws["!cols"] = [
-        { wch: 15 }, // Product Code
-        { wch: 40 }, // Product Name - wider
+        { wch: 50 }, // Product Name - wider for full name
         { wch: 10 }, // Unit
         { wch: 12 }, // Unit Cost - ราคาทุน
-        { wch: 8 }, // Empty
-        { wch: 8 }, // Empty
         { wch: 12 }, // Total Quantity
+        { wch: 12 }, // Unit Cost (duplicate for clarity)
         { wch: 15 }, // Total Value
         { wch: 12 }, // 0-90 Quantity
         { wch: 15 }, // 0-90 Value
@@ -1119,24 +1091,24 @@ export default function PVSDashboard() {
       // Define merges for title and grouped headers
       ws["!merges"] = [
         // Company name (row 2, merge across all columns)
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 15 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 13 } },
         // Report name (row 3, merge across all columns)
-        { s: { r: 2, c: 0 }, e: { r: 2, c: 15 } },
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 13 } },
         // Date (row 4, merge across all columns)
-        { s: { r: 3, c: 0 }, e: { r: 3, c: 15 } },
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 13 } },
 
-        // Product Info group (row 6) - รวม Product Code, Name, Unit, Unit Cost
-        { s: { r: 5, c: 0 }, e: { r: 5, c: 5 } },
+        // Product Info group (row 6) - รวม Product Name, Unit, Unit Cost
+        { s: { r: 5, c: 0 }, e: { r: 5, c: 2 } },
         // Total group
-        { s: { r: 5, c: 6 }, e: { r: 5, c: 7 } },
+        { s: { r: 5, c: 3 }, e: { r: 5, c: 5 } },
         // 0-90 Days group
-        { s: { r: 5, c: 8 }, e: { r: 5, c: 9 } },
+        { s: { r: 5, c: 6 }, e: { r: 5, c: 7 } },
         // 91-180 Days group
-        { s: { r: 5, c: 10 }, e: { r: 5, c: 11 } },
+        { s: { r: 5, c: 8 }, e: { r: 5, c: 9 } },
         // 181-365 Days group
-        { s: { r: 5, c: 12 }, e: { r: 5, c: 13 } },
+        { s: { r: 5, c: 10 }, e: { r: 5, c: 11 } },
         // Over 365 Days group
-        { s: { r: 5, c: 14 }, e: { r: 5, c: 15 } },
+        { s: { r: 5, c: 12 }, e: { r: 5, c: 13 } },
       ];
 
       // Apply styles to cells
@@ -1278,7 +1250,6 @@ export default function PVSDashboard() {
 
       const csvData = [
         [
-          "Product Code",
           "Product Name",
           "Unit",
           "Unit Cost",
@@ -1294,16 +1265,10 @@ export default function PVSDashboard() {
           "Over 365 Days Value",
         ],
         ...getFilteredProductSummary()
-          .sort((a, b) => {
-            const aInfo = extractProductInfo(a.prod);
-            const bInfo = extractProductInfo(b.prod);
-            return aInfo.code.localeCompare(bInfo.code);
-          })
+          .sort((a, b) => a.prod.localeCompare(b.prod))
           .map((product) => {
-            const productInfo = extractProductInfo(product.prod);
             return [
-              productInfo.code,
-              productInfo.name,
+              product.prod, // Full product name
               product.unitName,
               product.totalValue / product.totalQty || 0, // ราคาทุน
               product.totalQty,
@@ -1969,7 +1934,7 @@ export default function PVSDashboard() {
           {/* Product Summary Table */}
           {productSummary.length > 0 && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border-2 border-gray-200 dark:border-slate-600 overflow-hidden">
-              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white">
+              <div className="bg-[#1677ff] p-6 text-white">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center">
                     <div className="bg-white/20 rounded-lg p-2 mr-4">
@@ -2131,21 +2096,15 @@ export default function PVSDashboard() {
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           สาขา
                         </th>
-                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[120px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
-                          หมายเลขเอกสาร
-                        </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[200px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           สินค้า
                         </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           หน่วย
                         </th>
-                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[120px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
-                          ราคาทุน
-                        </th>
                         <th
                           className="text-center p-3 bg-gray-50 dark:bg-slate-800 font-bold text-gray-700 dark:text-slate-300 rounded-tl-lg min-w-[100px] border-r-2 border-gray-300 dark:border-slate-500"
-                          colSpan={2}
+                          colSpan={3}
                         >
                           <div className="flex items-center justify-center">
                             รวมทั้งหมด
@@ -2193,10 +2152,11 @@ export default function PVSDashboard() {
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
-                        <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
-                        <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="text-right p-3 bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-400 font-medium border-r border-l-2 border-gray-300 dark:border-slate-500">
                           จำนวน
+                        </th>
+                        <th className="text-right p-3 bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-400 font-medium border-r border-gray-300 dark:border-slate-500">
+                          ราคาทุน
                         </th>
                         <th className="text-right p-3 bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-400 font-medium border-r-2 border-gray-300 dark:border-slate-500">
                           มูลค่า
@@ -2291,17 +2251,14 @@ export default function PVSDashboard() {
                             key={index}
                             className="border-b-2 border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors duration-150"
                           >
-                            <td className="p-2 font-medium text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
+                            <td className="p-2 text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
                               {product.corp}
                             </td>
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
                               {product.branch}
                             </td>
-                            <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
-                              {product.docNumber}
-                            </td>
                             <td
-                              className="p-2 font-medium text-gray-800 dark:text-slate-200 min-w-[200px] border-r-2 border-gray-200 dark:border-slate-600"
+                              className="p-2 text-gray-800 dark:text-slate-200 min-w-[200px] border-r-2 border-gray-200 dark:border-slate-600"
                               title={product.prod}
                             >
                               {product.prod}
@@ -2309,49 +2266,49 @@ export default function PVSDashboard() {
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
                               {product.unitName}
                             </td>
-                            <td className="p-2 text-right text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
+                            <td className="p-2 text-right text-gray-800 dark:text-slate-200 bg-gray-50 dark:bg-slate-800 border-r border-l-2 border-gray-200 dark:border-slate-600">
+                              {formatQuantity(product.totalQty)}
+                            </td>
+                            <td className="p-2 text-right text-gray-700 dark:text-slate-300 bg-gray-50 dark:bg-slate-800 border-r border-gray-200 dark:border-slate-600">
                               {formatUnitCost(
                                 product.totalValue / product.totalQty || 0
                               )}
                             </td>
-                            <td className="p-2 text-right font-bold text-gray-800 dark:text-slate-200 bg-gray-50 dark:bg-slate-800 border-r border-l-2 border-gray-200 dark:border-slate-600">
-                              {formatQuantity(product.totalQty)}
-                            </td>
-                            <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300 bg-gray-50 dark:bg-slate-800 border-r-2 border-gray-200 dark:border-slate-600">
+                            <td className="p-2 text-right text-gray-700 dark:text-emerald-300 bg-gray-50 dark:bg-slate-800 border-r-2 border-gray-200 dark:border-slate-600">
                               {formatMoney(product.totalValue)}
                             </td>
 
                             {/* 0-90 days */}
-                            <td className="p-2 text-right bg-emerald-50 dark:bg-emerald-900/30 font-bold text-emerald-700 dark:text-emerald-300">
+                            <td className="p-2 text-right bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-r border-l-2 border-gray-200 dark:border-slate-600">
                               {formatQuantity(product.ageBuckets["0-90"].qty)}
                             </td>
-                            <td className="p-2 text-right bg-emerald-50 dark:bg-emerald-900/30 font-bold text-emerald-800 dark:text-emerald-200">
+                            <td className="p-2 text-right bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 border-r-2 border-gray-200 dark:border-slate-600">
                               {formatMoney(product.ageBuckets["0-90"].value)}
                             </td>
 
                             {/* 90-180 days */}
-                            <td className="p-2 text-right bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-700 dark:text-amber-300">
+                            <td className="p-2 text-right bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-r border-gray-200 dark:border-slate-600">
                               {formatQuantity(product.ageBuckets["90-180"].qty)}
                             </td>
-                            <td className="p-2 text-right bg-amber-50 dark:bg-amber-900/30 font-bold text-amber-800 dark:text-amber-200">
+                            <td className="p-2 text-right bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 border-r-2 border-gray-200 dark:border-slate-600">
                               {formatMoney(product.ageBuckets["90-180"].value)}
                             </td>
 
                             {/* 180-360 days */}
-                            <td className="p-2 text-right bg-orange-50 dark:bg-orange-900/30 font-bold text-orange-700 dark:text-orange-300">
+                            <td className="p-2 text-right bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-r border-gray-200 dark:border-slate-600">
                               {formatQuantity(
                                 product.ageBuckets["180-360"].qty
                               )}
                             </td>
-                            <td className="p-2 text-right bg-orange-50 dark:bg-orange-900/30 font-bold text-orange-800 dark:text-orange-200">
+                            <td className="p-2 text-right bg-orange-50 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 border-r-2 border-gray-200 dark:border-slate-600">
                               {formatMoney(product.ageBuckets["180-360"].value)}
                             </td>
 
                             {/* >360 days */}
-                            <td className="p-2 text-right bg-rose-50 dark:bg-rose-900/30 font-bold text-rose-700 dark:text-rose-300">
+                            <td className="p-2 text-right bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border-r border-gray-200 dark:border-slate-600">
                               {formatQuantity(product.ageBuckets[">360"].qty)}
                             </td>
-                            <td className="p-2 text-right bg-rose-50 dark:bg-rose-900/30 font-bold text-rose-800 dark:text-rose-200">
+                            <td className="p-2 text-right bg-rose-50 dark:bg-rose-900/30 text-rose-800 dark:text-rose-200 border-r-2 border-gray-200 dark:border-slate-600">
                               {formatMoney(product.ageBuckets[">360"].value)}
                             </td>
                           </tr>
@@ -2367,7 +2324,7 @@ export default function PVSDashboard() {
           {/* Raw Data Table */}
           {filteredData.length > 0 && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border-2 border-gray-200 dark:border-slate-600 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-6 text-white">
+              <div className="bg-[#1677ff] p-6 text-white">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center">
                     <div className="bg-white/20 rounded-lg p-2 mr-3">
@@ -2553,7 +2510,7 @@ export default function PVSDashboard() {
                           จำนวน
                         </th>
                         <th className="text-right p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
-                          ราคาต้นทุน
+                          ราคาทุน
                         </th>
                         <th className="text-right p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[120px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           มูลค่า
@@ -2630,7 +2587,7 @@ export default function PVSDashboard() {
                             key={index}
                             className="border-b-2 border-gray-200 dark:border-slate-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors duration-150"
                           >
-                            <td className="p-2 font-medium text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
+                            <td className="p-2 text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
                               {row.corp}
                             </td>
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
@@ -2640,7 +2597,7 @@ export default function PVSDashboard() {
                               {row.docNumber || "N/A"}
                             </td>
                             <td
-                              className="p-2 font-medium text-gray-800 dark:text-slate-200 min-w-[300px] border-r-2 border-gray-200 dark:border-slate-600"
+                              className="p-2 text-gray-800 dark:text-slate-200 min-w-[300px] border-r-2 border-gray-200 dark:border-slate-600"
                               title={row.prod}
                             >
                               {row.prod}
@@ -2648,16 +2605,16 @@ export default function PVSDashboard() {
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
                               {row.unitName}
                             </td>
-                            <td className="p-2 text-right font-bold text-gray-800 dark:text-slate-200 border-r-2 border-gray-200 dark:border-slate-600">
+                            <td className="p-2 text-right text-gray-800 dark:text-slate-200 border-r-2 border-gray-200 dark:border-slate-600">
                               {formatQuantity(row.qtyFromThisDoc || 0)}
                             </td>
-                            <td className="p-2 text-right font-medium text-emerald-600 dark:text-emerald-400 border-r-2 border-gray-200 dark:border-slate-600">
+                            <td className="p-2 text-right text-gray-800 dark:text-emerald-400 border-r-2 border-gray-200 dark:border-slate-600">
                               {formatUnitCost(row.averageCost || 0)}
                             </td>
-                            <td className="p-2 text-right font-bold text-emerald-700 dark:text-emerald-300 border-r-2 border-gray-200 dark:border-slate-600">
+                            <td className="p-2 text-right text-gray-800 dark:text-emerald-300 border-r-2 border-gray-200 dark:border-slate-600">
                               {formatMoney(row.totalValueRow || 0)}
                             </td>
-                            <td className="p-2 text-center font-bold text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
+                            <td className="p-2 text-center text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
                               {row.daysAge}
                             </td>
                             <td className="p-2 text-center border-r-2 border-gray-200 dark:border-slate-600">
