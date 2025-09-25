@@ -104,18 +104,42 @@ const StandaloneDateRangePicker = ({
   setDateTo: (date: string) => void;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [viewDate, setViewDate] = useState(new Date());
+  const [viewDate, setViewDate] = useState(() => {
+    // เริ่มต้นที่วันที่ที่เลือกไว้ หรือวันปัจจุบันถ้าไม่มีการเลือก
+    if (dateFrom) {
+      return new Date(dateFrom);
+    } else if (dateTo) {
+      return new Date(dateTo);
+    }
+    return new Date();
+  });
   const [selectedPreset, setSelectedPreset] = useState<string>("");
+  const [showMonthYearPicker, setShowMonthYearPicker] = useState(false);
+  const [pickerType, setPickerType] = useState<"left" | "right">("left");
+  const [tempSelectedMonth, setTempSelectedMonth] = useState<number | null>(
+    null
+  );
+  const [tempSelectedYear, setTempSelectedYear] = useState<number | null>(null);
+  const [yearRangeStart, setYearRangeStart] = useState(
+    new Date().getFullYear() - 10
+  );
 
   // Local state for temporary selections (only applied when user clicks "Update")
   const [tempDateFrom, setTempDateFrom] = useState(dateFrom);
   const [tempDateTo, setTempDateTo] = useState(dateTo);
   const [tempSelectedPreset, setTempSelectedPreset] = useState<string>("");
 
-  // Sync temp values when props change
+  // Sync temp values when props change and update viewDate to focus on selected date
   useEffect(() => {
     setTempDateFrom(dateFrom);
     setTempDateTo(dateTo);
+
+    // อัปเดท viewDate ให้ focus ไปที่วันที่ที่เลือกไว้
+    if (dateFrom) {
+      setViewDate(new Date(dateFrom));
+    } else if (dateTo) {
+      setViewDate(new Date(dateTo));
+    }
   }, [dateFrom, dateTo]);
 
   const formatDisplayDate = (date: string) => {
@@ -201,6 +225,13 @@ const StandaloneDateRangePicker = ({
     setDateFrom(tempDateFrom);
     setDateTo(tempDateTo);
     setSelectedPreset(tempSelectedPreset);
+
+    // อัปเดท yearRangeStart ให้ focus ไปที่ปีของวันที่ที่เลือก
+    if (tempDateFrom) {
+      const selectedYear = new Date(tempDateFrom).getFullYear();
+      setYearRangeStart(selectedYear - 5); // ให้ปีที่เลือกอยู่ตรงกลางของช่วง
+    }
+
     setIsOpen(false);
   };
 
@@ -273,6 +304,155 @@ const StandaloneDateRangePicker = ({
     }
   };
 
+  const handleMonthSelect = (month: number) => {
+    setTempSelectedMonth(month);
+  };
+
+  const handleYearSelect = (year: number) => {
+    setTempSelectedYear(year);
+  };
+
+  const applyMonthYearSelection = () => {
+    if (tempSelectedMonth !== null && tempSelectedYear !== null) {
+      if (pickerType === "left") {
+        setViewDate(new Date(tempSelectedYear, tempSelectedMonth));
+      } else {
+        // For right picker, ensure it's at least one month after left
+        const leftMonth = new Date(viewDate.getFullYear(), viewDate.getMonth());
+        const selectedDate = new Date(tempSelectedYear, tempSelectedMonth);
+        if (selectedDate > leftMonth) {
+          setViewDate(new Date(tempSelectedYear, tempSelectedMonth - 1)); // Set left month so right becomes the selected
+        }
+      }
+    }
+    setShowMonthYearPicker(false);
+    setTempSelectedMonth(null);
+    setTempSelectedYear(null);
+  };
+
+  const cancelMonthYearSelection = () => {
+    setShowMonthYearPicker(false);
+    setTempSelectedMonth(null);
+    setTempSelectedYear(null);
+  };
+
+  const renderMonthYearPicker = () => {
+    const years = Array.from({ length: 12 }, (_, i) => yearRangeStart + i);
+    const months = [
+      "ม.ค.",
+      "ก.พ.",
+      "มี.ค.",
+      "เม.ย.",
+      "พ.ค.",
+      "มิ.ย.",
+      "ก.ค.",
+      "ส.ค.",
+      "ก.ย.",
+      "ต.ค.",
+      "พ.ย.",
+      "ธ.ค.",
+    ]; // ชื่อย่อเพื่อประหยัดพื้นที่
+
+    // Initialize temp values with current date if not set
+    const displayMonth =
+      tempSelectedMonth !== null ? tempSelectedMonth : viewDate.getMonth();
+    const displayYear =
+      tempSelectedYear !== null ? tempSelectedYear : viewDate.getFullYear();
+
+    const goToPreviousYears = () => {
+      setYearRangeStart((prev) => prev - 12);
+    };
+
+    const goToNextYears = () => {
+      setYearRangeStart((prev) => prev + 12);
+    };
+
+    return (
+      <div className="absolute z-30 top-full left-0 mt-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg shadow-lg p-3 min-w-[280px]">
+        <div className="text-xs font-medium text-gray-900 dark:text-gray-100 mb-2 text-center">
+          เลือก: {months[displayMonth]} {displayYear + 543}
+        </div>
+
+        <div className="mb-3">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-xs text-gray-600 dark:text-gray-400">ปี</div>
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={goToPreviousYears}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-400"
+                title="ปีก่อนหน้า"
+              >
+                <ChevronLeft className="w-3 h-3" />
+              </button>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {yearRangeStart + 543} - {yearRangeStart + 11 + 543}
+              </span>
+              <button
+                onClick={goToNextYears}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-400"
+                title="ปีถัดไป"
+              >
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-1">
+            {years.map((year) => (
+              <button
+                key={year}
+                onClick={() => handleYearSelect(year)}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  displayYear === year
+                    ? "bg-blue-600 text-white"
+                    : "hover:bg-blue-100 dark:hover:bg-blue-900 text-gray-700 dark:text-gray-300"
+                }`}
+              >
+                {year + 543}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mb-3">
+          <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+            เดือน
+          </div>
+          <div className="grid grid-cols-4 gap-1">
+            {months.map((month, index) => (
+              <button
+                key={index}
+                onClick={() => handleMonthSelect(index)}
+                className={`px-2 py-1 text-xs rounded transition-colors ${
+                  displayMonth === index
+                    ? "bg-blue-600 text-white"
+                    : "hover:bg-blue-100 dark:hover:bg-blue-900 text-gray-700 dark:text-gray-300"
+                }`}
+              >
+                {month}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex justify-end space-x-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+          <button
+            onClick={cancelMonthYearSelection}
+            className="px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+          >
+            ยกเลิก
+          </button>
+          <button
+            onClick={applyMonthYearSelection}
+            disabled={tempSelectedMonth === null || tempSelectedYear === null}
+            className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            ตกลง
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const renderCalendar = (date: Date, isLeft: boolean = true) => {
     const daysInMonth = getDaysInMonth(date);
     const firstDay = getFirstDayOfMonth(date);
@@ -324,12 +504,25 @@ const StandaloneDateRangePicker = ({
               <ChevronLeft className="w-4 h-4" />
             </button>
           )}
-          <h3 className="font-medium text-gray-900 dark:text-gray-100 mx-2">
-            {date.toLocaleDateString("th-TH", {
-              month: "long",
-              year: "numeric",
-            })}
-          </h3>
+          <div className="relative">
+            <button
+              onClick={() => {
+                setPickerType(isLeft ? "left" : "right");
+                setTempSelectedMonth(date.getMonth());
+                setTempSelectedYear(date.getFullYear());
+                setShowMonthYearPicker(true);
+              }}
+              className="font-medium text-gray-900 dark:text-gray-100 mx-2 hover:bg-gray-100 dark:hover:bg-gray-600 px-2 py-1 rounded cursor-pointer"
+            >
+              {date.toLocaleDateString("th-TH", {
+                month: "long",
+                year: "numeric",
+              })}
+            </button>
+            {showMonthYearPicker &&
+              pickerType === (isLeft ? "left" : "right") &&
+              renderMonthYearPicker()}
+          </div>
           {!isLeft && (
             <button
               onClick={() =>
@@ -363,7 +556,17 @@ const StandaloneDateRangePicker = ({
   return (
     <div className="relative">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          // เมื่อเปิด date picker ให้ focus ไปที่ปีของวันที่ที่เลือก
+          if (dateFrom && !isOpen) {
+            const selectedYear = new Date(dateFrom).getFullYear();
+            setYearRangeStart(selectedYear - 5);
+          } else if (dateTo && !isOpen) {
+            const selectedYear = new Date(dateTo).getFullYear();
+            setYearRangeStart(selectedYear - 5);
+          }
+          setIsOpen(!isOpen);
+        }}
         className={`flex items-center justify-between w-full min-w-[240px] px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
           !dateFrom && !dateTo
             ? "text-slate-400 dark:text-slate-500"
