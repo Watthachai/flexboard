@@ -1,46 +1,38 @@
 datasource db {
-  provider = "sqlite"
-  url      = "file:./prisma/data/flexboard.sqlite"
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
   provider = "prisma-client-js"
 }
 
-model ImportLog {
-  filename         String   @id
-  lastMtime        BigInt
-  processedAt      DateTime @default(now())
-  recordsProcessed Int      @default(0)
-  recordsCreated   Int      @default(0) // จำนวนที่เพิ่มใหม่
-  recordsUpdated   Int      @default(0) // จำนวนที่อัพเดท
-  recordsDeleted   Int      @default(0) // จำนวนที่ลบ
-  status           String   @default("SUCCESS") // SUCCESS, ERROR
-}
+model VVPVSG_INVENTORY_001_VIEW_001 {
+  dataDate             DateTime
+  corp                 String
+  branch               String
+  prodCode             String
+  prodName             String
+  prodGrp              String?
+  unitName             String
+  docNumber            String
+  docDate              DateTime
+  qtyFromThisDoc       Float
+  buyPrice             Float?
+  averageCost          Float
+  totalFromBuyPrice    Float?
+  totalFromAverageCost Float?
+  daysAge              Int?
+  ageBucket            String?
+  createDate           DateTime @default(now())
 
-model InventoryRaw {
-  id             Int      @id // <ID> จาก XML (unique ตามไฟล์จริง)
-  dataDate       DateTime
-  corp           String
-  branch         String
-  prod           String
-  unitName       String
-  docNumber      String
-  docDate        DateTime
-  qtyFromThisDoc Float
-  averageCost    Float
-
-  // Computed fields for performance optimization
-  daysAge       Int? // dateDiff(DataDate, DocDate, 'days') - computed during ingest
-  ageBucket     String? // case(daysAge > 365, '>365', daysAge > 180, '181-365', ...) - computed during ingest
-  totalValueRow Float? // qtySafe * costSafe - computed during ingest
-  qtySafe       Float? // coalesce(qtyFromThisDoc, 0) - computed during ingest
-  costSafe      Float? // coalesce(averageCost, 0) - computed during ingest
-
+  @@id([dataDate, corp, branch, prodCode, docNumber])
   @@index([dataDate])
   @@index([branch])
-  @@index([prod])
+  @@index([prodCode])
+  @@index([prodName])
+  @@index([prodGrp])
   @@index([docNumber])
-  @@index([ageBucket]) // Index for performance on age bucket queries
-  @@index([corp]) // Index for corp filtering
+  @@index([ageBucket])
+  @@index([corp])
 }

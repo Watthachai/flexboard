@@ -9,7 +9,8 @@ export async function GET(req: Request) {
     // Filter parameters
     const branch = searchParams.get("branch");
     const corp = searchParams.get("corp");
-    const prod = searchParams.get("prod");
+    const prodCode = searchParams.get("prodCode");
+    const prodName = searchParams.get("prodName");
     const fromDate = searchParams.get("fromDate");
     const toDate = searchParams.get("toDate");
 
@@ -39,12 +40,13 @@ export async function GET(req: Request) {
     );
 
     // Build where clause with proper typing
-    const where: Prisma.InventoryRawWhereInput = {};
+    const where: Prisma.VVPVSG_INVENTORY_001_VIEW_001WhereInput = {};
 
     // Single value filters (backward compatibility)
     if (branch) where.branch = branch;
     if (corp) where.corp = corp;
-    if (prod) where.prod = { contains: prod };
+    if (prodCode) where.prodCode = { contains: prodCode };
+    if (prodName) where.prodName = { contains: prodName };
 
     // Multi-value filters (global filters)
     if (corps.length > 0) where.corp = { in: corps };
@@ -61,23 +63,25 @@ export async function GET(req: Request) {
     }
 
     // Get total count for pagination
-    const totalRecords = await prisma.inventoryRaw.count({ where });
+    const totalRecords = await prisma.vVPVSG_INVENTORY_001_VIEW_001.count({
+      where,
+    });
 
     // Build order by clause
     const validSortFields = [
       "docDate",
       "dataDate",
-      "prod",
+      "prodCode",
+      "prodName",
       "corp",
       "branch",
-      "totalValueRow",
       "daysAge",
     ];
     const orderByField = validSortFields.includes(sortBy) ? sortBy : "docDate";
     const orderByDirection = sortOrder === "asc" ? "asc" : "desc";
 
     // Apply pagination and sorting
-    const queryOptions: Prisma.InventoryRawFindManyArgs = {
+    const queryOptions: Prisma.VVPVSG_INVENTORY_001_VIEW_001FindManyArgs = {
       where,
       orderBy: { [orderByField]: orderByDirection },
     };
@@ -88,28 +92,31 @@ export async function GET(req: Request) {
     }
 
     const startTime = Date.now();
-    const rows = await prisma.inventoryRaw.findMany(queryOptions);
+    const rows = await prisma.vVPVSG_INVENTORY_001_VIEW_001.findMany(
+      queryOptions
+    );
     const queryTime = Date.now() - startTime;
 
-    // Transform to include computed fields and PascalCase for manifest compatibility
+    // Transform to PascalCase for manifest compatibility
     const transformedRows = rows.map((row) => ({
-      ...row,
-      // Add PascalCase fields for manifest compatibility
+      // PascalCase fields for manifest compatibility
       DataDate: row.dataDate,
       DocDate: row.docDate,
       DocNumber: row.docNumber,
-      QtyFromThisDoc: row.qtyFromThisDoc,
-      AverageCost: row.averageCost,
       Corp: row.corp,
       Branch: row.branch,
-      Prod: row.prod,
+      ProdCode: row.prodCode,
+      ProdName: row.prodName,
+      ProdGrp: row.prodGrp,
       UnitName: row.unitName,
-      // Include computed fields
+      QtyFromThisDoc: row.qtyFromThisDoc,
+      BuyPrice: row.buyPrice,
+      AverageCost: row.averageCost,
+      TotalFromBuyPrice: row.totalFromBuyPrice,
+      TotalFromAverageCost: row.totalFromAverageCost,
       DaysAge: row.daysAge,
       AgeBucket: row.ageBucket,
-      TotalValueRow: row.totalValueRow,
-      QtySafe: row.qtySafe,
-      CostSafe: row.costSafe,
+      CreateDate: row.createDate,
     }));
 
     // Return data with performance info
