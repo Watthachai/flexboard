@@ -7,7 +7,7 @@
 
 import React from "react";
 import DashboardLayout from "../components/layout/DashboardLayout";
-import OnPremSettings from "../components/OnPremSettings";
+import OnPremSettings from "../components/OnPremSettings_backup";
 
 export default function SettingsPage() {
   return (
