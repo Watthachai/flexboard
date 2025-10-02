@@ -8,6 +8,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { VersionDisplay } from "@/components/VersionDisplay";
 import { ThemeProvider, useTheme } from "@/app/components/context/ThemeContext";
+import { CompanyProvider } from "@/app/components/context/CompanyContext";
 import { SessionStorage, type SessionData } from "@/utils/sessionStorage";
 import "./globals.css";
 // import "@/services/autoStartService"; // Temporarily disabled
@@ -239,14 +240,16 @@ export default function RootLayout({
   // Show authenticated layout
   return (
     <ThemeProvider>
-      <html lang="en">
-        <body className="bg-gray-50 dark:bg-gray-900">
-          <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-            {/* Main content */}
-            <main className="h-screen">{children}</main>
-          </div>
-        </body>
-      </html>
+      <CompanyProvider>
+        <html lang="en">
+          <body className="bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+              {/* Main content */}
+              <main className="h-screen">{children}</main>
+            </div>
+          </body>
+        </html>
+      </CompanyProvider>
     </ThemeProvider>
   );
 }

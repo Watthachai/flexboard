@@ -1,47 +1,30 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from "../../../../lib/db/prisma";
 
 export async function GET() {
   try {
-    // Get total record count
-    const totalRecords = await prisma.inventoryRaw.count();
+    // Get total record count from SQL Server view
+    const totalRecords = await prisma.vVPVSG_INVENTORY_001_VIEW_001.count();
 
-    // Get recent import logs
-    const recentImports = await prisma.importLog.findMany({
-      orderBy: { processedAt: "desc" },
-      take: 10,
-    });
-
-    // Calculate next run time (every 5 minutes)
-    const now = new Date();
-    const nextRun = new Date(now);
-    nextRun.setMinutes(Math.ceil(now.getMinutes() / 5) * 5, 0, 0);
-
+    // Since we migrated to SQL Server, there's no import log table anymore
+    // Return basic status based on database connection
     return Response.json({
       success: true,
       data: {
         totalRecords,
-        totalFiles: recentImports.length,
-        lastRun: recentImports[0]?.processedAt || null,
-        nextRun: nextRun.toISOString(),
-        status: "running",
-        recentFiles: recentImports.map((log: any) => ({
-          fileName: log.filename.split("/").pop() || log.filename,
-          recordCount: log.recordsProcessed || 0,
-          recordsCreated: log.recordsCreated || 0,
-          recordsUpdated: log.recordsUpdated || 0,
-          recordsDeleted: log.recordsDeleted || 0,
-          processedAt: log.processedAt,
-          status: log.status === "SUCCESS" ? "success" : "error",
-        })),
+        totalFiles: 0, // No longer tracking files (direct SQL Server connection)
+        lastRun: null, // No longer applicable
+        nextRun: null, // No longer applicable
+        status: "idle", // Direct database, no ingestion needed
+        recentFiles: [],
+        message: "Using direct SQL Server connection - no ingestion needed",
       },
     });
   } catch (error) {
-    console.error("Failed to get ingestion status:", error);
+    console.error("Failed to get database status:", error);
     return Response.json(
       {
         success: false,
-        error: "Failed to get ingestion status",
+        error: "Failed to get database status",
       },
       { status: 500 }
     );
