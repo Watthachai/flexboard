@@ -21,6 +21,7 @@
     "db:generate": "prisma generate",
     "db:pull": "prisma db pull",
     "db:studio": "prisma studio",
+    "db:test": "node test-db-connection.js",
     "setup:onprem": "node scripts/setup-onprem.js"
   },
   "dependencies": {
