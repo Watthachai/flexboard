@@ -1,3 +1,18 @@
+// Prisma Schema for SQL Server
+// ⚠️ IMPORTANT: Prisma does NOT support SQL Server instance names (e.g., HOST\INSTANCE)
+// You MUST use port number directly: sqlserver://HOST:PORT
+// 
+// Example:
+// ❌ Wrong: sqlserver://PVG-FORMA01\FORMA;database=...
+// ✅ Correct: sqlserver://PVG-FORMA01:49152;database=...
+//
+// To find the correct port:
+// 1. Run: SELECT local_tcp_port FROM sys.dm_exec_connections WHERE session_id = @@SPID;
+// 2. Or use: scripts/find-sql-server-port.ps1
+// 3. Or check: SQL Server Configuration Manager → Protocols → TCP/IP → IP Addresses → IPAll
+//
+// See: docs/QUICK_FIX_DATABASE_URL.md
+
 datasource db {
   provider = "sqlserver"
   url      = env("DATABASE_URL")
