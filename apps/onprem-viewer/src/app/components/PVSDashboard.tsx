@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import DashboardLayout from "./layout/DashboardLayout";
 import { useTheme } from "@/app/components/context/ThemeContext";
+import { useCompany } from "@/app/components/context/CompanyContext";
 import SearchLoading from "@/app/components/ui/SearchLoading";
 import EmptyState from "@/app/components/ui/EmptyState";
 import * as XLSX from "xlsx";
@@ -28,21 +29,24 @@ import {
   Loader2,
 } from "lucide-react";
 interface DatabaseRecord {
-  id: number;
-  corp: string;
-  branch: string;
-  prod: string;
-  unitName: string;
-  docDate: string;
-  docNumber: string; // เพิ่มฟิลด์หมายเลขเอกสาร
-  dataDate: string;
-  qtyFromThisDoc: number;
-  averageCost: number;
-  totalValueRow: number;
-  daysAge: number;
-  ageBucket: string;
-  qtySafe: number;
-  costSafe: number;
+  // PascalCase fields from SQL Server API
+  DataDate: string;
+  DocDate: string;
+  DocNumber: string;
+  Corp: string;
+  Branch: string;
+  ProdCode: string; // ✅ รหัสสินค้า
+  ProdName: string; // ✅ ชื่อสินค้า
+  ProdGrp?: string; // Product Group
+  UnitName: string;
+  QtyFromThisDoc: number;
+  BuyPrice?: number; // ราคาซื้อ
+  AverageCost: number;
+  TotalFromBuyPrice?: number; // มูลค่ารวมจากราคาซื้อ
+  TotalFromAverageCost?: number; // มูลค่ารวมจากราคาทุนเฉลี่ย
+  DaysAge: number;
+  AgeBucket: string;
+  CreateDate: string;
 }
 
 interface DatabaseStats {
@@ -59,11 +63,13 @@ interface DatabaseStats {
 }
 
 interface ProductAgeBucketSummary {
-  prod: string;
-  unitName: string;
-  corp: string;
-  branch: string;
-  docNumber: string; // เพิ่มหมายเลขเอกสาร
+  ProdCode: string; // ✅ รหัสสินค้า
+  ProdName: string; // ✅ ชื่อสินค้า
+  ProdGrp?: string; // Product Group
+  UnitName: string;
+  Corp: string;
+  Branch: string;
+  DocNumber: string;
   totalQty: number;
   totalValue: number;
   ageBuckets: {
@@ -90,6 +96,43 @@ interface IngestionStatus {
     status: "success" | "error";
   }>;
 }
+
+interface DefaultCompanySettings {
+  defaultCompany: string;
+  enableDefaultCompany: boolean;
+}
+
+// TODO: Product Code/Name Separation - Pending Manager Approval 🚧
+// =====================================================
+// เมื่อหัวหน้าอนุมัติแล้ว จะต้องทำการแก้ไขในส่วนต่อไปนี้:
+//
+// 1. Database/API Changes:
+//    - แยก field 'prod' เป็น 'prodCode' (รหัสสินค้า) และ 'prodName' (ชื่อสินค้า)
+//    - อัปเดต API endpoints ให้ส่งข้อมูลทั้ง prodCode และ prodName
+//
+// 2. Interface Updates:
+//    - เปิดใช้งาน prodCode และ prodName ใน DatabaseRecord interface
+//    - เปิดใช้งาน prodCode และ prodName ใน ProductAgeBucketSummary interface
+//    - ลบหรือเปลี่ยน prod field ตามที่หัวหน้าต้องการ
+//
+// 3. Display Logic Updates:
+//    - อัปเดตการแสดงผลในตาราง (ใช้ prodCode และ prodName แยกกัน)
+//    - อัปเดต Excel export ให้แสดง prodCode และ prodName
+//    - อัปเดต search/filter logic
+//    - อัปเดต sorting logic
+//
+// 4. Functions to Update:
+//    - calculateProductSummary() - บรรทัด ~1010
+//    - getFilteredProductSummary() - บรรทัด ~1910
+//    - exportToExcel() - บรรทัด ~1300
+//    - Product table rendering - บรรทัด ~2500
+//    - Raw data table rendering - บรรทัด ~2800
+//
+// การแสดงผลที่แนะนำ:
+// - Column 1: รหัสสินค้า (prodCode)
+// - Column 2: ชื่อสินค้า (prodName)
+// - หรือรวมเป็น "รหัสสินค้า - ชื่อสินค้า" ในคอลัมน์เดียว
+// =====================================================
 
 // Modern GitHub-style DateRangePicker component with calendar and preset options
 const StandaloneDateRangePicker = ({
@@ -756,6 +799,7 @@ const StandaloneCustomDropdown = ({
 
 export default function PVSDashboard() {
   const {} = useTheme();
+  const { setAvailableCompanies } = useCompany();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DatabaseRecord[]>([]);
   const [filteredData, setFilteredData] = useState<DatabaseRecord[]>([]);
@@ -803,6 +847,24 @@ export default function PVSDashboard() {
     status: "idle",
     recentFiles: [],
   });
+
+  // ✅ Helper functions for prodCode/prodName (Approved & Active)
+  // ================================================================================
+
+  // สำหรับ search/filter ที่รองรับทั้ง prodCode และ prodName
+  const matchesProductSearch = (
+    prodCode: string,
+    prodName: string,
+    searchTerm: string
+  ) => {
+    const search = searchTerm.toLowerCase();
+    return (
+      prodCode.toLowerCase().includes(search) ||
+      prodName.toLowerCase().includes(search)
+    );
+  };
+
+  // ================================================================================
 
   // Debounce effect for product search
   useEffect(() => {
@@ -868,17 +930,20 @@ export default function PVSDashboard() {
 
         // Extract unique values for filters
         const uniqueCorps = [
-          ...new Set(result.rows.map((r: DatabaseRecord) => r.corp)),
+          ...new Set(result.rows.map((r: DatabaseRecord) => r.Corp)),
         ]
           .filter(Boolean)
           .sort() as string[];
         const uniqueBranches = [
-          ...new Set(result.rows.map((r: DatabaseRecord) => r.branch)),
+          ...new Set(result.rows.map((r: DatabaseRecord) => r.Branch)),
         ]
           .filter(Boolean)
           .sort() as string[];
         setCorps(uniqueCorps);
         setBranches(uniqueBranches);
+
+        // Update company context for other components
+        setAvailableCompanies(uniqueCorps);
 
         // Apply initial filtering
         // No need to call applyFilters here since useEffect will handle it
@@ -894,7 +959,45 @@ export default function PVSDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setAvailableCompanies]);
+
+  // Load default company settings and apply if enabled
+  useEffect(() => {
+    if (typeof window !== "undefined" && corps.length > 0 && !selectedCorp) {
+      // ✅ เพิ่มเงื่อนไข: run เฉพาะเมื่อ selectedCorp ยังเป็น empty (ยังไม่ได้เลือก)
+      const savedDefaultSettings = localStorage.getItem(
+        "defaultCompanySettings"
+      );
+      if (savedDefaultSettings) {
+        try {
+          const settings: DefaultCompanySettings =
+            JSON.parse(savedDefaultSettings);
+          console.log("Loading default company settings:", settings);
+          console.log("Available corps:", corps);
+
+          if (settings.enableDefaultCompany && settings.defaultCompany) {
+            // Check if the default company exists in available corps
+            if (corps.includes(settings.defaultCompany)) {
+              console.log("Setting default company:", settings.defaultCompany);
+              setSelectedCorp(settings.defaultCompany);
+            } else {
+              console.log(
+                "Default company not found in available corps:",
+                settings.defaultCompany
+              );
+            }
+          } else {
+            console.log("Default company not enabled or not set");
+          }
+        } catch (error) {
+          console.error("Failed to load default company settings:", error);
+        }
+      } else {
+        console.log("No default company settings found in localStorage");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [corps]); // ✅ Run เฉพาะเมื่อ corps เปลี่ยน (ไม่ใส่ selectedCorp เพื่อป้องกันการ reset เมื่อ user เปลี่ยนการเลือก)
 
   // Fetch ingestion status
   const fetchIngestionStatus = useCallback(async () => {
@@ -933,18 +1036,18 @@ export default function PVSDashboard() {
 
       // Apply corp filter
       if (selectedCorp) {
-        filtered = filtered.filter((r) => r.corp === selectedCorp);
+        filtered = filtered.filter((r) => r.Corp === selectedCorp);
       }
 
       // Apply branch filter
       if (selectedBranch) {
-        filtered = filtered.filter((r) => r.branch === selectedBranch);
+        filtered = filtered.filter((r) => r.Branch === selectedBranch);
       }
 
       // Apply date range filter
       if (dateFrom || dateTo) {
         filtered = filtered.filter((r) => {
-          const recordDate = new Date(r.dataDate);
+          const recordDate = new Date(r.DataDate);
           const fromDate = dateFrom ? new Date(dateFrom) : null;
           const toDate = dateTo ? new Date(dateTo) : null;
 
@@ -965,17 +1068,19 @@ export default function PVSDashboard() {
     const productMap = new Map<string, ProductAgeBucketSummary>();
 
     records.forEach((record) => {
-      const key = `${record.prod}_${record.corp}_${record.branch}_${
-        record.docNumber || "NO_DOC"
-      }`;
+      const key = `${record.ProdCode}_${record.ProdName}_${record.Corp}_${
+        record.Branch
+      }_${record.DocNumber || "NO_DOC"}`;
 
       if (!productMap.has(key)) {
         productMap.set(key, {
-          prod: record.prod,
-          unitName: record.unitName,
-          corp: record.corp,
-          branch: record.branch,
-          docNumber: record.docNumber || "N/A",
+          ProdCode: record.ProdCode,
+          ProdName: record.ProdName,
+          ProdGrp: record.ProdGrp,
+          UnitName: record.UnitName,
+          Corp: record.Corp,
+          Branch: record.Branch,
+          DocNumber: record.DocNumber || "N/A",
           totalQty: 0,
           totalValue: 0,
           ageBuckets: {
@@ -988,20 +1093,18 @@ export default function PVSDashboard() {
       }
 
       const summary = productMap.get(key)!;
-      const qty = record.qtyFromThisDoc || 0;
-      const value = record.totalValueRow || 0;
+      const qty = record.QtyFromThisDoc || 0;
+      const value = (record.QtyFromThisDoc || 0) * (record.AverageCost || 0);
 
       summary.totalQty += qty;
       summary.totalValue += value;
 
       // Map ageBucket to our defined buckets
       let bucketKey: keyof typeof summary.ageBuckets;
-      if (record.ageBucket === "0-90") bucketKey = "0-90";
-      else if (record.ageBucket === "91-180")
-        bucketKey = "90-180"; // Map "91-180" -> "90-180" for display
-      else if (record.ageBucket === "181-365")
-        bucketKey = "180-360"; // Map "181-365" -> "180-360" for display
-      else bucketKey = ">360"; // For '>365', '>360', or any other values
+      if (record.AgeBucket === "0-90 Days") bucketKey = "0-90";
+      else if (record.AgeBucket === "91-180 Days") bucketKey = "90-180";
+      else if (record.AgeBucket === "181-365 Days") bucketKey = "180-360";
+      else bucketKey = ">360"; // For "Over 365 Days" or any other values
 
       summary.ageBuckets[bucketKey].qty += qty;
       summary.ageBuckets[bucketKey].value += value;
@@ -1040,24 +1143,24 @@ export default function PVSDashboard() {
       return;
     }
 
-    const corps = new Set(records.map((r) => r.corp));
-    const branches = new Set(records.map((r) => r.branch));
-    const products = new Set(records.map((r) => r.prod));
+    const corps = new Set(records.map((r) => r.Corp));
+    const branches = new Set(records.map((r) => r.Branch));
+    const products = new Set(records.map((r) => r.ProdCode)); // ✅ ใช้ ProdCode
 
     const totalValue = records.reduce(
-      (sum, r) => sum + (r.totalValueRow || 0),
+      (sum, r) => sum + (r.QtyFromThisDoc || 0) * (r.AverageCost || 0),
       0
     );
 
     const dates = records
-      .map((r) => r.dataDate)
+      .map((r) => r.DataDate)
       .filter(Boolean)
       .sort();
 
     const ageBuckets: Record<string, number> = {};
     records.forEach((r) => {
-      if (r.ageBucket) {
-        ageBuckets[r.ageBucket] = (ageBuckets[r.ageBucket] || 0) + 1;
+      if (r.AgeBucket) {
+        ageBuckets[r.AgeBucket] = (ageBuckets[r.AgeBucket] || 0) + 1;
       }
     });
 
@@ -1096,19 +1199,16 @@ export default function PVSDashboard() {
     const bucketCounts: Record<string, number> = {};
 
     filteredData.forEach((record) => {
-      const value = record.totalValueRow || 0;
-      const bucket = record.ageBucket;
+      const value = (record.QtyFromThisDoc || 0) * (record.AverageCost || 0);
+      const bucket = record.AgeBucket;
 
       // Count unique buckets for debugging
       bucketCounts[bucket] = (bucketCounts[bucket] || 0) + 1;
 
-      if (bucket === "0-90") values.fresh += value;
-      else if (bucket === "91-180")
-        values.aging += value; // แก้จาก "90-180" เป็น "91-180"
-      else if (bucket === "181-365")
-        values.risk += value; // แก้จาก "180-360" เป็น "181-365"
-      else if (bucket === ">365" || bucket === ">360" || bucket === "365+")
-        values.old += value;
+      if (bucket === "0-90 Days") values.fresh += value;
+      else if (bucket === "91-180 Days") values.aging += value;
+      else if (bucket === "181-365 Days") values.risk += value;
+      else if (bucket === "Over 365 Days") values.old += value;
       else {
         // Handle any unexpected bucket names
         console.log(`Unknown ageBucket: "${bucket}" - adding to old stock`);
@@ -1142,13 +1242,12 @@ export default function PVSDashboard() {
     };
 
     filteredData.forEach((record) => {
-      const bucket = record.ageBucket;
+      const bucket = record.AgeBucket;
 
-      if (bucket === "0-90") counts.fresh += 1;
-      else if (bucket === "91-180") counts.aging += 1;
-      else if (bucket === "181-365") counts.risk += 1;
-      else if (bucket === ">365" || bucket === ">360" || bucket === "365+")
-        counts.old += 1;
+      if (bucket === "0-90 Days") counts.fresh += 1;
+      else if (bucket === "91-180 Days") counts.aging += 1;
+      else if (bucket === "181-365 Days") counts.risk += 1;
+      else if (bucket === "Over 365 Days") counts.old += 1;
       else {
         counts.old += 1;
       }
@@ -1228,8 +1327,9 @@ export default function PVSDashboard() {
       ]);
 
       // Add sub header row (Row 2)
+      // TODO: เมื่อหัวหน้าอนุมัติ แยก "ชื่อสินค้า" เป็น "รหัสสินค้า" และ "ชื่อสินค้า" และปรับ column ให้เหมาะสม
       wsData.push([
-        "ชื่อสินค้า", // Product Name (full name)
+        "ชื่อสินค้า", // Product Name (full name) - TODO: แยกเป็น "รหัสสินค้า", "ชื่อสินค้า"
         "หน่วย",
         "ราคาทุน",
         "Quantity", // Total Quantity
@@ -1245,16 +1345,17 @@ export default function PVSDashboard() {
         "Value", // >365 Value
       ]);
 
-      // Sort products by product name
+      // Sort products by product code
       const sortedProducts = getFilteredProductSummary().sort((a, b) => {
-        return a.prod.localeCompare(b.prod);
+        return a.ProdCode.localeCompare(b.ProdCode);
       });
 
       // Add data rows from filtered product summary
       sortedProducts.forEach((product) => {
         wsData.push([
-          product.prod, // Product Name (full name)
-          product.unitName,
+          product.ProdCode, // ✅ รหัสสินค้า
+          product.ProdName, // ✅ ชื่อสินค้า
+          product.UnitName,
           product.totalValue / product.totalQty || 0, // ราคาทุน
           product.totalQty, // Total Quantity
           product.totalValue / product.totalQty || 0, // Unit Cost
@@ -1468,11 +1569,12 @@ export default function PVSDashboard() {
           "Over 365 Days Value",
         ],
         ...getFilteredProductSummary()
-          .sort((a, b) => a.prod.localeCompare(b.prod))
+          .sort((a, b) => a.ProdCode.localeCompare(b.ProdCode))
           .map((product) => {
             return [
-              product.prod, // Full product name
-              product.unitName,
+              product.ProdCode, // ✅ รหัสสินค้า
+              product.ProdName, // ✅ ชื่อสินค้า
+              product.UnitName,
               product.totalValue / product.totalQty || 0, // ราคาทุน
               product.totalQty,
               product.totalValue,
@@ -1586,18 +1688,19 @@ export default function PVSDashboard() {
       // Add data rows
       filteredRawData.forEach((row) => {
         wsData.push([
-          row.corp || "",
-          row.branch || "",
-          row.docNumber || "",
-          row.prod || "",
-          row.unitName || "",
-          row.qtyFromThisDoc || 0,
-          row.averageCost || 0,
-          row.totalValueRow || 0,
-          row.daysAge || 0,
-          row.ageBucket || "",
-          formatDate(row.docDate || ""),
-          formatDate(row.dataDate || ""),
+          row.Corp || "",
+          row.Branch || "",
+          row.DocNumber || "",
+          row.ProdCode || "", // ✅ รหัสสินค้า
+          row.ProdName || "", // ✅ ชื่อสินค้า
+          row.UnitName || "",
+          row.QtyFromThisDoc || 0,
+          row.AverageCost || 0,
+          (row.QtyFromThisDoc || 0) * (row.AverageCost || 0), // Calculate totalValue
+          row.DaysAge || 0,
+          row.AgeBucket || "",
+          formatDate(row.DocDate || ""),
+          formatDate(row.DataDate || ""),
         ]);
       });
 
@@ -1746,7 +1849,7 @@ export default function PVSDashboard() {
 
     const corpBranches = [
       ...new Set(
-        data.filter((r) => r.corp === selectedCorp).map((r) => r.branch)
+        data.filter((r) => r.Corp === selectedCorp).map((r) => r.Branch)
       ),
     ]
       .filter(Boolean)
@@ -1762,7 +1865,7 @@ export default function PVSDashboard() {
     // Reset branch if it's not available in the new corp
     if (corp && selectedBranch) {
       const availableBranches = [
-        ...new Set(data.filter((r) => r.corp === corp).map((r) => r.branch)),
+        ...new Set(data.filter((r) => r.Corp === corp).map((r) => r.Branch)),
       ].filter(Boolean) as string[];
 
       if (!availableBranches.includes(selectedBranch)) {
@@ -1865,11 +1968,11 @@ export default function PVSDashboard() {
     const searchTerm = debouncedProductSearch.toLowerCase();
     return productSummary.filter(
       (product) =>
-        product.prod.toLowerCase().includes(searchTerm) ||
-        product.corp.toLowerCase().includes(searchTerm) ||
-        product.branch.toLowerCase().includes(searchTerm) ||
-        (product.unitName &&
-          product.unitName.toLowerCase().includes(searchTerm))
+        matchesProductSearch(product.ProdCode, product.ProdName, searchTerm) ||
+        product.Corp.toLowerCase().includes(searchTerm) ||
+        product.Branch.toLowerCase().includes(searchTerm) ||
+        (product.UnitName &&
+          product.UnitName.toLowerCase().includes(searchTerm))
     );
   };
 
@@ -1878,11 +1981,11 @@ export default function PVSDashboard() {
     const searchTerm = debouncedRawDataSearch.toLowerCase();
     return filteredData.filter(
       (row) =>
-        row.prod.toLowerCase().includes(searchTerm) ||
-        row.corp.toLowerCase().includes(searchTerm) ||
-        row.branch.toLowerCase().includes(searchTerm) ||
-        (row.docNumber && row.docNumber.toLowerCase().includes(searchTerm)) ||
-        (row.unitName && row.unitName.toLowerCase().includes(searchTerm))
+        matchesProductSearch(row.ProdCode, row.ProdName, searchTerm) ||
+        row.Corp.toLowerCase().includes(searchTerm) ||
+        row.Branch.toLowerCase().includes(searchTerm) ||
+        (row.DocNumber && row.DocNumber.toLowerCase().includes(searchTerm)) ||
+        (row.UnitName && row.UnitName.toLowerCase().includes(searchTerm))
     );
   };
 
@@ -2299,8 +2402,11 @@ export default function PVSDashboard() {
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           สาขา
                         </th>
-                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[200px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
-                          สินค้า
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[150px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
+                          รหัสสินค้า
+                        </th>
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[250px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
+                          ชื่อสินค้า
                         </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           หน่วย
@@ -2355,6 +2461,7 @@ export default function PVSDashboard() {
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
+                        <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="text-right p-3 bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-400 font-medium border-r border-l-2 border-gray-300 dark:border-slate-500">
                           จำนวน
                         </th>
@@ -2393,7 +2500,7 @@ export default function PVSDashboard() {
                     <tbody>
                       {isProductSearching ? (
                         <tr>
-                          <td colSpan={16} className="p-0">
+                          <td colSpan={17} className="p-0">
                             <SearchLoading
                               message="กำลังค้นหาสินค้า..."
                               size="md"
@@ -2403,7 +2510,7 @@ export default function PVSDashboard() {
                         </tr>
                       ) : getFilteredProductSummary().length === 0 ? (
                         <tr>
-                          <td colSpan={16} className="p-0">
+                          <td colSpan={17} className="p-0">
                             <EmptyState
                               type={
                                 debouncedProductSearch.trim()
@@ -2455,19 +2562,20 @@ export default function PVSDashboard() {
                             className="border-b-2 border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors duration-150"
                           >
                             <td className="p-2 text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
-                              {product.corp}
+                              {product.Corp}
                             </td>
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
-                              {product.branch}
+                              {product.Branch}
                             </td>
-                            <td
-                              className="p-2 text-gray-800 dark:text-slate-200 min-w-[200px] border-r-2 border-gray-200 dark:border-slate-600"
-                              title={product.prod}
-                            >
-                              {product.prod}
+                            {/* ✅ แยก ProdCode และ ProdName เป็น 2 คอลัมน์ */}
+                            <td className="p-2 text-gray-700 dark:text-slate-300 font-mono border-r-2 border-gray-200 dark:border-slate-600">
+                              {product.ProdCode}
+                            </td>
+                            <td className="p-2 text-gray-800 dark:text-slate-200 border-r-2 border-gray-200 dark:border-slate-600">
+                              {product.ProdName}
                             </td>
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
-                              {product.unitName}
+                              {product.UnitName}
                             </td>
                             <td className="p-2 text-right text-gray-800 dark:text-slate-200 bg-gray-50 dark:bg-slate-800 border-r border-l-2 border-gray-200 dark:border-slate-600">
                               {formatQuantity(product.totalQty)}
@@ -2703,8 +2811,11 @@ export default function PVSDashboard() {
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[120px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           หมายเลขเอกสาร
                         </th>
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[150px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
+                          รหัสสินค้า
+                        </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[300px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
-                          สินค้า
+                          ชื่อสินค้า
                         </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           หน่วย
@@ -2729,7 +2840,7 @@ export default function PVSDashboard() {
                     <tbody>
                       {isSearching ? (
                         <tr>
-                          <td colSpan={10} className="p-0">
+                          <td colSpan={11} className="p-0">
                             <SearchLoading
                               message="กำลังค้นหาข้อมูล..."
                               size="md"
@@ -2739,7 +2850,7 @@ export default function PVSDashboard() {
                         </tr>
                       ) : getFilteredRawData().length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="p-0">
+                          <td colSpan={11} className="p-0">
                             <EmptyState
                               type={
                                 debouncedRawDataSearch.trim()
@@ -2791,47 +2902,50 @@ export default function PVSDashboard() {
                             className="border-b-2 border-gray-200 dark:border-slate-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors duration-150"
                           >
                             <td className="p-2 text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
-                              {row.corp}
+                              {row.Corp}
                             </td>
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
-                              {row.branch}
+                              {row.Branch}
                             </td>
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
-                              {row.docNumber || "N/A"}
+                              {row.DocNumber || "N/A"}
                             </td>
-                            <td
-                              className="p-2 text-gray-800 dark:text-slate-200 min-w-[300px] border-r-2 border-gray-200 dark:border-slate-600"
-                              title={row.prod}
-                            >
-                              {row.prod}
+                            {/* ✅ แยก ProdCode และ ProdName เป็น 2 คอลัมน์ */}
+                            <td className="p-2 text-gray-700 dark:text-slate-300 font-mono border-r-2 border-gray-200 dark:border-slate-600">
+                              {row.ProdCode}
+                            </td>
+                            <td className="p-2 text-gray-800 dark:text-slate-200 border-r-2 border-gray-200 dark:border-slate-600">
+                              {row.ProdName}
                             </td>
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
-                              {row.unitName}
+                              {row.UnitName}
                             </td>
                             <td className="p-2 text-right text-gray-800 dark:text-slate-200 border-r-2 border-gray-200 dark:border-slate-600">
-                              {formatQuantity(row.qtyFromThisDoc || 0)}
+                              {formatQuantity(row.QtyFromThisDoc || 0)}
                             </td>
                             <td className="p-2 text-right text-gray-800 dark:text-emerald-400 border-r-2 border-gray-200 dark:border-slate-600">
-                              {formatUnitCost(row.averageCost || 0)}
+                              {formatUnitCost(row.AverageCost || 0)}
                             </td>
                             <td className="p-2 text-right text-gray-800 dark:text-emerald-300 border-r-2 border-gray-200 dark:border-slate-600">
-                              {formatMoney(row.totalValueRow || 0)}
+                              {formatMoney(
+                                (row.QtyFromThisDoc || 0) *
+                                  (row.AverageCost || 0)
+                              )}
                             </td>
                             <td className="p-2 text-center text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
-                              {row.daysAge}
+                              {row.DaysAge}
                             </td>
                             <td className="p-2 text-center border-r-2 border-gray-200 dark:border-slate-600">
                               <span
                                 className={`px-2 py-1 rounded-full text-xs font-bold ${
-                                  row.ageBucket === ">365" ||
-                                  row.ageBucket === ">360"
+                                  row.AgeBucket === "Over 365 Days"
                                     ? "bg-rose-500 text-white"
-                                    : row.ageBucket === "0-90"
+                                    : row.AgeBucket === "0-90 Days"
                                     ? "bg-[#dbfce5] text-gray-800"
                                     : "bg-gray-500 text-white"
                                 }`}
                               >
-                                {row.ageBucket}
+                                {row.AgeBucket}
                               </span>
                             </td>
                           </tr>
@@ -2880,3 +2994,64 @@ export default function PVSDashboard() {
     </DashboardLayout>
   );
 }
+
+/* 
+🚧 PENDING MANAGER APPROVAL - Product Code/Name Separation Guide 🚧
+================================================================
+
+📋 SUMMARY: 
+ได้เตรียมการแยก field "prod" เป็น "prodCode" (รหัสสินค้า) และ "prodName" (ชื่อสินค้า) พร้อมแล้ว
+รอการอนุมัติจากหัวหน้าเพื่อดำเนินการอัปเดต
+
+🔧 CHANGES NEEDED WHEN APPROVED:
+
+1. **Database Schema & API Updates:**
+   - แยก field 'prod' ใน database เป็น 'prodCode' และ 'prodName'
+   - อัปเดต API endpoints (/api/inventory/raw) ให้ส่งข้อมูลทั้ง prodCode และ prodName
+   
+2. **Interface Updates (Lines 31-76):**
+   - เปิดใช้งาน prodCode และ prodName ใน DatabaseRecord interface
+   - เปิดใช้งาน prodCode และ prodName ใน ProductAgeBucketSummary interface
+   - ตัดสินใจว่าจะเก็บ prod field ไว้หรือไม่
+
+3. **Helper Functions (Lines 865-905):**
+   - เปิดใช้งาน parseProdField(), formatProductDisplay(), matchesProductSearch()
+   - ลบ eslint-disable comments
+
+4. **Product Summary Table (Line 2607):**
+   - แทนที่ {product.prod} ด้วย formatProductDisplay(product.prod, 'combined')
+   - หรือแยกเป็น 2 คอลัมน์แยกกัน
+
+5. **Raw Data Table (Line 2953):**
+   - แทนที่ {row.prod} ด้วย formatProductDisplay(row.prod, 'combined')
+   - อัปเดต header เป็น 2 คอลัมน์แยกกัน (Line 2851)
+
+6. **Excel Export (Lines 1375-1400):**
+   - อัปเดต header columns ให้แยก "รหัสสินค้า" และ "ชื่อสินค้า"
+   - แทนที่ product.prod ด้วย prodCode, prodName (Line 1397)
+   - ปรับ column widths ให้เหมาะสม
+
+7. **Search/Filter Logic (Line 1914):**
+   - อัปเดต getFilteredProductSummary() ให้ใช้ matchesProductSearch()
+   - อัปเดต getFilteredRawData() ด้วยกัน
+
+8. **Sorting Logic (Line 1393):**
+   - ตัดสินใจว่าจะ sort ตาม prodCode หรือ prodName
+
+📝 RECOMMENDED IMPLEMENTATION ORDER:
+1. Database/API changes first
+2. Interface updates  
+3. Helper functions activation
+4. UI updates (tables, headers)
+5. Export functionality
+6. Search/filter logic
+7. Testing & validation
+
+⚠️  IMPORTANT NOTES:
+- ทดสอบการทำงานของ API ก่อนอัปเดต frontend
+- สำรองข้อมูลก่อนเปลี่ยน database schema
+- ทดสอบ Excel export ให้ครบทุกกรณี
+- ตรวจสอบการ search/filter ว่าทำงานถูกต้อง
+
+================================================================
+*/

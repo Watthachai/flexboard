@@ -12,6 +12,7 @@ import {
   File,
   Settings as SettingsIcon,
   FolderOpen,
+  Building2,
 } from "lucide-react";
 import { UniversalXmlParser } from "../../lib/xml-parser";
 
@@ -28,6 +29,11 @@ interface FilePathHistory {
   platform: string;
 }
 
+interface DefaultCompanySettings {
+  defaultCompany: string;
+  enableDefaultCompany: boolean;
+}
+
 export default function Settings({
   onDataUploaded,
   uploadedData = [],
@@ -42,6 +48,12 @@ export default function Settings({
     recordCount: number;
     path: string;
   } | null>(null);
+  const [defaultCompanySettings, setDefaultCompanySettings] =
+    useState<DefaultCompanySettings>({
+      defaultCompany: "TKPV-TKPV CO., LTD.",
+      enableDefaultCompany: true,
+    });
+  const [availableCompanies, setAvailableCompanies] = useState<string[]>([]);
 
   // Load file path history and current active file from localStorage
   useEffect(() => {
@@ -72,8 +84,26 @@ export default function Settings({
             recordCount: data.length,
             path: savedLastPath || "Unknown",
           });
+
+          // Extract available companies from uploaded data
+          const companies = [
+            ...new Set(data.map((item: any) => item.corp).filter(Boolean)),
+          ] as string[];
+          setAvailableCompanies(companies);
         } catch (error) {
           console.error("Failed to load active file info:", error);
+        }
+      }
+
+      // Load default company settings
+      const savedDefaultSettings = localStorage.getItem(
+        "defaultCompanySettings"
+      );
+      if (savedDefaultSettings) {
+        try {
+          setDefaultCompanySettings(JSON.parse(savedDefaultSettings));
+        } catch (error) {
+          console.error("Failed to load default company settings:", error);
         }
       }
     }
@@ -164,6 +194,12 @@ export default function Settings({
         localStorage.setItem("uploadedFileName", file.name);
       }
 
+      // Extract available companies from new data
+      const companies = [
+        ...new Set(data.map((item: any) => item.corp).filter(Boolean)),
+      ] as string[];
+      setAvailableCompanies(companies);
+
       // Update current active file state
       setCurrentActiveFile({
         fileName: file.name,
@@ -218,6 +254,14 @@ export default function Settings({
       });
       return row;
     });
+  };
+
+  // Save default company settings
+  const saveDefaultCompanySettings = (settings: DefaultCompanySettings) => {
+    setDefaultCompanySettings(settings);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("defaultCompanySettings", JSON.stringify(settings));
+    }
   };
 
   return (
@@ -422,6 +466,132 @@ export default function Settings({
 
         {/* Right Column */}
         <div className="space-y-6">
+          {/* Default Company Settings Section */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Default Company Settings
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Set default company for dashboard startup
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Enable Default Company Toggle */}
+              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Auto-select Default Company
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Automatically select default company when opening dashboard
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={defaultCompanySettings.enableDefaultCompany}
+                    onChange={(e) => {
+                      saveDefaultCompanySettings({
+                        ...defaultCompanySettings,
+                        enableDefaultCompany: e.target.checked,
+                      });
+                    }}
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                </label>
+              </div>
+
+              {/* Company Selection */}
+              {defaultCompanySettings.enableDefaultCompany && (
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Default Company
+                  </label>
+
+                  {availableCompanies.length > 0 ? (
+                    <select
+                      value={defaultCompanySettings.defaultCompany}
+                      onChange={(e) => {
+                        saveDefaultCompanySettings({
+                          ...defaultCompanySettings,
+                          defaultCompany: e.target.value,
+                        });
+                      }}
+                      className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white bg-white text-gray-900"
+                    >
+                      <option value="">Select a company...</option>
+                      {availableCompanies.map((company) => (
+                        <option key={company} value={company}>
+                          {company}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                      <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                        <span className="font-medium">
+                          No companies available.
+                        </span>
+                        <br />
+                        Upload data first to see available companies.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Manual Input Option */}
+                  <div className="mt-3">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                      Or enter manually:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., TKPV-TKPV CO., LTD."
+                      value={defaultCompanySettings.defaultCompany}
+                      onChange={(e) => {
+                        saveDefaultCompanySettings({
+                          ...defaultCompanySettings,
+                          defaultCompany: e.target.value,
+                        });
+                      }}
+                      className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white bg-white text-gray-900 text-sm"
+                    />
+                  </div>
+
+                  {/* Preview */}
+                  {defaultCompanySettings.defaultCompany && (
+                    <div className="mt-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg">
+                      <p className="text-sm text-indigo-700 dark:text-indigo-300">
+                        <span className="font-medium">Current default:</span>{" "}
+                        {defaultCompanySettings.defaultCompany}
+                      </p>
+                      <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">
+                        This company will be automatically selected when you
+                        open the dashboard.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Info box */}
+                  <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      <span className="font-medium">💡 Tip:</span> After setting
+                      a default company, refresh the dashboard page to see it
+                      automatically selected.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* File Path History Section */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center space-x-3 mb-6">
