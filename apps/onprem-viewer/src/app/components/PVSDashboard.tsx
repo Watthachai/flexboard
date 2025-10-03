@@ -102,36 +102,15 @@ interface DefaultCompanySettings {
   enableDefaultCompany: boolean;
 }
 
-// TODO: Product Code/Name Separation - Pending Manager Approval 🚧
+// ✅ Product Code/Name Separation - COMPLETED
 // =====================================================
-// เมื่อหัวหน้าอนุมัติแล้ว จะต้องทำการแก้ไขในส่วนต่อไปนี้:
+// เสร็จสิ้นการแยก ProdCode และ ProdName แล้ว:
 //
-// 1. Database/API Changes:
-//    - แยก field 'prod' เป็น 'prodCode' (รหัสสินค้า) และ 'prodName' (ชื่อสินค้า)
-//    - อัปเดต API endpoints ให้ส่งข้อมูลทั้ง prodCode และ prodName
-//
-// 2. Interface Updates:
-//    - เปิดใช้งาน prodCode และ prodName ใน DatabaseRecord interface
-//    - เปิดใช้งาน prodCode และ prodName ใน ProductAgeBucketSummary interface
-//    - ลบหรือเปลี่ยน prod field ตามที่หัวหน้าต้องการ
-//
-// 3. Display Logic Updates:
-//    - อัปเดตการแสดงผลในตาราง (ใช้ prodCode และ prodName แยกกัน)
-//    - อัปเดต Excel export ให้แสดง prodCode และ prodName
-//    - อัปเดต search/filter logic
-//    - อัปเดต sorting logic
-//
-// 4. Functions to Update:
-//    - calculateProductSummary() - บรรทัด ~1010
-//    - getFilteredProductSummary() - บรรทัด ~1910
-//    - exportToExcel() - บรรทัด ~1300
-//    - Product table rendering - บรรทัด ~2500
-//    - Raw data table rendering - บรรทัด ~2800
-//
-// การแสดงผลที่แนะนำ:
-// - Column 1: รหัสสินค้า (prodCode)
-// - Column 2: ชื่อสินค้า (prodName)
-// - หรือรวมเป็น "รหัสสินค้า - ชื่อสินค้า" ในคอลัมน์เดียว
+// ✅ 1. Database/API: แยก ProdCode และ ProdName เรียบร้อย
+// ✅ 2. Interfaces: อัพเดท DatabaseRecord และ ProductAgeBucketSummary
+// ✅ 3. Display Logic: ตารางแสดงผล 2 columns แยกกัน
+// ✅ 4. Excel Export: Product Summary และ Raw Data แยก columns
+// ✅ 5. Search/Filter: ใช้ matchesProductSearch() รองรับทั้งสองฟิลด์
 // =====================================================
 
 // Modern GitHub-style DateRangePicker component with calendar and preset options
@@ -1068,9 +1047,9 @@ export default function PVSDashboard() {
     const productMap = new Map<string, ProductAgeBucketSummary>();
 
     records.forEach((record) => {
-      const key = `${record.ProdCode}_${record.ProdName}_${record.Corp}_${
-        record.Branch
-      }_${record.DocNumber || "NO_DOC"}`;
+      // ✅ รวมสินค้าที่มี ProdCode และ AverageCost เหมือนกัน (ไม่แยกตาม Corp/Branch/DocNumber)
+      const avgCost = (record.AverageCost || 0).toFixed(2); // ปัดเศษเพื่อเปรียบเทียบ
+      const key = `${record.ProdCode}_${avgCost}`;
 
       if (!productMap.has(key)) {
         productMap.set(key, {
@@ -1080,7 +1059,7 @@ export default function PVSDashboard() {
           UnitName: record.UnitName,
           Corp: record.Corp,
           Branch: record.Branch,
-          DocNumber: record.DocNumber || "N/A",
+          DocNumber: record.DocNumber || "N/A", // เก็บเอกสารแรกที่พบ
           totalQty: 0,
           totalValue: 0,
           ageBuckets: {
@@ -1313,7 +1292,9 @@ export default function PVSDashboard() {
         "Product Info",
         "",
         "",
+        "",
         "Total",
+        "",
         "",
         "",
         "0-90 Days",
@@ -1327,9 +1308,10 @@ export default function PVSDashboard() {
       ]);
 
       // Add sub header row (Row 2)
-      // TODO: เมื่อหัวหน้าอนุมัติ แยก "ชื่อสินค้า" เป็น "รหัสสินค้า" และ "ชื่อสินค้า" และปรับ column ให้เหมาะสม
       wsData.push([
-        "ชื่อสินค้า", // Product Name (full name) - TODO: แยกเป็น "รหัสสินค้า", "ชื่อสินค้า"
+        "รหัสสินค้า", // Product Code
+        "ชื่อสินค้า", // Product Name
+        "กลุ่มสินค้า", // Product Group
         "หน่วย",
         "ราคาทุน",
         "Quantity", // Total Quantity
@@ -1355,6 +1337,7 @@ export default function PVSDashboard() {
         wsData.push([
           product.ProdCode, // ✅ รหัสสินค้า
           product.ProdName, // ✅ ชื่อสินค้า
+          product.ProdGrp || "-", // ✅ กลุ่มสินค้า
           product.UnitName,
           product.totalValue / product.totalQty || 0, // ราคาทุน
           product.totalQty, // Total Quantity
@@ -1376,7 +1359,9 @@ export default function PVSDashboard() {
 
       // Set column widths
       ws["!cols"] = [
-        { wch: 50 }, // Product Name - wider for full name
+        { wch: 15 }, // รหัสสินค้า - Product Code
+        { wch: 30 }, // ชื่อสินค้า - Product Name
+        { wch: 20 }, // กลุ่มสินค้า - Product Group
         { wch: 10 }, // Unit
         { wch: 12 }, // Unit Cost - ราคาทุน
         { wch: 12 }, // Total Quantity
@@ -1394,25 +1379,25 @@ export default function PVSDashboard() {
 
       // Define merges for title and grouped headers
       ws["!merges"] = [
-        // Company name (row 2, merge across all columns)
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 13 } },
-        // Report name (row 3, merge across all columns)
-        { s: { r: 2, c: 0 }, e: { r: 2, c: 13 } },
-        // Date (row 4, merge across all columns)
-        { s: { r: 3, c: 0 }, e: { r: 3, c: 13 } },
+        // Company name (row 2, merge across all 16 columns: 0-15)
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 15 } },
+        // Report name (row 3, merge across all 16 columns: 0-15)
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 15 } },
+        // Date (row 4, merge across all 16 columns: 0-15)
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 15 } },
 
-        // Product Info group (row 6) - รวม Product Name, Unit, Unit Cost
-        { s: { r: 5, c: 0 }, e: { r: 5, c: 2 } },
-        // Total group
-        { s: { r: 5, c: 3 }, e: { r: 5, c: 5 } },
-        // 0-90 Days group
-        { s: { r: 5, c: 6 }, e: { r: 5, c: 7 } },
-        // 91-180 Days group
+        // Product Info group (row 6) - รวม รหัสสินค้า, ชื่อสินค้า, กลุ่มสินค้า, หน่วย (4 columns: 0-3)
+        { s: { r: 5, c: 0 }, e: { r: 5, c: 3 } },
+        // Total group (4 columns: ราคาทุน, Quantity, Unit Cost, Total Value = 4-7)
+        { s: { r: 5, c: 4 }, e: { r: 5, c: 7 } },
+        // 0-90 Days group (2 columns: 8-9)
         { s: { r: 5, c: 8 }, e: { r: 5, c: 9 } },
-        // 181-365 Days group
+        // 91-180 Days group (2 columns: 10-11)
         { s: { r: 5, c: 10 }, e: { r: 5, c: 11 } },
-        // Over 365 Days group
+        // 181-365 Days group (2 columns: 12-13)
         { s: { r: 5, c: 12 }, e: { r: 5, c: 13 } },
+        // Over 365 Days group (2 columns: 14-15)
+        { s: { r: 5, c: 14 }, e: { r: 5, c: 15 } },
       ];
 
       // Apply styles to cells
@@ -1658,7 +1643,9 @@ export default function PVSDashboard() {
         "บริษัท",
         "สาขา",
         "หมายเลขเอกสาร",
-        "สินค้า",
+        "รหัสสินค้า",
+        "ชื่อสินค้า",
+        "กลุ่มสินค้า",
         "หน่วย",
         "จำนวน",
         "ราคาต้นทุน",
@@ -1693,6 +1680,7 @@ export default function PVSDashboard() {
           row.DocNumber || "",
           row.ProdCode || "", // ✅ รหัสสินค้า
           row.ProdName || "", // ✅ ชื่อสินค้า
+          row.ProdGrp || "-", // ✅ กลุ่มสินค้า
           row.UnitName || "",
           row.QtyFromThisDoc || 0,
           row.AverageCost || 0,
@@ -1709,9 +1697,9 @@ export default function PVSDashboard() {
 
       // Add merge cells for title rows
       ws["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 11 } }, // Company name (row 1, all columns)
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 11 } }, // Report name (row 2, all columns)
-        { s: { r: 2, c: 0 }, e: { r: 2, c: 11 } }, // Date (row 3, all columns)
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 13 } }, // Company name (row 1, all columns)
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 13 } }, // Report name (row 2, all columns)
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 13 } }, // Date (row 3, all columns)
       ];
 
       // Set column widths
@@ -1719,7 +1707,9 @@ export default function PVSDashboard() {
         { wch: 15 }, // บริษัท
         { wch: 15 }, // สาขา
         { wch: 18 }, // หมายเลขเอกสาร
-        { wch: 40 }, // สินค้า - wider for product names
+        { wch: 15 }, // รหัสสินค้า
+        { wch: 30 }, // ชื่อสินค้า
+        { wch: 20 }, // กลุ่มสินค้า
         { wch: 12 }, // หน่วย
         { wch: 12 }, // จำนวน
         { wch: 15 }, // ราคาต้นทุน
@@ -2396,17 +2386,14 @@ export default function PVSDashboard() {
                   <table className="w-full border-collapse">
                     <thead className="sticky top-0 z-10">
                       <tr className="border-b-3 border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-800">
-                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
-                          บริษัท
-                        </th>
-                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
-                          สาขา
-                        </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[150px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           รหัสสินค้า
                         </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[250px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           ชื่อสินค้า
+                        </th>
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[150px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
+                          กลุ่มสินค้า
                         </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500">
                           หน่วย
@@ -2461,7 +2448,6 @@ export default function PVSDashboard() {
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
-                        <th className="bg-white dark:bg-slate-800 border-r-2 border-gray-300 dark:border-slate-500"></th>
                         <th className="text-right p-3 bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-400 font-medium border-r border-l-2 border-gray-300 dark:border-slate-500">
                           จำนวน
                         </th>
@@ -2500,7 +2486,7 @@ export default function PVSDashboard() {
                     <tbody>
                       {isProductSearching ? (
                         <tr>
-                          <td colSpan={17} className="p-0">
+                          <td colSpan={16} className="p-0">
                             <SearchLoading
                               message="กำลังค้นหาสินค้า..."
                               size="md"
@@ -2510,7 +2496,7 @@ export default function PVSDashboard() {
                         </tr>
                       ) : getFilteredProductSummary().length === 0 ? (
                         <tr>
-                          <td colSpan={17} className="p-0">
+                          <td colSpan={16} className="p-0">
                             <EmptyState
                               type={
                                 debouncedProductSearch.trim()
@@ -2561,18 +2547,15 @@ export default function PVSDashboard() {
                             key={index}
                             className="border-b-2 border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors duration-150"
                           >
-                            <td className="p-2 text-gray-700 dark:text-slate-300 border-r-2 border-gray-200 dark:border-slate-600">
-                              {product.Corp}
-                            </td>
-                            <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
-                              {product.Branch}
-                            </td>
                             {/* ✅ แยก ProdCode และ ProdName เป็น 2 คอลัมน์ */}
                             <td className="p-2 text-gray-700 dark:text-slate-300 font-mono border-r-2 border-gray-200 dark:border-slate-600">
                               {product.ProdCode}
                             </td>
                             <td className="p-2 text-gray-800 dark:text-slate-200 border-r-2 border-gray-200 dark:border-slate-600">
                               {product.ProdName}
+                            </td>
+                            <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
+                              {product.ProdGrp || "-"}
                             </td>
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
                               {product.UnitName}
@@ -2817,6 +2800,9 @@ export default function PVSDashboard() {
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[300px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           ชื่อสินค้า
                         </th>
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[150px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
+                          กลุ่มสินค้า
+                        </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[80px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           หน่วย
                         </th>
@@ -2840,7 +2826,7 @@ export default function PVSDashboard() {
                     <tbody>
                       {isSearching ? (
                         <tr>
-                          <td colSpan={11} className="p-0">
+                          <td colSpan={12} className="p-0">
                             <SearchLoading
                               message="กำลังค้นหาข้อมูล..."
                               size="md"
@@ -2850,7 +2836,7 @@ export default function PVSDashboard() {
                         </tr>
                       ) : getFilteredRawData().length === 0 ? (
                         <tr>
-                          <td colSpan={11} className="p-0">
+                          <td colSpan={12} className="p-0">
                             <EmptyState
                               type={
                                 debouncedRawDataSearch.trim()
@@ -2916,6 +2902,9 @@ export default function PVSDashboard() {
                             </td>
                             <td className="p-2 text-gray-800 dark:text-slate-200 border-r-2 border-gray-200 dark:border-slate-600">
                               {row.ProdName}
+                            </td>
+                            <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
+                              {row.ProdGrp || "-"}
                             </td>
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
                               {row.UnitName}
