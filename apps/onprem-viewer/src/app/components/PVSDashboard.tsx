@@ -2121,7 +2121,7 @@ export default function PVSDashboard() {
           {stats && (
             <div>
               <div className="flex items-center mb-6">
-                <div className="bg-gradient-to-r from-indigo-500 to-purple-500 rounded-lg p-2 mr-3">
+                <div className="bg-blue-500 rounded-lg p-2 mr-3">
                   <BarChart3 className="text-white w-6 h-6" />
                 </div>
                 <h3 className="text-2xl font-bold text-gray-800 dark:text-slate-200">
