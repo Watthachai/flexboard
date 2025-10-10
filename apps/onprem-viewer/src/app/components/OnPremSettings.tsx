@@ -171,7 +171,8 @@ export default function OnPremSettings() {
                         No companies available.
                       </span>
                       <br />
-                      Data will be loaded from SQL Server when connected.
+                      Connect to the database to load available companies via
+                      API.
                     </p>
                   </div>
                 )}
