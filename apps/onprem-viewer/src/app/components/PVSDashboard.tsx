@@ -6,13 +6,13 @@ import { useTheme } from "@/app/components/context/ThemeContext";
 import { useCompany } from "@/app/components/context/CompanyContext";
 import SearchLoading from "@/app/components/ui/SearchLoading";
 import EmptyState from "@/app/components/ui/EmptyState";
+import MonthPicker from "@/app/components/MonthPicker";
 import * as XLSX from "xlsx";
 import {
   Settings,
   RefreshCw,
   BarChart3,
   Building2,
-  Calendar,
   CheckCircle,
   AlertTriangle,
   Zap,
@@ -112,582 +112,6 @@ interface DefaultCompanySettings {
 // ✅ 4. Excel Export: Product Summary และ Raw Data แยก columns
 // ✅ 5. Search/Filter: ใช้ matchesProductSearch() รองรับทั้งสองฟิลด์
 // =====================================================
-
-// Modern GitHub-style DateRangePicker component with calendar and preset options
-const StandaloneDateRangePicker = ({
-  dateFrom,
-  dateTo,
-  setDateFrom,
-  setDateTo,
-}: {
-  dateFrom: string;
-  dateTo: string;
-  setDateFrom: (date: string) => void;
-  setDateTo: (date: string) => void;
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [viewDate, setViewDate] = useState(() => {
-    // เริ่มต้นที่วันที่ที่เลือกไว้ หรือวันปัจจุบันถ้าไม่มีการเลือก
-    if (dateFrom) {
-      return new Date(dateFrom);
-    } else if (dateTo) {
-      return new Date(dateTo);
-    }
-    return new Date();
-  });
-  const [selectedPreset, setSelectedPreset] = useState<string>("");
-  const [showMonthYearPicker, setShowMonthYearPicker] = useState(false);
-  const [pickerType, setPickerType] = useState<"left" | "right">("left");
-  const [tempSelectedMonth, setTempSelectedMonth] = useState<number | null>(
-    null
-  );
-  const [tempSelectedYear, setTempSelectedYear] = useState<number | null>(null);
-  const [yearRangeStart, setYearRangeStart] = useState(
-    new Date().getFullYear() - 10
-  );
-
-  // Local state for temporary selections (only applied when user clicks "Update")
-  const [tempDateFrom, setTempDateFrom] = useState(dateFrom);
-  const [tempDateTo, setTempDateTo] = useState(dateTo);
-  const [tempSelectedPreset, setTempSelectedPreset] = useState<string>("");
-
-  // Sync temp values when props change and update viewDate to focus on selected date
-  useEffect(() => {
-    setTempDateFrom(dateFrom);
-    setTempDateTo(dateTo);
-
-    // อัปเดท viewDate ให้ focus ไปที่วันที่ที่เลือกไว้
-    if (dateFrom) {
-      setViewDate(new Date(dateFrom));
-    } else if (dateTo) {
-      setViewDate(new Date(dateTo));
-    }
-  }, [dateFrom, dateTo]);
-
-  const formatDisplayDate = (date: string) => {
-    if (!date) return "";
-    try {
-      return new Date(date).toLocaleDateString("th-TH", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
-    } catch {
-      return date;
-    }
-  };
-
-  const getDateRange = (preset: string) => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    switch (preset) {
-      case "thismonth": {
-        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-
-        // Format as YYYY-MM-DD without timezone conversion
-        const fromStr = `${startOfMonth.getFullYear()}-${String(
-          startOfMonth.getMonth() + 1
-        ).padStart(2, "0")}-${String(startOfMonth.getDate()).padStart(2, "0")}`;
-        const toStr = `${today.getFullYear()}-${String(
-          today.getMonth() + 1
-        ).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-
-        return {
-          from: fromStr,
-          to: toStr,
-          label: "เดือนนี้",
-        };
-      }
-      case "lastmonth": {
-        const lastMonthStart = new Date(
-          today.getFullYear(),
-          today.getMonth() - 1,
-          1
-        );
-        const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-
-        // Format as YYYY-MM-DD without timezone conversion
-        const fromStr = `${lastMonthStart.getFullYear()}-${String(
-          lastMonthStart.getMonth() + 1
-        ).padStart(2, "0")}-${String(lastMonthStart.getDate()).padStart(
-          2,
-          "0"
-        )}`;
-        const toStr = `${lastMonthEnd.getFullYear()}-${String(
-          lastMonthEnd.getMonth() + 1
-        ).padStart(2, "0")}-${String(lastMonthEnd.getDate()).padStart(2, "0")}`;
-
-        return {
-          from: fromStr,
-          to: toStr,
-          label: "เดือนที่แล้ว",
-        };
-      }
-      default:
-        return null;
-    }
-  };
-
-  const presets = [
-    { key: "thismonth", label: "เดือนนี้" },
-    { key: "lastmonth", label: "เดือนที่แล้ว" },
-  ];
-
-  const handlePresetClick = (presetKey: string) => {
-    const range = getDateRange(presetKey);
-    if (range) {
-      setTempDateFrom(range.from);
-      setTempDateTo(range.to);
-      setTempSelectedPreset(presetKey);
-    }
-  };
-
-  const handleApply = () => {
-    setDateFrom(tempDateFrom);
-    setDateTo(tempDateTo);
-    setSelectedPreset(tempSelectedPreset);
-
-    // อัปเดท yearRangeStart ให้ focus ไปที่ปีของวันที่ที่เลือก
-    if (tempDateFrom) {
-      const selectedYear = new Date(tempDateFrom).getFullYear();
-      setYearRangeStart(selectedYear - 5); // ให้ปีที่เลือกอยู่ตรงกลางของช่วง
-    }
-
-    setIsOpen(false);
-  };
-
-  const handleCancel = () => {
-    setTempDateFrom(dateFrom);
-    setTempDateTo(dateTo);
-    setTempSelectedPreset("");
-    setIsOpen(false);
-  };
-
-  const getDisplayText = () => {
-    if (selectedPreset) {
-      const preset = presets.find((p) => p.key === selectedPreset);
-      if (preset) return preset.label;
-    }
-
-    if (dateFrom && dateTo) {
-      return `${formatDisplayDate(dateFrom)} - ${formatDisplayDate(dateTo)}`;
-    } else if (dateFrom) {
-      return `ตั้งแต่ ${formatDisplayDate(dateFrom)}`;
-    } else if (dateTo) {
-      return `ถึง ${formatDisplayDate(dateTo)}`;
-    }
-    return "เลือกช่วงวันที่";
-  };
-
-  const getCurrentTempSelection = () => {
-    for (const preset of presets) {
-      const range = getDateRange(preset.key);
-      if (range && range.from === tempDateFrom && range.to === tempDateTo) {
-        return preset.key;
-      }
-    }
-    return "";
-  };
-
-  const currentTempSelection = getCurrentTempSelection();
-
-  // Calendar generation functions
-  const getDaysInMonth = (date: Date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  };
-
-  const getFirstDayOfMonth = (date: Date) => {
-    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
-  };
-
-  const isDateInTempRange = (date: string) => {
-    if (!tempDateFrom || !tempDateTo) return false;
-    return date >= tempDateFrom && date <= tempDateTo;
-  };
-
-  const isDateTempSelected = (date: string) => {
-    return date === tempDateFrom || date === tempDateTo;
-  };
-
-  const handleDateClick = (dateStr: string) => {
-    if (!tempDateFrom || (tempDateFrom && tempDateTo)) {
-      // Start new selection
-      setTempDateFrom(dateStr);
-      setTempDateTo("");
-      setTempSelectedPreset("");
-    } else if (dateStr >= tempDateFrom) {
-      // Complete selection
-      setTempDateTo(dateStr);
-    } else {
-      // New start date
-      setTempDateFrom(dateStr);
-      setTempDateTo("");
-    }
-  };
-
-  const handleMonthSelect = (month: number) => {
-    setTempSelectedMonth(month);
-  };
-
-  const handleYearSelect = (year: number) => {
-    setTempSelectedYear(year);
-  };
-
-  const applyMonthYearSelection = () => {
-    if (tempSelectedMonth !== null && tempSelectedYear !== null) {
-      if (pickerType === "left") {
-        setViewDate(new Date(tempSelectedYear, tempSelectedMonth));
-      } else {
-        // For right picker, ensure it's at least one month after left
-        const leftMonth = new Date(viewDate.getFullYear(), viewDate.getMonth());
-        const selectedDate = new Date(tempSelectedYear, tempSelectedMonth);
-        if (selectedDate > leftMonth) {
-          setViewDate(new Date(tempSelectedYear, tempSelectedMonth - 1)); // Set left month so right becomes the selected
-        }
-      }
-    }
-    setShowMonthYearPicker(false);
-    setTempSelectedMonth(null);
-    setTempSelectedYear(null);
-  };
-
-  const cancelMonthYearSelection = () => {
-    setShowMonthYearPicker(false);
-    setTempSelectedMonth(null);
-    setTempSelectedYear(null);
-  };
-
-  const renderMonthYearPicker = () => {
-    const years = Array.from({ length: 12 }, (_, i) => yearRangeStart + i);
-    const months = [
-      "ม.ค.",
-      "ก.พ.",
-      "มี.ค.",
-      "เม.ย.",
-      "พ.ค.",
-      "มิ.ย.",
-      "ก.ค.",
-      "ส.ค.",
-      "ก.ย.",
-      "ต.ค.",
-      "พ.ย.",
-      "ธ.ค.",
-    ]; // ชื่อย่อเพื่อประหยัดพื้นที่
-
-    // Initialize temp values with current date if not set
-    const displayMonth =
-      tempSelectedMonth !== null ? tempSelectedMonth : viewDate.getMonth();
-    const displayYear =
-      tempSelectedYear !== null ? tempSelectedYear : viewDate.getFullYear();
-
-    const goToPreviousYears = () => {
-      setYearRangeStart((prev) => prev - 12);
-    };
-
-    const goToNextYears = () => {
-      setYearRangeStart((prev) => prev + 12);
-    };
-
-    return (
-      <div className="absolute z-30 top-full left-0 mt-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg shadow-lg p-3 min-w-[280px]">
-        <div className="text-xs font-medium text-gray-900 dark:text-gray-100 mb-2 text-center">
-          เลือก: {months[displayMonth]} {displayYear + 543}
-        </div>
-
-        <div className="mb-3">
-          <div className="flex items-center justify-between mb-1">
-            <div className="text-xs text-gray-600 dark:text-gray-400">ปี</div>
-            <div className="flex items-center space-x-1">
-              <button
-                onClick={goToPreviousYears}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-400"
-                title="ปีก่อนหน้า"
-              >
-                <ChevronLeft className="w-3 h-3" />
-              </button>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                {yearRangeStart + 543} - {yearRangeStart + 11 + 543}
-              </span>
-              <button
-                onClick={goToNextYears}
-                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-gray-600 dark:text-gray-400"
-                title="ปีถัดไป"
-              >
-                <ChevronRight className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-1">
-            {years.map((year) => (
-              <button
-                key={year}
-                onClick={() => handleYearSelect(year)}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
-                  displayYear === year
-                    ? "bg-blue-600 text-white"
-                    : "hover:bg-blue-100 dark:hover:bg-blue-900 text-gray-700 dark:text-gray-300"
-                }`}
-              >
-                {year + 543}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="mb-3">
-          <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">
-            เดือน
-          </div>
-          <div className="grid grid-cols-4 gap-1">
-            {months.map((month, index) => (
-              <button
-                key={index}
-                onClick={() => handleMonthSelect(index)}
-                className={`px-2 py-1 text-xs rounded transition-colors ${
-                  displayMonth === index
-                    ? "bg-blue-600 text-white"
-                    : "hover:bg-blue-100 dark:hover:bg-blue-900 text-gray-700 dark:text-gray-300"
-                }`}
-              >
-                {month}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex justify-end space-x-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-          <button
-            onClick={cancelMonthYearSelection}
-            className="px-2 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-          >
-            ยกเลิก
-          </button>
-          <button
-            onClick={applyMonthYearSelection}
-            disabled={tempSelectedMonth === null || tempSelectedYear === null}
-            className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            ตกลง
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const renderCalendar = (date: Date, isLeft: boolean = true) => {
-    const daysInMonth = getDaysInMonth(date);
-    const firstDay = getFirstDayOfMonth(date);
-    const days = [];
-
-    // Empty cells for days before month starts
-    for (let i = 0; i < firstDay; i++) {
-      days.push(<div key={`empty-${i}`} className="w-8 h-8"></div>);
-    }
-
-    // Days of the month
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dateStr = `${date.getFullYear()}-${String(
-        date.getMonth() + 1
-      ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      const isInRange = isDateInTempRange(dateStr);
-      const isSelected = isDateTempSelected(dateStr);
-      const isToday = dateStr === new Date().toISOString().split("T")[0];
-
-      days.push(
-        <button
-          key={day}
-          onClick={() => handleDateClick(dateStr)}
-          className={`w-8 h-8 text-sm rounded-md flex items-center justify-center hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors ${
-            isSelected
-              ? "bg-blue-600 text-white hover:bg-blue-700"
-              : isInRange
-              ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
-              : isToday
-              ? "bg-gray-200 dark:bg-gray-600 font-bold"
-              : "text-gray-700 dark:text-gray-300"
-          }`}
-        >
-          {day}
-        </button>
-      );
-    }
-
-    return (
-      <div className="p-4">
-        <div className="flex items-center justify-between mb-4">
-          {isLeft && (
-            <button
-              onClick={() =>
-                setViewDate(new Date(date.getFullYear(), date.getMonth() - 1))
-              }
-              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-          )}
-          <div className="relative">
-            <button
-              onClick={() => {
-                setPickerType(isLeft ? "left" : "right");
-                setTempSelectedMonth(date.getMonth());
-                setTempSelectedYear(date.getFullYear());
-                setShowMonthYearPicker(true);
-              }}
-              className="font-medium text-gray-900 dark:text-gray-100 mx-2 hover:bg-gray-100 dark:hover:bg-gray-600 px-2 py-1 rounded cursor-pointer"
-            >
-              {date.toLocaleDateString("th-TH", {
-                month: "long",
-                year: "numeric",
-              })}
-            </button>
-            {showMonthYearPicker &&
-              pickerType === (isLeft ? "left" : "right") &&
-              renderMonthYearPicker()}
-          </div>
-          {!isLeft && (
-            <button
-              onClick={() =>
-                setViewDate(new Date(date.getFullYear(), date.getMonth() + 1))
-              }
-              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-
-        {/* Day headers */}
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"].map((day) => (
-            <div
-              key={day}
-              className="w-8 h-8 flex items-center justify-center text-xs font-medium text-gray-500 dark:text-gray-400"
-            >
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar days */}
-        <div className="grid grid-cols-7 gap-1">{days}</div>
-      </div>
-    );
-  };
-
-  return (
-    <div className="relative">
-      <button
-        onClick={() => {
-          // เมื่อเปิด date picker ให้ focus ไปที่ปีของวันที่ที่เลือก
-          if (dateFrom && !isOpen) {
-            const selectedYear = new Date(dateFrom).getFullYear();
-            setYearRangeStart(selectedYear - 5);
-          } else if (dateTo && !isOpen) {
-            const selectedYear = new Date(dateTo).getFullYear();
-            setYearRangeStart(selectedYear - 5);
-          }
-          setIsOpen(!isOpen);
-        }}
-        className={`flex items-center justify-between w-full min-w-[240px] px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors ${
-          !dateFrom && !dateTo
-            ? "text-slate-400 dark:text-slate-500"
-            : "text-slate-900 dark:text-slate-200"
-        }`}
-      >
-        <div className="flex items-center">
-          <Calendar className="w-4 h-4 mr-2 text-slate-500" />
-          <span>{getDisplayText()}</span>
-        </div>
-        <ChevronDown className="w-4 h-4" />
-      </button>
-
-      {isOpen && (
-        <div className="absolute z-20 mt-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg shadow-xl min-w-[680px]">
-          <div className="flex">
-            {/* Left sidebar with presets */}
-            <div className="w-48 border-r border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 rounded-l-lg">
-              <div className="p-4">
-                <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">
-                  เลือกช่วงวันที่
-                </h3>
-                <div className="space-y-1">
-                  {presets.map((preset) => (
-                    <button
-                      key={preset.key}
-                      onClick={() => handlePresetClick(preset.key)}
-                      className={`w-full px-3 py-2 text-left text-sm rounded-md transition-colors ${
-                        currentTempSelection === preset.key
-                          ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium"
-                          : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                  <div className="pt-2 border-t border-gray-200 dark:border-gray-600 mt-2">
-                    <button
-                      onClick={() => setTempSelectedPreset("")}
-                      className={`w-full px-3 py-2 text-left text-sm rounded-md transition-colors ${
-                        !currentTempSelection
-                          ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium"
-                          : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                      }`}
-                    >
-                      กำหนดเอง...
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right side with calendar */}
-            <div className="flex-1">
-              <div className="flex">
-                {/* Current month */}
-                {renderCalendar(viewDate, true)}
-
-                {/* Next month */}
-                {renderCalendar(
-                  new Date(viewDate.getFullYear(), viewDate.getMonth() + 1),
-                  false
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="p-4 border-t border-gray-200 dark:border-gray-600 flex justify-between items-center">
-                <button
-                  onClick={() => {
-                    setTempDateFrom("");
-                    setTempDateTo("");
-                    setTempSelectedPreset("");
-                  }}
-                  className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                >
-                  ล้างทั้งหมด
-                </button>
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={handleCancel}
-                    className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md"
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    onClick={handleApply}
-                    className="px-4 py-1.5 text-sm bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600"
-                  >
-                    อัปเดต
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
 
 // Standalone CustomDropdown component to prevent re-render issues
 const StandaloneCustomDropdown = ({
@@ -791,8 +215,15 @@ export default function PVSDashboard() {
   // Filter states
   const [selectedCorp, setSelectedCorp] = useState<string>("");
   const [selectedBranch, setSelectedBranch] = useState<string>("");
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
+
+  // Default to current month (YYYY-MM format)
+  const getCurrentMonth = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+  };
+  const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonth());
 
   // Available filter options
   const [corps, setCorps] = useState<string[]>([]);
@@ -945,7 +376,7 @@ export default function PVSDashboard() {
     if (typeof window !== "undefined" && corps.length > 0 && !selectedCorp) {
       // ✅ เพิ่มเงื่อนไข: run เฉพาะเมื่อ selectedCorp ยังเป็น empty (ยังไม่ได้เลือก)
       const savedDefaultSettings = localStorage.getItem(
-        "defaultCompanySettings"
+        "flexboard-default-company-settings"
       );
       if (savedDefaultSettings) {
         try {
@@ -1023,16 +454,17 @@ export default function PVSDashboard() {
         filtered = filtered.filter((r) => r.Branch === selectedBranch);
       }
 
-      // Apply date range filter
-      if (dateFrom || dateTo) {
+      // Apply month filter
+      if (selectedMonth) {
         filtered = filtered.filter((r) => {
           const recordDate = new Date(r.DataDate);
-          const fromDate = dateFrom ? new Date(dateFrom) : null;
-          const toDate = dateTo ? new Date(dateTo) : null;
+          const [year, month] = selectedMonth.split("-");
+          const recordYear = recordDate.getFullYear();
+          const recordMonth = recordDate.getMonth() + 1; // 0-indexed
 
-          if (fromDate && recordDate < fromDate) return false;
-          if (toDate && recordDate > toDate) return false;
-          return true;
+          return (
+            recordYear === parseInt(year) && recordMonth === parseInt(month)
+          );
         });
       }
 
@@ -1040,7 +472,7 @@ export default function PVSDashboard() {
       calculateStats(filtered);
       calculateProductSummary(filtered);
     },
-    [selectedCorp, selectedBranch, dateFrom, dateTo]
+    [selectedCorp, selectedBranch, selectedMonth]
   );
 
   const calculateProductSummary = (records: DatabaseRecord[]) => {
@@ -1108,7 +540,7 @@ export default function PVSDashboard() {
     }, 300); // Wait 300ms before applying filters
 
     return () => clearTimeout(timer);
-  }, [selectedCorp, selectedBranch, dateFrom, dateTo, data, applyFilters]);
+  }, [selectedCorp, selectedBranch, selectedMonth, data, applyFilters]);
 
   // Reset pagination when data changes
   useEffect(() => {
@@ -1506,10 +938,8 @@ export default function PVSDashboard() {
           .trim()
           .replace(/[^a-zA-Z0-9ก-๛]/g, "_")}`;
       }
-      if (dateFrom || dateTo) {
-        filename += "_";
-        if (dateFrom) filename += dateFrom;
-        if (dateTo) filename += "_to_" + dateTo;
+      if (selectedMonth) {
+        filename += `_${selectedMonth}`;
       }
       filename += ".xlsx";
 
@@ -1530,10 +960,8 @@ export default function PVSDashboard() {
           .trim()
           .replace(/[^a-zA-Z0-9ก-๛]/g, "_")}`;
       }
-      if (dateFrom || dateTo) {
-        fallbackFilename += "_";
-        if (dateFrom) fallbackFilename += dateFrom;
-        if (dateTo) fallbackFilename += "_to_" + dateTo;
+      if (selectedMonth) {
+        fallbackFilename += `_${selectedMonth}`;
       }
       fallbackFilename += ".csv";
 
@@ -1812,10 +1240,8 @@ export default function PVSDashboard() {
           .trim()
           .replace(/[^a-zA-Z0-9ก-๛]/g, "_")}`;
       }
-      if (dateFrom || dateTo) {
-        filename += "_";
-        if (dateFrom) filename += dateFrom;
-        if (dateTo) filename += "_to_" + dateTo;
+      if (selectedMonth) {
+        filename += `_${selectedMonth}`;
       }
       filename += ".xlsx";
 
@@ -1867,7 +1293,7 @@ export default function PVSDashboard() {
   // Filter Controls Component
   const FilterTabs = ({ showClearAll = true }: { showClearAll?: boolean }) => {
     const hasActiveFilters =
-      selectedCorp || selectedBranch || dateFrom || dateTo;
+      selectedCorp || selectedBranch || selectedMonth !== getCurrentMonth();
 
     return (
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 p-6">
@@ -1905,13 +1331,11 @@ export default function PVSDashboard() {
             }
           />
 
-          {/* Date Range Filter */}
+          {/* Month Filter */}
           <div className="flex items-center">
-            <StandaloneDateRangePicker
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              setDateFrom={setDateFrom}
-              setDateTo={setDateTo}
+            <MonthPicker
+              selectedMonth={selectedMonth}
+              setSelectedMonth={setSelectedMonth}
             />
           </div>
 
@@ -1921,8 +1345,7 @@ export default function PVSDashboard() {
               onClick={() => {
                 setSelectedCorp("");
                 setSelectedBranch("");
-                setDateFrom("");
-                setDateTo("");
+                setSelectedMonth(getCurrentMonth());
               }}
               className="px-4 py-2 bg-slate-500 dark:bg-slate-600 text-white rounded-lg hover:bg-slate-600 dark:hover:bg-slate-700 transition-colors flex items-center font-medium"
             >
