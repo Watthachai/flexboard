@@ -1070,7 +1070,8 @@ export default function PVSDashboard() {
       wsData.push([
         "บริษัท",
         "สาขา",
-        "หมายเลขเอกสาร",
+        "วันที่เอกสาร",
+        "เลขที่เอกสาร",
         "รหัสสินค้า",
         "ชื่อสินค้า",
         "กลุ่มสินค้า",
@@ -1080,8 +1081,6 @@ export default function PVSDashboard() {
         "มูลค่า",
         "อายุ (วัน)",
         "กลุ่มอายุ",
-        "วันที่เอกสาร",
-        "วันที่ข้อมูล",
       ]);
 
       // Helper function to format date
@@ -1105,36 +1104,36 @@ export default function PVSDashboard() {
         wsData.push([
           row.Corp || "",
           row.Branch || "",
-          row.DocNumber || "",
-          row.ProdCode || "", // ✅ รหัสสินค้า
-          row.ProdName || "", // ✅ ชื่อสินค้า
-          row.ProdGrp || "-", // ✅ กลุ่มสินค้า
-          row.UnitName || "",
-          row.QtyFromThisDoc || 0,
-          row.AverageCost || 0,
-          (row.QtyFromThisDoc || 0) * (row.AverageCost || 0), // Calculate totalValue
-          row.DaysAge || 0,
-          row.AgeBucket || "",
-          formatDate(row.DocDate || ""),
-          formatDate(row.DataDate || ""),
+          formatDate(row.DocDate || ""), // วันที่เอกสาร
+          row.DocNumber || "", // เลขที่เอกสาร
+          row.ProdCode || "", // รหัสสินค้า
+          row.ProdName || "", // ชื่อสินค้า
+          row.ProdGrp || "-", // กลุ่มสินค้า
+          row.UnitName || "", // หน่วย
+          row.QtyFromThisDoc || 0, // จำนวน
+          row.AverageCost || 0, // ราคาต้นทุน
+          (row.QtyFromThisDoc || 0) * (row.AverageCost || 0), // มูลค่า
+          row.DaysAge || 0, // อายุ (วัน)
+          row.AgeBucket || "", // กลุ่มอายุ
         ]);
       });
 
       // Create worksheet
       const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-      // Add merge cells for title rows
+      // Add merge cells for title rows (13 columns: 0-12)
       ws["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 13 } }, // Company name (row 1, all columns)
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 13 } }, // Report name (row 2, all columns)
-        { s: { r: 2, c: 0 }, e: { r: 2, c: 13 } }, // Date (row 3, all columns)
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } }, // Company name (row 1, all columns)
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } }, // Report name (row 2, all columns)
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 12 } }, // Date (row 3, all columns)
       ];
 
       // Set column widths
       ws["!cols"] = [
         { wch: 15 }, // บริษัท
         { wch: 15 }, // สาขา
-        { wch: 18 }, // หมายเลขเอกสาร
+        { wch: 12 }, // วันที่เอกสาร
+        { wch: 18 }, // เลขที่เอกสาร
         { wch: 15 }, // รหัสสินค้า
         { wch: 30 }, // ชื่อสินค้า
         { wch: 20 }, // กลุ่มสินค้า
@@ -1144,8 +1143,6 @@ export default function PVSDashboard() {
         { wch: 18 }, // มูลค่า
         { wch: 12 }, // อายุ (วัน)
         { wch: 15 }, // กลุ่มอายุ
-        { wch: 15 }, // วันที่เอกสาร
-        { wch: 15 }, // วันที่ข้อมูล
       ];
 
       // Apply styles to cells
@@ -2214,8 +2211,11 @@ export default function PVSDashboard() {
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[100px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           สาขา
                         </th>
+                        <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[110px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
+                          วันที่เอกสาร
+                        </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[120px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
-                          หมายเลขเอกสาร
+                          เลขที่เอกสาร
                         </th>
                         <th className="text-left p-3 font-bold text-gray-700 dark:text-slate-300 min-w-[150px] bg-gray-50 dark:bg-slate-700 border-r-2 border-gray-300 dark:border-slate-500">
                           รหัสสินค้า
@@ -2249,7 +2249,7 @@ export default function PVSDashboard() {
                     <tbody>
                       {isSearching ? (
                         <tr>
-                          <td colSpan={12} className="p-0">
+                          <td colSpan={13} className="p-0">
                             <SearchLoading
                               message="กำลังค้นหาข้อมูล..."
                               size="md"
@@ -2259,7 +2259,7 @@ export default function PVSDashboard() {
                         </tr>
                       ) : getFilteredRawData().length === 0 ? (
                         <tr>
-                          <td colSpan={12} className="p-0">
+                          <td colSpan={13} className="p-0">
                             <EmptyState
                               type={
                                 debouncedRawDataSearch.trim()
@@ -2315,6 +2315,24 @@ export default function PVSDashboard() {
                             </td>
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
                               {row.Branch}
+                            </td>
+                            <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
+                              {row.DocDate
+                                ? (() => {
+                                    const date = new Date(row.DocDate);
+                                    const day = String(date.getDate()).padStart(
+                                      2,
+                                      "0"
+                                    );
+                                    const month = String(
+                                      date.getMonth() + 1
+                                    ).padStart(2, "0");
+                                    const year = String(
+                                      date.getFullYear() + 543
+                                    ).slice(-2);
+                                    return `${day}/${month}/${year}`;
+                                  })()
+                                : "N/A"}
                             </td>
                             <td className="p-2 text-gray-600 dark:text-slate-400 border-r-2 border-gray-200 dark:border-slate-600">
                               {row.DocNumber || "N/A"}

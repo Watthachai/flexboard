@@ -62,7 +62,7 @@ export default function OnPremViewer() {
           {/* Primary Action */}
           <div className="mb-12">
             <a
-              href="/dashboard"
+              href="/pvs"
               className="inline-flex items-center px-8 py-4 bg-blue-600 text-white rounded-xl text-lg font-semibold hover:bg-blue-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
             >
               <BarChart3 className="w-6 h-6 mr-3" />
@@ -121,7 +121,7 @@ export default function OnPremViewer() {
 
             <div className="space-y-4">
               <a
-                href="/dashboard"
+                href="/pvs"
                 className="flex items-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
               >
                 <BarChart3 className="w-8 h-8 text-blue-600 dark:text-blue-400 mr-4" />
