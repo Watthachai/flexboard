@@ -45,19 +45,30 @@ export interface SyncConfig {
 class ManifestSyncService {
   private config: SyncConfig | null = null;
   private syncTimer: NodeJS.Timeout | null = null;
+  private cachedTenantId: string | null = null;
+  private tenantIdCacheExpiry: number = 0;
+  private readonly TENANT_CACHE_DURATION = 10 * 60 * 1000; // Cache for 10 minutes
 
   constructor() {
     this.loadConfig();
   }
 
   private async getSessionTenantId(): Promise<string | null> {
+    // Return cached tenant ID if still valid
+    if (this.cachedTenantId && Date.now() < this.tenantIdCacheExpiry) {
+      return this.cachedTenantId;
+    }
+
     try {
       // Get tenant ID from current session
       const response = await fetch("/api/auth/validate");
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.license?.tenantId) {
-          return result.license.tenantId;
+          // Cache the tenant ID
+          this.cachedTenantId = result.license.tenantId;
+          this.tenantIdCacheExpiry = Date.now() + this.TENANT_CACHE_DURATION;
+          return this.cachedTenantId;
         }
       }
       return null;
@@ -462,7 +473,8 @@ class ManifestSyncService {
 
   async startAutoSync() {
     // Use default config for auto-sync interval, actual sync will get real tenant ID
-    const config = this.config || { syncInterval: 15 };
+    // Changed from 15 minutes to 120 minutes (2 hours) to reduce API calls
+    const config = this.config || { syncInterval: 120 };
     if (this.syncTimer) return;
 
     const intervalMs = config.syncInterval * 60 * 1000; // Convert to milliseconds
