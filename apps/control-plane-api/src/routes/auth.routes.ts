@@ -390,6 +390,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     try {
       const authHeader = request.headers.authorization;
 
+      // Early exit: no authorization header
       if (!authHeader || !authHeader.startsWith("Bearer ")) {
         return reply.status(401).send({
           success: false,
@@ -398,15 +399,26 @@ export default async function authRoutes(fastify: FastifyInstance) {
       }
 
       const sessionToken = authHeader.substring(7);
+
+      // Early exit: no token
+      if (!sessionToken) {
+        return reply.status(401).send({
+          success: false,
+          message: "Invalid token",
+        });
+      }
+
       const session = activeSessions.get(sessionToken);
 
-      console.log(
-        `GET session validation: token=${sessionToken?.substring(
-          0,
-          10
-        )}..., found=${!!session}, total sessions=${activeSessions.size}`
-      );
+      // Reduced logging - only log when session not found or expired
+      // console.log(
+      //   `GET session validation: token=${sessionToken?.substring(
+      //     0,
+      //     10
+      //   )}..., found=${!!session}, total sessions=${activeSessions.size}`
+      // );
 
+      // Early exit: session not found
       if (!session) {
         return reply.status(401).send({
           success: false,
@@ -454,6 +466,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       try {
         const { sessionToken, userId } = request.body;
 
+        // Early exit: no token
         if (!sessionToken) {
           return reply.status(401).send({
             success: false,
@@ -463,13 +476,15 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         const session = activeSessions.get(sessionToken);
 
-        console.log(
-          `POST session validation: token=${sessionToken?.substring(
-            0,
-            10
-          )}..., found=${!!session}, total sessions=${activeSessions.size}`
-        );
+        // Reduced logging - only log failures
+        // console.log(
+        //   `POST session validation: token=${sessionToken?.substring(
+        //     0,
+        //     10
+        //   )}..., found=${!!session}, total sessions=${activeSessions.size}`
+        // );
 
+        // Early exit: session not found
         if (!session) {
           return reply.status(401).send({
             success: false,
@@ -625,16 +640,6 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Clean up expired sessions (run periodically)
-  setInterval(() => {
-    const now = Date.now();
-    const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
-
-    for (const [token, session] of activeSessions.entries()) {
-      const sessionAge = now - session.createdAt.getTime();
-      if (sessionAge > maxAge) {
-        activeSessions.delete(token);
-      }
-    }
-  }, 60 * 60 * 1000); // Clean up every hour
+  // Note: Session cleanup is already initialized at the top of this file
+  // No need to set up another interval here
 }
