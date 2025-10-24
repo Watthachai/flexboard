@@ -246,7 +246,10 @@ async function authenticate(request: any, reply: any) {
   }
 }
 
-// Agent Sync API
+// Agent Sync API - DISABLED TO SAVE COSTS
+// This endpoint was causing excessive 401 errors and triggering autoscaling
+// Re-enable when agent system is actually in use
+/*
 fastify.get(
   "/api/agent/sync",
   { preHandler: authenticate },
@@ -254,37 +257,6 @@ fastify.get(
     try {
       const tenant = request.tenant;
 
-      // Return sample metadata for now
-      const sampleMetadata = {
-        dashboards: [
-          {
-            id: "sample-dashboard",
-            name: "Sample Dashboard",
-            widgets: [
-              {
-                id: "sales-summary",
-                type: "kpi",
-                title: "Sales Summary",
-                dataSourceType: "sql",
-                query:
-                  "SELECT COUNT(*) as total_orders, SUM(TotalDue) as total_revenue FROM Sales.SalesOrderHeader",
-              },
-              {
-                id: "sales-by-month",
-                type: "chart",
-                title: "Sales by Month",
-                dataSourceType: "sql",
-                query:
-                  "SELECT FORMAT(OrderDate, 'yyyy-MM') as month, SUM(TotalDue) as sales FROM Sales.SalesOrderHeader GROUP BY FORMAT(OrderDate, 'yyyy-MM')",
-              },
-            ],
-          },
-        ],
-        config: {
-          theme: "light",
-          refreshInterval: 300000,
-        },
-      };
 
       return {
         version: 1,
@@ -302,6 +274,7 @@ fastify.get(
     }
   }
 );
+*/
 
 // Server startup
 const start = async () => {
