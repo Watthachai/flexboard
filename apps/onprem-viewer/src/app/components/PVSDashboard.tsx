@@ -8,6 +8,9 @@ import SearchLoading from "@/app/components/ui/SearchLoading";
 import EmptyState from "@/app/components/ui/EmptyState";
 import MonthPicker from "@/app/components/MonthPicker";
 import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { addGoogleSansFont, setGoogleSansFont } from "@/app/utils/pdfFont";
 import {
   Settings,
   RefreshCw,
@@ -113,25 +116,34 @@ interface DefaultCompanySettings {
 // ✅ 5. Search/Filter: ใช้ matchesProductSearch() รองรับทั้งสองฟิลด์
 // =====================================================
 
-// Standalone CustomDropdown component to prevent re-render issues
-const StandaloneCustomDropdown = ({
-  value,
+// Multi-Select Dropdown for Product Groups
+const MultiSelectDropdown = ({
+  selectedValues,
   options,
   placeholder,
   onChange,
   icon: Icon,
-  disabled = false,
-  suffix,
 }: {
-  value: string;
+  selectedValues: string[];
   options: string[];
   placeholder: string;
-  onChange: (value: string) => void;
+  onChange: (values: string[]) => void;
   icon: React.ComponentType<{ className?: string }>;
-  disabled?: boolean;
-  suffix?: string;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  const toggleOption = (option: string) => {
+    if (selectedValues.includes(option)) {
+      onChange(selectedValues.filter((v) => v !== option));
+    } else {
+      onChange([...selectedValues, option]);
+    }
+  };
+
+  const displayText =
+    selectedValues.length > 0
+      ? `${selectedValues.length} กลุ่มที่เลือก`
+      : placeholder;
 
   return (
     <div className="relative flex items-center">
@@ -139,22 +151,17 @@ const StandaloneCustomDropdown = ({
       <div className="relative">
         <button
           type="button"
-          onClick={() => !disabled && setIsOpen(!isOpen)}
-          disabled={disabled}
-          className={`text-sm px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[200px] text-left flex items-center justify-between ${
-            disabled
-              ? "opacity-50 cursor-not-allowed"
-              : "hover:bg-slate-50 dark:hover:bg-slate-600"
-          }`}
+          onClick={() => setIsOpen(!isOpen)}
+          className="text-sm px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[200px] text-left flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-600"
         >
           <span
             className={
-              value
-                ? "text-gray-900 dark:text-slate-200"
+              selectedValues.length > 0
+                ? "text-gray-900 dark:text-slate-200 font-medium"
                 : "text-gray-500 dark:text-slate-400"
             }
           >
-            {value || placeholder}
+            {displayText}
           </span>
           <ChevronDown className="w-4 h-4 ml-2" />
         </button>
@@ -168,22 +175,25 @@ const StandaloneCustomDropdown = ({
             <div className="absolute z-20 mt-1 w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
               <button
                 onClick={() => {
-                  onChange("");
+                  onChange([]);
                   setIsOpen(false);
                 }}
                 className="w-full text-left px-3 py-2 text-sm text-gray-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-600 border-b border-slate-200 dark:border-slate-600"
               >
-                {placeholder}
+                ล้างการเลือก
               </button>
               {options.map((option) => (
                 <button
                   key={option}
-                  onClick={() => {
-                    onChange(option);
-                    setIsOpen(false);
-                  }}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600"
+                  onClick={() => toggleOption(option)}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 flex items-center"
                 >
+                  <input
+                    type="checkbox"
+                    checked={selectedValues.includes(option)}
+                    onChange={() => {}}
+                    className="mr-2"
+                  />
                   {option}
                 </button>
               ))}
@@ -191,9 +201,9 @@ const StandaloneCustomDropdown = ({
           </>
         )}
       </div>
-      {suffix && (
+      {options.length > 0 && (
         <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
-          {suffix}
+          ({options.length} กลุ่ม)
         </span>
       )}
     </div>
@@ -213,8 +223,9 @@ export default function PVSDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   // Filter states
-  const [selectedCorp, setSelectedCorp] = useState<string>("");
-  const [selectedBranch, setSelectedBranch] = useState<string>("");
+  const [selectedCorps, setSelectedCorps] = useState<string[]>([]);
+  const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
+  const [selectedProdGrps, setSelectedProdGrps] = useState<string[]>([]);
 
   // Default to current month (YYYY-MM format)
   const getCurrentMonth = () => {
@@ -228,6 +239,7 @@ export default function PVSDashboard() {
   // Available filter options
   const [corps, setCorps] = useState<string[]>([]);
   const [branches, setBranches] = useState<string[]>([]);
+  const [prodGrps, setProdGrps] = useState<string[]>([]);
 
   // Pagination states
   const [productPage, setProductPage] = useState(1);
@@ -247,6 +259,7 @@ export default function PVSDashboard() {
 
   // Export loading state
   const [isExportingExcel, setIsExportingExcel] = useState<boolean>(false);
+  const [isExportingPDF, setIsExportingPDF] = useState<boolean>(false);
 
   // Ingestion status state
   const [ingestionStatus, setIngestionStatus] = useState<IngestionStatus>({
@@ -349,8 +362,14 @@ export default function PVSDashboard() {
         ]
           .filter(Boolean)
           .sort() as string[];
+        const uniqueProdGrps = [
+          ...new Set(result.rows.map((r: DatabaseRecord) => r.ProdGrp)),
+        ]
+          .filter(Boolean)
+          .sort() as string[];
         setCorps(uniqueCorps);
         setBranches(uniqueBranches);
+        setProdGrps(uniqueProdGrps);
 
         // Update company context for other components
         setAvailableCompanies(uniqueCorps);
@@ -373,8 +392,12 @@ export default function PVSDashboard() {
 
   // Load default company settings and apply if enabled
   useEffect(() => {
-    if (typeof window !== "undefined" && corps.length > 0 && !selectedCorp) {
-      // ✅ เพิ่มเงื่อนไข: run เฉพาะเมื่อ selectedCorp ยังเป็น empty (ยังไม่ได้เลือก)
+    if (
+      typeof window !== "undefined" &&
+      corps.length > 0 &&
+      selectedCorps.length === 0
+    ) {
+      // ✅ เพิ่มเงื่อนไข: run เฉพาะเมื่อ selectedCorps ยังเป็น empty (ยังไม่ได้เลือก)
       const savedDefaultSettings = localStorage.getItem(
         "flexboard-default-company-settings"
       );
@@ -389,7 +412,7 @@ export default function PVSDashboard() {
             // Check if the default company exists in available corps
             if (corps.includes(settings.defaultCompany)) {
               console.log("Setting default company:", settings.defaultCompany);
-              setSelectedCorp(settings.defaultCompany);
+              setSelectedCorps([settings.defaultCompany]);
             } else {
               console.log(
                 "Default company not found in available corps:",
@@ -407,7 +430,7 @@ export default function PVSDashboard() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [corps]); // ✅ Run เฉพาะเมื่อ corps เปลี่ยน (ไม่ใส่ selectedCorp เพื่อป้องกันการ reset เมื่อ user เปลี่ยนการเลือก)
+  }, [corps]); // ✅ Run เฉพาะเมื่อ corps เปลี่ยน (ไม่ใส่ selectedCorps เพื่อป้องกันการ reset เมื่อ user เปลี่ยนการเลือก)
 
   // Fetch ingestion status
   const fetchIngestionStatus = useCallback(async () => {
@@ -444,14 +467,21 @@ export default function PVSDashboard() {
     (records: DatabaseRecord[]) => {
       let filtered = records;
 
-      // Apply corp filter
-      if (selectedCorp) {
-        filtered = filtered.filter((r) => r.Corp === selectedCorp);
+      // Apply corp filter (multiple selection)
+      if (selectedCorps.length > 0) {
+        filtered = filtered.filter((r) => selectedCorps.includes(r.Corp));
       }
 
-      // Apply branch filter
-      if (selectedBranch) {
-        filtered = filtered.filter((r) => r.Branch === selectedBranch);
+      // Apply branch filter (multiple selection)
+      if (selectedBranches.length > 0) {
+        filtered = filtered.filter((r) => selectedBranches.includes(r.Branch));
+      }
+
+      // Apply product group filter (multiple selection)
+      if (selectedProdGrps.length > 0) {
+        filtered = filtered.filter(
+          (r) => r.ProdGrp && selectedProdGrps.includes(r.ProdGrp)
+        );
       }
 
       // Apply month filter
@@ -472,7 +502,7 @@ export default function PVSDashboard() {
       calculateStats(filtered);
       calculateProductSummary(filtered);
     },
-    [selectedCorp, selectedBranch, selectedMonth]
+    [selectedCorps, selectedBranches, selectedProdGrps, selectedMonth]
   );
 
   const calculateProductSummary = (records: DatabaseRecord[]) => {
@@ -540,7 +570,14 @@ export default function PVSDashboard() {
     }, 300); // Wait 300ms before applying filters
 
     return () => clearTimeout(timer);
-  }, [selectedCorp, selectedBranch, selectedMonth, data, applyFilters]);
+  }, [
+    selectedCorps,
+    selectedBranches,
+    selectedProdGrps,
+    selectedMonth,
+    data,
+    applyFilters,
+  ]);
 
   // Reset pagination when data changes
   useEffect(() => {
@@ -701,22 +738,34 @@ export default function PVSDashboard() {
 
       // Add title rows
       // Get company and branch from filter or use default
-      const companyName = selectedCorp || "All Companies";
-      const branchName = selectedBranch || "All Branches";
-      const headerTitle = `${companyName} (${branchName})`;
+      const companyText =
+        selectedCorps.length > 0
+          ? `บริษัท: ${selectedCorps.join(", ")}`
+          : "บริษัท: ทุกบริษัท";
+
+      const branchText =
+        selectedBranches.length > 0
+          ? `สาขา: ${selectedBranches.join(", ")}`
+          : "สาขา: ทุกสาขา";
+
+      const exportMonth = selectedMonth
+        ? new Date(selectedMonth).toLocaleDateString("th-TH", {
+            month: "long",
+            year: "numeric",
+          })
+        : "ทุกเดือน";
+
+      const prodGrpText =
+        selectedProdGrps.length > 0
+          ? `กลุ่มสินค้า: ${selectedProdGrps.join(", ")}`
+          : "กลุ่มสินค้า: ทุกกลุ่มสินค้า";
 
       wsData.push([""]); // Empty row
-      wsData.push([headerTitle]); // Company name with branch - in column A
-      wsData.push(["Inventory Aging Report"]); // Report name - in column A
-
-      // Add current date
-      const currentDate = new Date();
-      const currentDateStr = currentDate.toLocaleDateString("th-TH", {
-        day: "numeric",
-        month: "numeric",
-        year: "numeric",
-      });
-      wsData.push([currentDateStr]); // Date - in column A
+      wsData.push([companyText]); // Company info
+      wsData.push([branchText]); // Branch info
+      wsData.push([`Export Date: ${exportMonth}`]); // Month from filter
+      wsData.push([prodGrpText]); // Product group info
+      wsData.push(["Inventory Aging Report"]); // Report name
       wsData.push([""]); // Empty row
 
       // Add main header row with groupings
@@ -844,13 +893,22 @@ export default function PVSDashboard() {
           if (R === 1 || R === 2 || R === 3) {
             ws[cellAddress].s = {
               alignment: { horizontal: "center", vertical: "center" },
-              font: { bold: true, size: R === 1 ? 14 : 12 },
+              font: {
+                name: "Angsana New",
+                bold: true,
+                size: R === 1 ? 14 : 12,
+              },
             };
           }
           // Main header row styling (Row 6 - Product Info, Total, etc.)
           else if (R === 5) {
             ws[cellAddress].s = {
-              font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
+              font: {
+                name: "Angsana New",
+                bold: true,
+                color: { rgb: "FFFFFF" },
+                sz: 12,
+              },
               fill: { fgColor: { rgb: "4472C4" } }, // Blue background
               alignment: { horizontal: "center", vertical: "center" },
               border: {
@@ -864,7 +922,7 @@ export default function PVSDashboard() {
           // Sub header row styling (Row 7)
           else if (R === 6) {
             ws[cellAddress].s = {
-              font: { bold: true, sz: 11 },
+              font: { name: "Angsana New", bold: true, sz: 11 },
               fill: { fgColor: { rgb: "D9E2F3" } }, // Light blue background
               alignment: { horizontal: "center", vertical: "center" },
               border: {
@@ -895,7 +953,7 @@ export default function PVSDashboard() {
             }
 
             ws[cellAddress].s = {
-              font: { sz: 10 },
+              font: { name: "Angsana New", sz: 10 },
               fill: { fgColor: { rgb: fillColor } },
               alignment: {
                 horizontal: C >= 5 ? "right" : "left", // Right align for numeric columns (starting from column 6)
@@ -931,8 +989,9 @@ export default function PVSDashboard() {
       const dateStr = now.toISOString().split("T")[0];
       let filename = `PVS_Summary_${dateStr}`;
 
-      if (selectedCorp) filename += `_${selectedCorp}`;
-      if (selectedBranch) filename += `_${selectedBranch}`;
+      if (selectedCorps.length > 0) filename += `_${selectedCorps.join("_")}`;
+      if (selectedBranches.length > 0)
+        filename += `_${selectedBranches.join("_")}`;
       if (debouncedProductSearch.trim()) {
         filename += `_search_${debouncedProductSearch
           .trim()
@@ -953,8 +1012,10 @@ export default function PVSDashboard() {
       const dateStr = now.toISOString().split("T")[0];
       let fallbackFilename = `PVS_Summary_${dateStr}`;
 
-      if (selectedCorp) fallbackFilename += `_${selectedCorp}`;
-      if (selectedBranch) fallbackFilename += `_${selectedBranch}`;
+      if (selectedCorps.length > 0)
+        fallbackFilename += `_${selectedCorps.join("_")}`;
+      if (selectedBranches.length > 0)
+        fallbackFilename += `_${selectedBranches.join("_")}`;
       if (debouncedProductSearch.trim()) {
         fallbackFilename += `_search_${debouncedProductSearch
           .trim()
@@ -1050,20 +1111,33 @@ export default function PVSDashboard() {
       const wsData: (string | number)[][] = [];
 
       // Add title rows
-      const currentDate = new Date().toLocaleDateString("th-TH", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
+      const companyText =
+        selectedCorps.length > 0
+          ? `บริษัท: ${selectedCorps.join(", ")}`
+          : "บริษัท: ทุกบริษัท";
 
-      // Get company and branch from filter or use default
-      const companyName = selectedCorp || "All Companies";
-      const branchName = selectedBranch || "All Branches";
-      const headerTitle = `${companyName} (${branchName})`;
+      const branchText =
+        selectedBranches.length > 0
+          ? `สาขา: ${selectedBranches.join(", ")}`
+          : "สาขา: ทุกสาขา";
 
-      wsData.push([headerTitle]); // Company name with branch
+      const exportMonth = selectedMonth
+        ? new Date(selectedMonth).toLocaleDateString("th-TH", {
+            month: "long",
+            year: "numeric",
+          })
+        : "ทุกเดือน";
+
+      const prodGrpText =
+        selectedProdGrps.length > 0
+          ? `กลุ่มสินค้า: ${selectedProdGrps.join(", ")}`
+          : "กลุ่มสินค้า: ทุกกลุ่มสินค้า";
+
+      wsData.push([companyText]); // Company info
+      wsData.push([branchText]); // Branch info
+      wsData.push([`Export Date: ${exportMonth}`]); // Month from filter
+      wsData.push([prodGrpText]); // Product group info
       wsData.push(["Inventory Aging Report (Raw Data)"]); // Report name
-      wsData.push([`Report Date: ${currentDate}`]); // Current date
       wsData.push([]); // Empty row
 
       // Add header row
@@ -1157,13 +1231,22 @@ export default function PVSDashboard() {
           if (R === 0 || R === 1 || R === 2) {
             ws[cellAddress].s = {
               alignment: { horizontal: "center", vertical: "center" },
-              font: { bold: true, size: R === 0 ? 14 : 12 },
+              font: {
+                name: "Angsana New",
+                bold: true,
+                size: R === 0 ? 14 : 12,
+              },
             };
           }
           // Header row styling (Row 5)
           else if (R === 4) {
             ws[cellAddress].s = {
-              font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
+              font: {
+                name: "Angsana New",
+                bold: true,
+                color: { rgb: "FFFFFF" },
+                sz: 12,
+              },
               fill: { fgColor: { rgb: "4472C4" } }, // Blue background
               alignment: { horizontal: "center", vertical: "center" },
               border: {
@@ -1194,7 +1277,7 @@ export default function PVSDashboard() {
             }
 
             ws[cellAddress].s = {
-              font: { sz: 10 },
+              font: { name: "Angsana New", sz: 10 },
               fill: { fgColor: { rgb: fillColor } },
               alignment: {
                 horizontal: C >= 5 && C <= 8 ? "right" : "left", // Right align for numeric columns
@@ -1230,8 +1313,9 @@ export default function PVSDashboard() {
       const dateStr = now.toISOString().split("T")[0];
       let filename = `Raw_Data_${dateStr}`;
 
-      if (selectedCorp) filename += `_${selectedCorp}`;
-      if (selectedBranch) filename += `_${selectedBranch}`;
+      if (selectedCorps.length > 0) filename += `_${selectedCorps.join("_")}`;
+      if (selectedBranches.length > 0)
+        filename += `_${selectedBranches.join("_")}`;
       if (debouncedRawDataSearch.trim()) {
         filename += `_search_${debouncedRawDataSearch
           .trim()
@@ -1254,43 +1338,180 @@ export default function PVSDashboard() {
     }
   };
 
-  // Get available branches for selected corporation
-  const getAvailableBranches = () => {
-    if (!selectedCorp) {
-      return branches;
-    }
+  // Export to PDF function
+  const exportToPDF = async () => {
+    if (isExportingPDF) return; // Prevent multiple clicks
 
-    const corpBranches = [
-      ...new Set(
-        data.filter((r) => r.Corp === selectedCorp).map((r) => r.Branch)
-      ),
-    ]
-      .filter(Boolean)
-      .sort() as string[];
+    try {
+      setIsExportingPDF(true);
 
-    return corpBranches;
-  };
+      // Add a small delay to show loading state
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
-  // Reset branch selection when corp changes
-  const handleCorpChange = (corp: string) => {
-    setSelectedCorp(corp);
+      // Create new PDF document
+      const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
+      });
 
-    // Reset branch if it's not available in the new corp
-    if (corp && selectedBranch) {
-      const availableBranches = [
-        ...new Set(data.filter((r) => r.Corp === corp).map((r) => r.Branch)),
-      ].filter(Boolean) as string[];
+      // Load Google Sans font for Thai language support
+      await addGoogleSansFont(doc);
+      setGoogleSansFont(doc, "normal");
 
-      if (!availableBranches.includes(selectedBranch)) {
-        setSelectedBranch("");
-      }
+      // Get company and branch info
+      const companyName =
+        selectedCorps.length > 0
+          ? selectedCorps.length === 1
+            ? selectedCorps[0]
+            : `${selectedCorps.length} บริษัทที่เลือก`
+          : "ทุกบริษัท";
+      const branchName =
+        selectedBranches.length > 0
+          ? selectedBranches.length === 1
+            ? selectedBranches[0]
+            : `${selectedBranches.length} สาขาที่เลือก`
+          : "ทุกสาขา";
+      const prodGrpName =
+        selectedProdGrps.length > 0
+          ? selectedProdGrps.length === 1
+            ? selectedProdGrps[0]
+            : `${selectedProdGrps.length} กลุ่มที่เลือก`
+          : "ทุกกลุ่มสินค้า";
+
+      // Add title
+      doc.setFontSize(16);
+      doc.text("รายงานอายุสินค้าคงคลัง (Inventory Aging Report)", 148, 15, {
+        align: "center",
+      });
+
+      // Add company and filter info
+      doc.setFontSize(10);
+      doc.text(`บริษัท: ${companyName}`, 14, 25);
+      doc.text(`สาขา: ${branchName}`, 14, 30);
+      doc.text(`กลุ่มสินค้า: ${prodGrpName}`, 14, 35);
+      doc.text(`เดือน: ${selectedMonth || "ทั้งหมด"}`, 14, 40);
+
+      // Add current date
+      const currentDate = new Date().toLocaleDateString("th-TH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      doc.text(`วันที่พิมพ์: ${currentDate}`, 14, 45);
+
+      // Get filtered data
+      const filteredProducts = getFilteredProductSummary();
+
+      // Prepare table data
+      const tableData = filteredProducts.map((product) => [
+        product.ProdCode,
+        product.ProdName,
+        product.ProdGrp || "-",
+        product.UnitName,
+        formatQuantity(product.totalQty),
+        formatUnitCost(product.totalValue / product.totalQty || 0),
+        formatMoney(product.totalValue).replace("฿", "").trim(),
+        formatQuantity(product.ageBuckets["0-90"].qty),
+        formatMoney(product.ageBuckets["0-90"].value).replace("฿", "").trim(),
+        formatQuantity(product.ageBuckets["90-180"].qty),
+        formatMoney(product.ageBuckets["90-180"].value).replace("฿", "").trim(),
+        formatQuantity(product.ageBuckets["180-360"].qty),
+        formatMoney(product.ageBuckets["180-360"].value)
+          .replace("฿", "")
+          .trim(),
+        formatQuantity(product.ageBuckets[">360"].qty),
+        formatMoney(product.ageBuckets[">360"].value).replace("฿", "").trim(),
+      ]);
+
+      // Add table
+      autoTable(doc, {
+        startY: 50,
+        head: [
+          [
+            "รหัสสินค้า",
+            "ชื่อสินค้า",
+            "กลุ่มสินค้า",
+            "หน่วย",
+            "จำนวนรวม",
+            "ราคาทุน",
+            "มูลค่ารวม",
+            "0-90 วัน (จน.)",
+            "0-90 วัน (มูลค่า)",
+            "91-180 วัน (จน.)",
+            "91-180 วัน (มูลค่า)",
+            "181-365 วัน (จน.)",
+            "181-365 วัน (มูลค่า)",
+            ">365 วัน (จน.)",
+            ">365 วัน (มูลค่า)",
+          ],
+        ],
+        body: tableData,
+        styles: {
+          font: "GoogleSans",
+          fontSize: 7,
+          cellPadding: 1,
+          fontStyle: "normal",
+        },
+        headStyles: {
+          fillColor: [68, 114, 196],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          halign: "center",
+          font: "GoogleSans",
+        },
+        columnStyles: {
+          0: { cellWidth: 15 }, // รหัสสินค้า
+          1: { cellWidth: 35 }, // ชื่อสินค้า
+          2: { cellWidth: 20 }, // กลุ่มสินค้า
+          3: { cellWidth: 10 }, // หน่วย
+          4: { halign: "right", cellWidth: 15 }, // จำนวนรวม
+          5: { halign: "right", cellWidth: 15 }, // ราคาทุน
+          6: { halign: "right", cellWidth: 18 }, // มูลค่ารวม
+          7: { halign: "right", cellWidth: 15 }, // 0-90 จน.
+          8: { halign: "right", cellWidth: 18 }, // 0-90 มูลค่า
+          9: { halign: "right", cellWidth: 15 }, // 91-180 จน.
+          10: { halign: "right", cellWidth: 18 }, // 91-180 มูลค่า
+          11: { halign: "right", cellWidth: 15 }, // 181-365 จน.
+          12: { halign: "right", cellWidth: 18 }, // 181-365 มูลค่า
+          13: { halign: "right", cellWidth: 15 }, // >365 จน.
+          14: { halign: "right", cellWidth: 18 }, // >365 มูลค่า
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 245],
+        },
+      });
+
+      // Generate filename
+      const now = new Date();
+      const dateStr = now.toISOString().split("T")[0];
+      let filename = `PVS_Report_${dateStr}`;
+
+      if (selectedCorps.length > 0) filename += `_${selectedCorps.join("_")}`;
+      if (selectedBranches.length > 0)
+        filename += `_${selectedBranches.join("_")}`;
+      if (selectedProdGrps.length > 0)
+        filename += `_${selectedProdGrps.length}groups`;
+      if (selectedMonth) filename += `_${selectedMonth}`;
+      filename += ".pdf";
+
+      // Save the PDF
+      doc.save(filename);
+    } catch (error) {
+      console.error("PDF export failed:", error);
+      alert("การ export PDF ล้มเหลว กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setIsExportingPDF(false);
     }
   };
 
   // Filter Controls Component
   const FilterTabs = ({ showClearAll = true }: { showClearAll?: boolean }) => {
     const hasActiveFilters =
-      selectedCorp || selectedBranch || selectedMonth !== getCurrentMonth();
+      selectedCorps.length > 0 ||
+      selectedBranches.length > 0 ||
+      selectedProdGrps.length > 0 ||
+      selectedMonth !== getCurrentMonth();
 
     return (
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 p-6">
@@ -1305,27 +1526,30 @@ export default function PVSDashboard() {
 
         <div className="flex flex-wrap items-center gap-4">
           {/* Corp Filter */}
-          <StandaloneCustomDropdown
-            value={selectedCorp}
+          <MultiSelectDropdown
+            selectedValues={selectedCorps}
             options={corps}
             placeholder="ทุกบริษัท"
-            onChange={handleCorpChange}
+            onChange={setSelectedCorps}
             icon={Building2}
           />
 
           {/* Branch Filter */}
-          <StandaloneCustomDropdown
-            value={selectedBranch}
-            options={getAvailableBranches()}
-            placeholder={selectedCorp ? "ทุกสาขา" : "ทุกสาขา"}
-            onChange={setSelectedBranch}
+          <MultiSelectDropdown
+            selectedValues={selectedBranches}
+            options={branches}
+            placeholder="ทุกสาขา"
+            onChange={setSelectedBranches}
             icon={Building2}
-            disabled={!selectedCorp && getAvailableBranches().length === 0}
-            suffix={
-              selectedCorp && getAvailableBranches().length > 0
-                ? `(${getAvailableBranches().length} สาขา)`
-                : undefined
-            }
+          />
+
+          {/* Product Group Filter */}
+          <MultiSelectDropdown
+            selectedValues={selectedProdGrps}
+            options={prodGrps}
+            placeholder="ทุกกลุ่มสินค้า"
+            onChange={setSelectedProdGrps}
+            icon={BarChart3}
           />
 
           {/* Month Filter */}
@@ -1340,8 +1564,9 @@ export default function PVSDashboard() {
           {showClearAll && hasActiveFilters && (
             <button
               onClick={() => {
-                setSelectedCorp("");
-                setSelectedBranch("");
+                setSelectedCorps([]);
+                setSelectedBranches([]);
+                setSelectedProdGrps([]);
                 setSelectedMonth(getCurrentMonth());
               }}
               className="px-4 py-2 bg-slate-500 dark:bg-slate-600 text-white rounded-lg hover:bg-slate-600 dark:hover:bg-slate-700 transition-colors flex items-center font-medium"
@@ -1790,15 +2015,52 @@ export default function PVSDashboard() {
                     )}
                   </div>
 
-                  {/* Export Excel Button */}
-                  <button
-                    onClick={exportToExcel}
-                    className="ml-4 px-4 py-2 bg-emerald-600 dark:bg-emerald-500 text-white rounded-lg hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors flex items-center font-medium shadow-md hover:shadow-lg"
-                    disabled={getFilteredProductSummary().length === 0}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Export Excel
-                  </button>
+                  {/* Export Buttons */}
+                  <div className="flex gap-2">
+                    {/* Export Excel Button */}
+                    <button
+                      onClick={exportToExcel}
+                      className="px-4 py-2 bg-emerald-600 dark:bg-emerald-500 text-white rounded-lg hover:bg-emerald-700 dark:hover:bg-emerald-600 transition-colors flex items-center font-medium shadow-md hover:shadow-lg"
+                      disabled={
+                        getFilteredProductSummary().length === 0 ||
+                        isExportingExcel
+                      }
+                    >
+                      {isExportingExcel ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          กำลัง Export...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 mr-2" />
+                          Export Excel
+                        </>
+                      )}
+                    </button>
+
+                    {/* Export PDF Button */}
+                    <button
+                      onClick={exportToPDF}
+                      className="px-4 py-2 bg-red-600 dark:bg-red-500 text-white rounded-lg hover:bg-red-700 dark:hover:bg-red-600 transition-colors flex items-center font-medium shadow-md hover:shadow-lg"
+                      disabled={
+                        getFilteredProductSummary().length === 0 ||
+                        isExportingPDF
+                      }
+                    >
+                      {isExportingPDF ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          กำลัง Export...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="w-4 h-4 mr-2" />
+                          Export PDF
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="p-8 dark:bg-slate-800">

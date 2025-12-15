@@ -36,6 +36,8 @@
     "class-variance-authority": "^0.7.1",
     "dayjs": "^1.11.13",
     "fast-xml-parser": "^5.2.5",
+    "jspdf": "^3.0.4",
+    "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.469.0",
     "mysql2": "^3.14.3",
     "next": "^15.5.3",
