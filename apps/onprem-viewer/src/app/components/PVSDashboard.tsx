@@ -7,6 +7,7 @@ import { useCompany } from "@/app/components/context/CompanyContext";
 import SearchLoading from "@/app/components/ui/SearchLoading";
 import EmptyState from "@/app/components/ui/EmptyState";
 import MonthPicker from "@/app/components/MonthPicker";
+import { MemoizedMultiSelect } from "@/app/components/ui/multi-select";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -25,7 +26,6 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Download,
   Search,
   X,
@@ -117,98 +117,6 @@ interface DefaultCompanySettings {
 // =====================================================
 
 // Multi-Select Dropdown for Product Groups
-const MultiSelectDropdown = ({
-  selectedValues,
-  options,
-  placeholder,
-  onChange,
-  icon: Icon,
-}: {
-  selectedValues: string[];
-  options: string[];
-  placeholder: string;
-  onChange: (values: string[]) => void;
-  icon: React.ComponentType<{ className?: string }>;
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  const toggleOption = (option: string) => {
-    if (selectedValues.includes(option)) {
-      onChange(selectedValues.filter((v) => v !== option));
-    } else {
-      onChange([...selectedValues, option]);
-    }
-  };
-
-  const displayText =
-    selectedValues.length > 0
-      ? `${selectedValues.length} กลุ่มที่เลือก`
-      : placeholder;
-
-  return (
-    <div className="relative flex items-center">
-      <Icon className="w-4 h-4 mr-2 text-slate-500" />
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="text-sm px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-[200px] text-left flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-600"
-        >
-          <span
-            className={
-              selectedValues.length > 0
-                ? "text-gray-900 dark:text-slate-200 font-medium"
-                : "text-gray-500 dark:text-slate-400"
-            }
-          >
-            {displayText}
-          </span>
-          <ChevronDown className="w-4 h-4 ml-2" />
-        </button>
-
-        {isOpen && (
-          <>
-            <div
-              className="fixed inset-0 z-10"
-              onClick={() => setIsOpen(false)}
-            ></div>
-            <div className="absolute z-20 mt-1 w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-              <button
-                onClick={() => {
-                  onChange([]);
-                  setIsOpen(false);
-                }}
-                className="w-full text-left px-3 py-2 text-sm text-gray-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-600 border-b border-slate-200 dark:border-slate-600"
-              >
-                ล้างการเลือก
-              </button>
-              {options.map((option) => (
-                <button
-                  key={option}
-                  onClick={() => toggleOption(option)}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 flex items-center"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedValues.includes(option)}
-                    onChange={() => {}}
-                    className="mr-2"
-                  />
-                  {option}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
-      {options.length > 0 && (
-        <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
-          ({options.length} กลุ่ม)
-        </span>
-      )}
-    </div>
-  );
-};
 
 export default function PVSDashboard() {
   const {} = useTheme();
@@ -567,7 +475,7 @@ export default function PVSDashboard() {
         setProductPage(1);
         setRawDataPage(1);
       }
-    }, 300); // Wait 300ms before applying filters
+    }, 600); // Wait 600ms before applying filters (increased to prevent dropdown closing)
 
     return () => clearTimeout(timer);
   }, [
@@ -1526,8 +1434,8 @@ export default function PVSDashboard() {
 
         <div className="flex flex-wrap items-center gap-4">
           {/* Corp Filter */}
-          <MultiSelectDropdown
-            selectedValues={selectedCorps}
+          <MemoizedMultiSelect
+            selected={selectedCorps}
             options={corps}
             placeholder="ทุกบริษัท"
             onChange={setSelectedCorps}
@@ -1535,8 +1443,8 @@ export default function PVSDashboard() {
           />
 
           {/* Branch Filter */}
-          <MultiSelectDropdown
-            selectedValues={selectedBranches}
+          <MemoizedMultiSelect
+            selected={selectedBranches}
             options={branches}
             placeholder="ทุกสาขา"
             onChange={setSelectedBranches}
@@ -1544,8 +1452,8 @@ export default function PVSDashboard() {
           />
 
           {/* Product Group Filter */}
-          <MultiSelectDropdown
-            selectedValues={selectedProdGrps}
+          <MemoizedMultiSelect
+            selected={selectedProdGrps}
             options={prodGrps}
             placeholder="ทุกกลุ่มสินค้า"
             onChange={setSelectedProdGrps}
@@ -2686,64 +2594,3 @@ export default function PVSDashboard() {
     </DashboardLayout>
   );
 }
-
-/* 
-🚧 PENDING MANAGER APPROVAL - Product Code/Name Separation Guide 🚧
-================================================================
-
-📋 SUMMARY: 
-ได้เตรียมการแยก field "prod" เป็น "prodCode" (รหัสสินค้า) และ "prodName" (ชื่อสินค้า) พร้อมแล้ว
-รอการอนุมัติจากหัวหน้าเพื่อดำเนินการอัปเดต
-
-🔧 CHANGES NEEDED WHEN APPROVED:
-
-1. **Database Schema & API Updates:**
-   - แยก field 'prod' ใน database เป็น 'prodCode' และ 'prodName'
-   - อัปเดต API endpoints (/api/inventory/raw) ให้ส่งข้อมูลทั้ง prodCode และ prodName
-   
-2. **Interface Updates (Lines 31-76):**
-   - เปิดใช้งาน prodCode และ prodName ใน DatabaseRecord interface
-   - เปิดใช้งาน prodCode และ prodName ใน ProductAgeBucketSummary interface
-   - ตัดสินใจว่าจะเก็บ prod field ไว้หรือไม่
-
-3. **Helper Functions (Lines 865-905):**
-   - เปิดใช้งาน parseProdField(), formatProductDisplay(), matchesProductSearch()
-   - ลบ eslint-disable comments
-
-4. **Product Summary Table (Line 2607):**
-   - แทนที่ {product.prod} ด้วย formatProductDisplay(product.prod, 'combined')
-   - หรือแยกเป็น 2 คอลัมน์แยกกัน
-
-5. **Raw Data Table (Line 2953):**
-   - แทนที่ {row.prod} ด้วย formatProductDisplay(row.prod, 'combined')
-   - อัปเดต header เป็น 2 คอลัมน์แยกกัน (Line 2851)
-
-6. **Excel Export (Lines 1375-1400):**
-   - อัปเดต header columns ให้แยก "รหัสสินค้า" และ "ชื่อสินค้า"
-   - แทนที่ product.prod ด้วย prodCode, prodName (Line 1397)
-   - ปรับ column widths ให้เหมาะสม
-
-7. **Search/Filter Logic (Line 1914):**
-   - อัปเดต getFilteredProductSummary() ให้ใช้ matchesProductSearch()
-   - อัปเดต getFilteredRawData() ด้วยกัน
-
-8. **Sorting Logic (Line 1393):**
-   - ตัดสินใจว่าจะ sort ตาม prodCode หรือ prodName
-
-📝 RECOMMENDED IMPLEMENTATION ORDER:
-1. Database/API changes first
-2. Interface updates  
-3. Helper functions activation
-4. UI updates (tables, headers)
-5. Export functionality
-6. Search/filter logic
-7. Testing & validation
-
-⚠️  IMPORTANT NOTES:
-- ทดสอบการทำงานของ API ก่อนอัปเดต frontend
-- สำรองข้อมูลก่อนเปลี่ยน database schema
-- ทดสอบ Excel export ให้ครบทุกกรณี
-- ตรวจสอบการ search/filter ว่าทำงานถูกต้อง
-
-================================================================
-*/
