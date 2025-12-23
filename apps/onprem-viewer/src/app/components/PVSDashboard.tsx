@@ -8,6 +8,7 @@ import SearchLoading from "@/app/components/ui/SearchLoading";
 import EmptyState from "@/app/components/ui/EmptyState";
 import MonthPicker from "@/app/components/MonthPicker";
 import { MemoizedMultiSelect } from "@/app/components/ui/multi-select";
+import { MemoizedRangeSelect } from "@/app/components/ui/range-select";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -133,7 +134,8 @@ export default function PVSDashboard() {
   // Filter states
   const [selectedCorps, setSelectedCorps] = useState<string[]>([]);
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
-  const [selectedProdGrps, setSelectedProdGrps] = useState<string[]>([]);
+  const [fromProdGrp, setFromProdGrp] = useState<string>("");
+  const [toProdGrp, setToProdGrp] = useState<string>("");
 
   // Default to current month (YYYY-MM format)
   const getCurrentMonth = () => {
@@ -385,11 +387,47 @@ export default function PVSDashboard() {
         filtered = filtered.filter((r) => selectedBranches.includes(r.Branch));
       }
 
-      // Apply product group filter (multiple selection)
-      if (selectedProdGrps.length > 0) {
-        filtered = filtered.filter(
-          (r) => r.ProdGrp && selectedProdGrps.includes(r.ProdGrp)
-        );
+      // Apply product group range filter
+      // Logic:
+      // - เลือกแค่ "จาก" = แสดงเฉพาะกลุ่มนั้นอย่างเดียว
+      // - เลือกทั้ง "จาก" และ "ถึง" = แสดงช่วง (range)
+      if (fromProdGrp || toProdGrp) {
+        filtered = filtered.filter((r) => {
+          if (!r.ProdGrp) return false;
+
+          // ถ้าเลือกแค่ "จากกลุ่มสินค้า" (ไม่เลือก "ถึง")
+          if (fromProdGrp && !toProdGrp) {
+            return r.ProdGrp === fromProdGrp;
+          }
+
+          // ถ้าเลือกทั้ง "จาก" และ "ถึง" = แสดง range
+          if (fromProdGrp && toProdGrp) {
+            const fromIndex = prodGrps.indexOf(fromProdGrp);
+            const toIndex = prodGrps.indexOf(toProdGrp);
+            const currentIndex = prodGrps.indexOf(r.ProdGrp);
+
+            // ถ้า ProdGrp ไม่อยู่ใน prodGrps list = ไม่แสดง
+            if (currentIndex === -1) return false;
+
+            // รองรับการเลือกย้อนกลับ (จาก index สูง ถึง index ต่ำ)
+            const minIndex = Math.min(fromIndex, toIndex);
+            const maxIndex = Math.max(fromIndex, toIndex);
+
+            return currentIndex >= minIndex && currentIndex <= maxIndex;
+          }
+
+          // ถ้าเลือกแค่ "ถึง" (ไม่น่าจะเกิด แต่เผื่อไว้)
+          if (!fromProdGrp && toProdGrp) {
+            const toIndex = prodGrps.indexOf(toProdGrp);
+            const currentIndex = prodGrps.indexOf(r.ProdGrp);
+
+            if (currentIndex === -1) return false;
+
+            return currentIndex >= 0 && currentIndex <= toIndex;
+          }
+
+          return false;
+        });
       }
 
       // Apply month filter
@@ -410,7 +448,14 @@ export default function PVSDashboard() {
       calculateStats(filtered);
       calculateProductSummary(filtered);
     },
-    [selectedCorps, selectedBranches, selectedProdGrps, selectedMonth]
+    [
+      selectedCorps,
+      selectedBranches,
+      fromProdGrp,
+      toProdGrp,
+      selectedMonth,
+      prodGrps,
+    ]
   );
 
   const calculateProductSummary = (records: DatabaseRecord[]) => {
@@ -481,7 +526,8 @@ export default function PVSDashboard() {
   }, [
     selectedCorps,
     selectedBranches,
-    selectedProdGrps,
+    fromProdGrp,
+    toProdGrp,
     selectedMonth,
     data,
     applyFilters,
@@ -656,23 +702,39 @@ export default function PVSDashboard() {
           ? `สาขา: ${selectedBranches.join(", ")}`
           : "สาขา: ทุกสาขา";
 
-      const exportMonth = selectedMonth
+      const dataMonth = selectedMonth
         ? new Date(selectedMonth).toLocaleDateString("th-TH", {
             month: "long",
             year: "numeric",
           })
-        : "ทุกเดือน";
+        : "ทั้งหมด";
 
       const prodGrpText =
-        selectedProdGrps.length > 0
-          ? `กลุ่มสินค้า: ${selectedProdGrps.join(", ")}`
+        fromProdGrp || toProdGrp
+          ? `กลุ่มสินค้า: ${fromProdGrp || "ทั้งหมด"} - ${
+              toProdGrp || "ทั้งหมด"
+            }`
           : "กลุ่มสินค้า: ทุกกลุ่มสินค้า";
+
+      // วันที่พิมพ์พร้อมเวลา
+      const exportPrintDate = new Date();
+      const printDate = exportPrintDate.toLocaleDateString("th-TH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      const printTime = exportPrintDate.toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const printDateTime = `${printDate} ${printTime}`;
 
       wsData.push([""]); // Empty row
       wsData.push([companyText]); // Company info
       wsData.push([branchText]); // Branch info
-      wsData.push([`Export Date: ${exportMonth}`]); // Month from filter
+      wsData.push([`วันที่ของข้อมูล: ${dataMonth}`]); // Data month
       wsData.push([prodGrpText]); // Product group info
+      wsData.push([`วันที่พิมพ์: ${printDateTime}`]); // Print date with time
       wsData.push(["Inventory Aging Report"]); // Report name
       wsData.push([""]); // Empty row
 
@@ -893,8 +955,8 @@ export default function PVSDashboard() {
       XLSX.utils.book_append_sheet(wb, ws, "PVS Summary");
 
       // Generate filename with current date and filter info
-      const now = new Date();
-      const dateStr = now.toISOString().split("T")[0];
+      const excelFileDate = new Date();
+      const dateStr = excelFileDate.toISOString().split("T")[0];
       let filename = `PVS_Summary_${dateStr}`;
 
       if (selectedCorps.length > 0) filename += `_${selectedCorps.join("_")}`;
@@ -1029,22 +1091,38 @@ export default function PVSDashboard() {
           ? `สาขา: ${selectedBranches.join(", ")}`
           : "สาขา: ทุกสาขา";
 
-      const exportMonth = selectedMonth
+      const dataMonth = selectedMonth
         ? new Date(selectedMonth).toLocaleDateString("th-TH", {
             month: "long",
             year: "numeric",
           })
-        : "ทุกเดือน";
+        : "ทั้งหมด";
 
       const prodGrpText =
-        selectedProdGrps.length > 0
-          ? `กลุ่มสินค้า: ${selectedProdGrps.join(", ")}`
+        fromProdGrp || toProdGrp
+          ? `กลุ่มสินค้า: ${fromProdGrp || "ทั้งหมด"} - ${
+              toProdGrp || "ทั้งหมด"
+            }`
           : "กลุ่มสินค้า: ทุกกลุ่มสินค้า";
+
+      // วันที่พิมพ์พร้อมเวลา
+      const rawExportPrintDate = new Date();
+      const printDate = rawExportPrintDate.toLocaleDateString("th-TH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      const printTime = rawExportPrintDate.toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const printDateTime = `${printDate} ${printTime}`;
 
       wsData.push([companyText]); // Company info
       wsData.push([branchText]); // Branch info
-      wsData.push([`Export Date: ${exportMonth}`]); // Month from filter
+      wsData.push([`วันที่ของข้อมูล: ${dataMonth}`]); // Data month
       wsData.push([prodGrpText]); // Product group info
+      wsData.push([`วันที่พิมพ์: ${printDateTime}`]); // Print date with time
       wsData.push(["Inventory Aging Report (Raw Data)"]); // Report name
       wsData.push([]); // Empty row
 
@@ -1217,8 +1295,8 @@ export default function PVSDashboard() {
       XLSX.utils.book_append_sheet(wb, ws, "Raw Data");
 
       // Generate filename with current date and filter info
-      const now = new Date();
-      const dateStr = now.toISOString().split("T")[0];
+      const rawExcelFileDate = new Date();
+      const dateStr = rawExcelFileDate.toISOString().split("T")[0];
       let filename = `Raw_Data_${dateStr}`;
 
       if (selectedCorps.length > 0) filename += `_${selectedCorps.join("_")}`;
@@ -1281,10 +1359,8 @@ export default function PVSDashboard() {
             : `${selectedBranches.length} สาขาที่เลือก`
           : "ทุกสาขา";
       const prodGrpName =
-        selectedProdGrps.length > 0
-          ? selectedProdGrps.length === 1
-            ? selectedProdGrps[0]
-            : `${selectedProdGrps.length} กลุ่มที่เลือก`
+        fromProdGrp || toProdGrp
+          ? `${fromProdGrp || "ทั้งหมด"} - ${toProdGrp || "ทั้งหมด"}`
           : "ทุกกลุ่มสินค้า";
 
       // Add title
@@ -1298,15 +1374,28 @@ export default function PVSDashboard() {
       doc.text(`บริษัท: ${companyName}`, 14, 25);
       doc.text(`สาขา: ${branchName}`, 14, 30);
       doc.text(`กลุ่มสินค้า: ${prodGrpName}`, 14, 35);
-      doc.text(`เดือน: ${selectedMonth || "ทั้งหมด"}`, 14, 40);
 
-      // Add current date
-      const currentDate = new Date().toLocaleDateString("th-TH", {
+      // วันที่ของข้อมูล
+      const dataDate = selectedMonth
+        ? new Date(selectedMonth).toLocaleDateString("th-TH", {
+            month: "long",
+            year: "numeric",
+          })
+        : "ทั้งหมด";
+      doc.text(`วันที่ของข้อมูล: ${dataDate}`, 14, 40);
+
+      // วันที่พิมพ์พร้อมเวลา
+      const pdfExportDate = new Date();
+      const printDate = pdfExportDate.toLocaleDateString("th-TH", {
         year: "numeric",
         month: "long",
         day: "numeric",
       });
-      doc.text(`วันที่พิมพ์: ${currentDate}`, 14, 45);
+      const printTime = pdfExportDate.toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      doc.text(`วันที่พิมพ์: ${printDate} ${printTime}`, 14, 45);
 
       // Get filtered data
       const filteredProducts = getFilteredProductSummary();
@@ -1391,15 +1480,15 @@ export default function PVSDashboard() {
       });
 
       // Generate filename
-      const now = new Date();
-      const dateStr = now.toISOString().split("T")[0];
+      const pdfFileDate = new Date();
+      const dateStr = pdfFileDate.toISOString().split("T")[0];
       let filename = `PVS_Report_${dateStr}`;
 
       if (selectedCorps.length > 0) filename += `_${selectedCorps.join("_")}`;
       if (selectedBranches.length > 0)
         filename += `_${selectedBranches.join("_")}`;
-      if (selectedProdGrps.length > 0)
-        filename += `_${selectedProdGrps.length}groups`;
+      if (fromProdGrp || toProdGrp)
+        filename += `_${fromProdGrp || "All"}-${toProdGrp || "All"}`;
       if (selectedMonth) filename += `_${selectedMonth}`;
       filename += ".pdf";
 
@@ -1418,7 +1507,8 @@ export default function PVSDashboard() {
     const hasActiveFilters =
       selectedCorps.length > 0 ||
       selectedBranches.length > 0 ||
-      selectedProdGrps.length > 0 ||
+      fromProdGrp !== "" ||
+      toProdGrp !== "" ||
       selectedMonth !== getCurrentMonth();
 
     return (
@@ -1451,12 +1541,14 @@ export default function PVSDashboard() {
             icon={Building2}
           />
 
-          {/* Product Group Filter */}
-          <MemoizedMultiSelect
-            selected={selectedProdGrps}
+          {/* Product Group Range Filter - Single Dropdown with From/To */}
+          <MemoizedRangeSelect
             options={prodGrps}
-            placeholder="ทุกกลุ่มสินค้า"
-            onChange={setSelectedProdGrps}
+            fromSelected={fromProdGrp}
+            toSelected={toProdGrp}
+            onFromChange={setFromProdGrp}
+            onToChange={setToProdGrp}
+            placeholder="กลุ่มสินค้า: ทั้งหมด"
             icon={BarChart3}
           />
 
@@ -1474,7 +1566,8 @@ export default function PVSDashboard() {
               onClick={() => {
                 setSelectedCorps([]);
                 setSelectedBranches([]);
-                setSelectedProdGrps([]);
+                setFromProdGrp("");
+                setToProdGrp("");
                 setSelectedMonth(getCurrentMonth());
               }}
               className="px-4 py-2 bg-slate-500 dark:bg-slate-600 text-white rounded-lg hover:bg-slate-600 dark:hover:bg-slate-700 transition-colors flex items-center font-medium"
