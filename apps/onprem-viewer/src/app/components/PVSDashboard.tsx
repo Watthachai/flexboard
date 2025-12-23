@@ -681,6 +681,15 @@ export default function PVSDashboard() {
     }).format(value);
   };
 
+  const formatDateOnly = (dateString: string) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear() + 543;
+    return `${day}/${month}/${year}`;
+  };
+
   // Export to Excel function with proper XLSX format and styling
   const exportToExcel = () => {
     try {
@@ -1321,6 +1330,164 @@ export default function PVSDashboard() {
       alert("การ export Excel ล้มเหลว กรุณาลองใหม่อีกครั้ง");
     } finally {
       setIsExportingExcel(false);
+    }
+  };
+
+  // Export Raw Data to PDF function
+  const exportRawDataToPDF = async () => {
+    if (isExportingPDF) return; // Prevent multiple clicks
+
+    try {
+      setIsExportingPDF(true);
+
+      // Add a small delay to show loading state
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Create new PDF document
+      const doc = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
+      });
+
+      // Load Google Sans font for Thai language support
+      await addGoogleSansFont(doc);
+      setGoogleSansFont(doc, "normal");
+
+      // Get company and branch info
+      const companyName =
+        selectedCorps.length > 0 ? selectedCorps.join(", ") : "ทุกบริษัท";
+      const branchName =
+        selectedBranches.length > 0 ? selectedBranches.join(", ") : "ทุกสาขา";
+
+      // Add title
+      doc.setFontSize(18);
+      doc.text("รายงานข้อมูลดิบ (Raw Data)", 14, 15);
+
+      // Add filter information
+      doc.setFontSize(10);
+      doc.text(`บริษัท: ${companyName}`, 14, 25);
+      doc.text(`สาขา: ${branchName}`, 14, 30);
+
+      // Product group filter info
+      const prodGrpText =
+        fromProdGrp || toProdGrp
+          ? `กลุ่มสินค้า: ${fromProdGrp || "ทั้งหมด"} - ${
+              toProdGrp || "ทั้งหมด"
+            }`
+          : "กลุ่มสินค้า: ทุกกลุ่มสินค้า";
+      doc.text(prodGrpText, 14, 35);
+
+      const dataDate = selectedMonth
+        ? new Date(selectedMonth).toLocaleDateString("th-TH", {
+            month: "long",
+            year: "numeric",
+          })
+        : "ทั้งหมด";
+      doc.text(`วันที่ของข้อมูล: ${dataDate}`, 14, 40);
+
+      // วันที่พิมพ์พร้อมเวลา
+      const rawPdfExportDate = new Date();
+      const printDate = rawPdfExportDate.toLocaleDateString("th-TH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      const printTime = rawPdfExportDate.toLocaleTimeString("th-TH", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      doc.text(`วันที่พิมพ์: ${printDate} ${printTime}`, 14, 45);
+
+      // Get filtered data
+      const filteredData = getFilteredRawData();
+
+      // Prepare table data
+      const tableData = filteredData.map((item) => [
+        item.Corp || "",
+        item.Branch || "",
+        item.ProdGrp || "",
+        item.ProdCode || "",
+        item.ProdName || "",
+        formatDateOnly(item.CreateDate || ""),
+        formatQuantity(item.QtyFromThisDoc || 0),
+        formatUnitCost(item.AverageCost || 0),
+        formatMoney((item.QtyFromThisDoc || 0) * (item.AverageCost || 0))
+          .replace("฿", "")
+          .trim(),
+        item.DaysAge ? item.DaysAge.toString() : "",
+        item.AgeBucket || "",
+      ]);
+
+      // Add table
+      autoTable(doc, {
+        head: [
+          [
+            "บริษัท",
+            "สาขา",
+            "กลุ่มสินค้า",
+            "รหัสสินค้า",
+            "ชื่อสินค้า",
+            "วันที\u0E48รับ",
+            "จำนวน",
+            "ต้นทุน/หน่วย",
+            "มูลค่า",
+            "อายุ (วัน)",
+            "ช่วงอายุ",
+          ],
+        ],
+        body: tableData,
+        startY: 50,
+        theme: "grid",
+        styles: {
+          font: "GoogleSans",
+          fontSize: 8,
+          cellPadding: 2,
+        },
+        headStyles: {
+          fillColor: [66, 66, 66],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          halign: "center",
+        },
+        columnStyles: {
+          0: { cellWidth: 20 }, // Corp
+          1: { cellWidth: 20 }, // Branch
+          2: { cellWidth: 25 }, // ProdGrp
+          3: { cellWidth: 20 }, // ProdNo
+          4: { cellWidth: 40 }, // ProdName
+          5: { cellWidth: 22 }, // RecDate
+          6: { halign: "right", cellWidth: 18 }, // Qty
+          7: { halign: "right", cellWidth: 22 }, // Cost
+          8: { halign: "right", cellWidth: 22 }, // Amount
+          9: { halign: "right", cellWidth: 18 }, // Age
+          10: { halign: "center", cellWidth: 20 }, // AgeBracket
+        },
+        alternateRowStyles: {
+          fillColor: [245, 245, 245],
+        },
+      });
+
+      // Generate filename
+      const rawPdfFileDate = new Date();
+      const dateStr = rawPdfFileDate.toISOString().split("T")[0];
+      let filename = `Raw_Data_Report_${dateStr}`;
+
+      if (selectedCorps.length > 0) filename += `_${selectedCorps.join("_")}`;
+      if (selectedBranches.length > 0)
+        filename += `_${selectedBranches.join("_")}`;
+      if (fromProdGrp || toProdGrp)
+        filename += `_${fromProdGrp || "All"}-${toProdGrp || "All"}`;
+      if (selectedMonth) filename += `_${selectedMonth}`;
+      filename += ".pdf";
+
+      // Save the PDF
+      doc.save(filename);
+    } catch (error) {
+      console.error("Raw Data PDF export failed:", error);
+      alert("การ export PDF ล้มเหลว กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setIsExportingPDF(false);
     }
   };
 
@@ -2436,30 +2603,58 @@ export default function PVSDashboard() {
                     )}
                   </div>
 
-                  {/* Export Excel Button for Raw Data */}
-                  <button
-                    onClick={exportRawDataToExcel}
-                    className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center font-medium shadow-md hover:shadow-lg ${
-                      isExportingExcel
-                        ? "bg-gray-500 cursor-not-allowed"
-                        : "bg-green-600 dark:bg-green-500 hover:bg-green-700 dark:hover:bg-green-600"
-                    }`}
-                    disabled={
-                      getFilteredRawData().length === 0 || isExportingExcel
-                    }
-                  >
-                    {isExportingExcel ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        กำลังประมวลผล...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4 mr-2" />
-                        Export Excel
-                      </>
-                    )}
-                  </button>
+                  {/* Export Buttons for Raw Data */}
+                  <div className="flex gap-3">
+                    {/* Export PDF Button */}
+                    <button
+                      onClick={exportRawDataToPDF}
+                      className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center font-medium shadow-md hover:shadow-lg ${
+                        isExportingPDF
+                          ? "bg-gray-500 cursor-not-allowed"
+                          : "bg-red-600 dark:bg-red-500 hover:bg-red-700 dark:hover:bg-red-600"
+                      }`}
+                      disabled={
+                        getFilteredRawData().length === 0 || isExportingPDF
+                      }
+                    >
+                      {isExportingPDF ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          กำลังประมวลผล...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="w-4 h-4 mr-2" />
+                          Export PDF
+                        </>
+                      )}
+                    </button>
+
+                    {/* Export Excel Button */}
+                    <button
+                      onClick={exportRawDataToExcel}
+                      className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center font-medium shadow-md hover:shadow-lg ${
+                        isExportingExcel
+                          ? "bg-gray-500 cursor-not-allowed"
+                          : "bg-green-600 dark:bg-green-500 hover:bg-green-700 dark:hover:bg-green-600"
+                      }`}
+                      disabled={
+                        getFilteredRawData().length === 0 || isExportingExcel
+                      }
+                    >
+                      {isExportingExcel ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          กำลังประมวลผล...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 mr-2" />
+                          Export Excel
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 
