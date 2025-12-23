@@ -510,19 +510,14 @@ export default function PVSDashboard() {
     setProductSummary(summaryArray);
   };
 
-  // Apply filters when filter values change
-  // Use a debounced approach for date filtering to prevent filtering while user is still selecting dates
+  // Apply filters when filter values change - Realtime filtering
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (data.length > 0) {
-        applyFilters(data);
-        // Reset pagination when filters change
-        setProductPage(1);
-        setRawDataPage(1);
-      }
-    }, 600); // Wait 600ms before applying filters (increased to prevent dropdown closing)
-
-    return () => clearTimeout(timer);
+    if (data.length > 0) {
+      applyFilters(data);
+      // Reset pagination when filters change
+      setProductPage(1);
+      setRawDataPage(1);
+    }
   }, [
     selectedCorps,
     selectedBranches,
@@ -1663,101 +1658,21 @@ export default function PVSDashboard() {
     }
   };
 
-  // Filter Controls Component
-  const FilterTabs = ({ showClearAll = true }: { showClearAll?: boolean }) => {
-    const hasActiveFilters =
-      selectedCorps.length > 0 ||
-      selectedBranches.length > 0 ||
-      fromProdGrp !== "" ||
-      toProdGrp !== "" ||
-      selectedMonth !== getCurrentMonth();
+  // Filter Controls - Computed values (NOT a component to prevent remounting)
+  const hasActiveFilters =
+    selectedCorps.length > 0 ||
+    selectedBranches.length > 0 ||
+    fromProdGrp !== "" ||
+    toProdGrp !== "" ||
+    selectedMonth !== getCurrentMonth();
 
-    return (
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 p-6">
-        <div className="flex items-center mb-4">
-          <div className="bg-gradient-to-r from-slate-500 to-slate-600 rounded-lg p-2 mr-3">
-            <Settings className="text-white w-5 h-5" />
-          </div>
-          <h3 className="text-xl font-bold text-gray-800 dark:text-slate-200">
-            ตัวกรองข้อมูล
-          </h3>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Corp Filter */}
-          <MemoizedMultiSelect
-            selected={selectedCorps}
-            options={corps}
-            placeholder="ทุกบริษัท"
-            onChange={setSelectedCorps}
-            icon={Building2}
-          />
-
-          {/* Branch Filter */}
-          <MemoizedMultiSelect
-            selected={selectedBranches}
-            options={branches}
-            placeholder="ทุกสาขา"
-            onChange={setSelectedBranches}
-            icon={Building2}
-          />
-
-          {/* Product Group Range Filter - Single Dropdown with From/To */}
-          <MemoizedRangeSelect
-            options={prodGrps}
-            fromSelected={fromProdGrp}
-            toSelected={toProdGrp}
-            onFromChange={setFromProdGrp}
-            onToChange={setToProdGrp}
-            placeholder="กลุ่มสินค้า: ทั้งหมด"
-            icon={BarChart3}
-          />
-
-          {/* Month Filter */}
-          <div className="flex items-center">
-            <MonthPicker
-              selectedMonth={selectedMonth}
-              setSelectedMonth={setSelectedMonth}
-            />
-          </div>
-
-          {/* Clear Filters Button */}
-          {showClearAll && hasActiveFilters && (
-            <button
-              onClick={() => {
-                setSelectedCorps([]);
-                setSelectedBranches([]);
-                setFromProdGrp("");
-                setToProdGrp("");
-                setSelectedMonth(getCurrentMonth());
-              }}
-              className="px-4 py-2 bg-slate-500 dark:bg-slate-600 text-white rounded-lg hover:bg-slate-600 dark:hover:bg-slate-700 transition-colors flex items-center font-medium"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              ล้างตัวกรอง
-            </button>
-          )}
-        </div>
-
-        {hasActiveFilters && (
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="text-sm text-blue-700 font-medium flex items-center">
-              <BarChart3 className="w-4 h-4 mr-2" />
-              กำลังกรอง:{" "}
-              <span className="font-bold mx-1">
-                {filteredData.length.toLocaleString()}
-              </span>{" "}
-              รายการ จากทั้งหมด{" "}
-              <span className="font-bold mx-1">
-                {data.length.toLocaleString()}
-              </span>{" "}
-              รายการ
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  const handleClearFilters = useCallback(() => {
+    setSelectedCorps([]);
+    setSelectedBranches([]);
+    setFromProdGrp("");
+    setToProdGrp("");
+    setSelectedMonth(getCurrentMonth());
+  }, []);
 
   // Search filter functions
   const getFilteredProductSummary = () => {
@@ -2031,8 +1946,84 @@ export default function PVSDashboard() {
             </div>
           )}
 
-          {/* Filter Controls */}
-          <FilterTabs />
+          {/* Filter Controls - Inline JSX to prevent component remounting */}
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 p-6">
+            <div className="flex items-center mb-4">
+              <div className="bg-gradient-to-r from-slate-500 to-slate-600 rounded-lg p-2 mr-3">
+                <Settings className="text-white w-5 h-5" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 dark:text-slate-200">
+                ตัวกรองข้อมูล
+              </h3>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Corp Filter */}
+              <MemoizedMultiSelect
+                selected={selectedCorps}
+                options={corps}
+                placeholder="ทุกบริษัท"
+                onChange={setSelectedCorps}
+                icon={Building2}
+              />
+
+              {/* Branch Filter */}
+              <MemoizedMultiSelect
+                selected={selectedBranches}
+                options={branches}
+                placeholder="ทุกสาขา"
+                onChange={setSelectedBranches}
+                icon={Building2}
+              />
+
+              {/* Product Group Range Filter - Single Dropdown with From/To */}
+              <MemoizedRangeSelect
+                options={prodGrps}
+                fromSelected={fromProdGrp}
+                toSelected={toProdGrp}
+                onFromChange={setFromProdGrp}
+                onToChange={setToProdGrp}
+                placeholder="กลุ่มสินค้า: ทั้งหมด"
+                icon={BarChart3}
+              />
+
+              {/* Month Filter */}
+              <div className="flex items-center">
+                <MonthPicker
+                  selectedMonth={selectedMonth}
+                  setSelectedMonth={setSelectedMonth}
+                />
+              </div>
+
+              {/* Clear Filters Button */}
+              {hasActiveFilters && (
+                <button
+                  onClick={handleClearFilters}
+                  className="px-4 py-2 bg-slate-500 dark:bg-slate-600 text-white rounded-lg hover:bg-slate-600 dark:hover:bg-slate-700 transition-colors flex items-center font-medium"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  ล้างตัวกรอง
+                </button>
+              )}
+            </div>
+
+            {hasActiveFilters && (
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="text-sm text-blue-700 font-medium flex items-center">
+                  <BarChart3 className="w-4 h-4 mr-2" />
+                  กำลังกรอง:{" "}
+                  <span className="font-bold mx-1">
+                    {filteredData.length.toLocaleString()}
+                  </span>{" "}
+                  รายการ จากทั้งหมด{" "}
+                  <span className="font-bold mx-1">
+                    {data.length.toLocaleString()}
+                  </span>{" "}
+                  รายการ
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Product Summary Table */}
           {productSummary.length > 0 && (
@@ -2599,31 +2590,6 @@ export default function PVSDashboard() {
 
                   {/* Export Buttons for Raw Data */}
                   <div className="flex gap-3">
-                    {/* Export PDF Button */}
-                    <button
-                      onClick={exportRawDataToPDF}
-                      className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center font-medium shadow-md hover:shadow-lg ${
-                        isExportingPDF
-                          ? "bg-gray-500 cursor-not-allowed"
-                          : "bg-red-600 dark:bg-red-500 hover:bg-red-700 dark:hover:bg-red-600"
-                      }`}
-                      disabled={
-                        getFilteredRawData().length === 0 || isExportingPDF
-                      }
-                    >
-                      {isExportingPDF ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          กำลังประมวลผล...
-                        </>
-                      ) : (
-                        <>
-                          <FileText className="w-4 h-4 mr-2" />
-                          Export PDF
-                        </>
-                      )}
-                    </button>
-
                     {/* Export Excel Button */}
                     <button
                       onClick={exportRawDataToExcel}
@@ -2645,6 +2611,31 @@ export default function PVSDashboard() {
                         <>
                           <Download className="w-4 h-4 mr-2" />
                           Export Excel
+                        </>
+                      )}
+                    </button>
+
+                    {/* Export PDF Button */}
+                    <button
+                      onClick={exportRawDataToPDF}
+                      className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center font-medium shadow-md hover:shadow-lg ${
+                        isExportingPDF
+                          ? "bg-gray-500 cursor-not-allowed"
+                          : "bg-red-600 dark:bg-red-500 hover:bg-red-700 dark:hover:bg-red-600"
+                      }`}
+                      disabled={
+                        getFilteredRawData().length === 0 || isExportingPDF
+                      }
+                    >
+                      {isExportingPDF ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          กำลังประมวลผล...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="w-4 h-4 mr-2" />
+                          Export PDF
                         </>
                       )}
                     </button>

@@ -27,18 +27,50 @@ export function RangeSelect({
   icon: Icon,
 }: RangeSelectProps) {
   const [open, setOpen] = React.useState(false);
+  const shouldBlockCloseRef = React.useRef(false);
 
   // Handle "จาก" change - reset "ถึง" เมื่อเลือก "จาก" ใหม่
   const handleFromChange = React.useCallback(
     (value: string) => {
+      shouldBlockCloseRef.current = true;
       onFromChange(value);
       // Reset "ถึง" ให้เป็นค่าว่าง เพื่อให้ user เลือกใหม่
       if (toSelected) {
         onToChange("");
       }
+      setTimeout(() => {
+        shouldBlockCloseRef.current = false;
+      }, 300);
     },
     [onFromChange, onToChange, toSelected]
   );
+
+  // Handle "ถึง" change
+  const handleToChange = React.useCallback(
+    (value: string) => {
+      shouldBlockCloseRef.current = true;
+      onToChange(value);
+      setTimeout(() => {
+        shouldBlockCloseRef.current = false;
+      }, 300);
+    },
+    [onToChange]
+  );
+
+  // Block all automatic closing - only allow manual close
+  const handleOpenChange = React.useCallback((newOpen: boolean) => {
+    // If trying to close, block it unless explicitly allowed
+    if (!newOpen && shouldBlockCloseRef.current) {
+      return; // Don't allow closing
+    }
+    setOpen(newOpen);
+  }, []);
+
+  // Explicit close handler
+  const handleClose = React.useCallback(() => {
+    shouldBlockCloseRef.current = false;
+    setOpen(false);
+  }, []);
 
   // Display text showing the selected range
   const displayText = React.useMemo(() => {
@@ -101,9 +133,15 @@ export function RangeSelect({
   );
 
   return (
-    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+    <PopoverPrimitive.Root
+      open={open}
+      onOpenChange={handleOpenChange}
+      modal={false}
+    >
       <PopoverPrimitive.Trigger asChild>
         <button
+          type="button"
+          onClick={() => setOpen(!open)}
           className={cn(
             "flex h-10 items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm",
             "hover:border-blue-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500",
@@ -140,11 +178,24 @@ export function RangeSelect({
         <PopoverPrimitive.Content
           align="start"
           sideOffset={4}
-          onInteractOutside={(e) => {
-            // ป้องกันการปิด dropdown เมื่อคลิกภายใน
+          collisionPadding={10}
+          avoidCollisions={true}
+          onEscapeKeyDown={(e) => {
+            e.preventDefault();
+            handleClose();
+          }}
+          onPointerDownOutside={(e) => {
+            // Block all outside clicks from closing
             e.preventDefault();
           }}
-          onEscapeKeyDown={() => setOpen(false)}
+          onFocusOutside={(e) => {
+            // Block all focus outside from closing
+            e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            // Block all interactions outside from closing
+            e.preventDefault();
+          }}
           className={cn(
             "z-50 w-[500px] rounded-lg border border-gray-200 bg-white p-4 shadow-lg",
             "dark:border-slate-700 dark:bg-slate-800",
@@ -163,24 +214,28 @@ export function RangeSelect({
                   return (
                     <div
                       key={`from-${option}`}
-                      onClick={() => handleFromChange(option)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleFromChange(option);
+                      }}
                       className={cn(
-                        "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-2 text-sm outline-none",
-                        "hover:bg-slate-100 dark:hover:bg-slate-600",
+                        "relative flex cursor-pointer select-none items-center rounded-md px-3 py-3 text-sm outline-none min-h-[44px]",
+                        "hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors",
                         inRange && "bg-blue-50 dark:bg-slate-800"
                       )}
                     >
                       <div
                         className={cn(
-                          "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-slate-300",
+                          "mr-3 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 border-slate-300",
                           "dark:border-slate-500",
                           inRange &&
                             "border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500"
                         )}
                       >
-                        {inRange && <Check className="h-3 w-3" />}
+                        {inRange && <Check className="h-4 w-4" />}
                       </div>
-                      <span className="text-gray-900 dark:text-slate-200">
+                      <span className="text-gray-900 dark:text-slate-200 leading-tight">
                         {option}
                       </span>
                     </div>
@@ -200,24 +255,28 @@ export function RangeSelect({
                   return (
                     <div
                       key={`to-${option}`}
-                      onClick={() => onToChange(option)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleToChange(option);
+                      }}
                       className={cn(
-                        "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-2 text-sm outline-none",
-                        "hover:bg-slate-100 dark:hover:bg-slate-600",
+                        "relative flex cursor-pointer select-none items-center rounded-md px-3 py-3 text-sm outline-none min-h-[44px]",
+                        "hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors",
                         selected && "bg-blue-50 dark:bg-slate-800"
                       )}
                     >
                       <div
                         className={cn(
-                          "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-slate-300",
+                          "mr-3 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 border-slate-300",
                           "dark:border-slate-500",
                           selected &&
                             "border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500"
                         )}
                       >
-                        {selected && <Check className="h-3 w-3" />}
+                        {selected && <Check className="h-4 w-4" />}
                       </div>
-                      <span className="text-gray-900 dark:text-slate-200">
+                      <span className="text-gray-900 dark:text-slate-200 leading-tight">
                         {option}
                       </span>
                     </div>
@@ -230,7 +289,10 @@ export function RangeSelect({
           {/* Apply/Close buttons */}
           <div className="flex justify-between gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-slate-700">
             <button
-              onClick={() => {
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 onFromChange("");
                 onToChange("");
               }}
@@ -239,7 +301,12 @@ export function RangeSelect({
               เคลียร์
             </button>
             <button
-              onClick={() => setOpen(false)}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleClose();
+              }}
               className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               ปิด

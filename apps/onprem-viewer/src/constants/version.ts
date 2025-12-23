@@ -1,4 +1,4 @@
-export const APP_VERSION = "5.23.0.1";
+export const APP_VERSION = "5.23.0.2";
 export const APP_NAME = "Flexboard OnPrem Viewer";
 export const BUILD_DATE = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
 
