@@ -741,10 +741,9 @@ export default function PVSDashboard() {
       wsData.push([""]); // Empty row
       wsData.push([companyText]); // Company info
       wsData.push([branchText]); // Branch info
-      wsData.push([`วันที่ของข้อมูล: ${dataMonth}`]); // Data month
       wsData.push([prodGrpText]); // Product group info
+      wsData.push([`วันที่ของข้อมูล: ${dataMonth}`]); // Data month
       wsData.push([`วันที่พิมพ์: ${printDateTime}`]); // Print date with time
-      wsData.push(["Inventory Aging Report"]); // Report name
       wsData.push([""]); // Empty row
 
       // Add main header row with groupings
@@ -1129,10 +1128,9 @@ export default function PVSDashboard() {
 
       wsData.push([companyText]); // Company info
       wsData.push([branchText]); // Branch info
-      wsData.push([`วันที่ของข้อมูล: ${dataMonth}`]); // Data month
       wsData.push([prodGrpText]); // Product group info
+      wsData.push([`วันที่ของข้อมูล: ${dataMonth}`]); // Data month
       wsData.push([`วันที่พิมพ์: ${printDateTime}`]); // Print date with time
-      wsData.push(["Inventory Aging Report (Raw Data)"]); // Report name
       wsData.push([]); // Empty row
 
       // Add header row
@@ -1520,11 +1518,7 @@ export default function PVSDashboard() {
             : `${selectedCorps.length} บริษัทที่เลือก`
           : "ทุกบริษัท";
       const branchName =
-        selectedBranches.length > 0
-          ? selectedBranches.length === 1
-            ? selectedBranches[0]
-            : `${selectedBranches.length} สาขาที่เลือก`
-          : "ทุกสาขา";
+        selectedBranches.length > 0 ? selectedBranches.join(", ") : "ทุกสาขา";
       const prodGrpName =
         fromProdGrp || toProdGrp
           ? `${fromProdGrp || "ทั้งหมด"} - ${toProdGrp || "ทั้งหมด"}`

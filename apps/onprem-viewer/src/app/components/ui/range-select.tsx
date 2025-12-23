@@ -140,6 +140,11 @@ export function RangeSelect({
         <PopoverPrimitive.Content
           align="start"
           sideOffset={4}
+          onInteractOutside={(e) => {
+            // ป้องกันการปิด dropdown เมื่อคลิกภายใน
+            e.preventDefault();
+          }}
+          onEscapeKeyDown={() => setOpen(false)}
           className={cn(
             "z-50 w-[500px] rounded-lg border border-gray-200 bg-white p-4 shadow-lg",
             "dark:border-slate-700 dark:bg-slate-800",

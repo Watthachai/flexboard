@@ -18,38 +18,44 @@ interface MultiSelectProps {
 const OptionItem = React.memo(function OptionItem({
   option,
   isSelected,
-  onMouseDown,
+  onClick,
   onMouseEnter,
   onMouseUp,
 }: {
   option: string;
   isSelected: boolean;
-  onMouseDown: (option: string, e: React.MouseEvent) => void;
+  onClick: (option: string, e: React.MouseEvent) => void;
   onMouseEnter: (option: string) => void;
   onMouseUp: () => void;
 }) {
   return (
     <div
-      onMouseDown={(e) => onMouseDown(option, e)}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick(option, e);
+      }}
       onMouseEnter={() => onMouseEnter(option)}
       onMouseUp={onMouseUp}
       className={cn(
-        "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-2 text-sm outline-none",
-        "hover:bg-slate-100 dark:hover:bg-slate-600",
+        "relative flex cursor-pointer select-none items-center rounded-md px-3 py-3 text-sm outline-none min-h-[44px]",
+        "hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors",
         isSelected && "bg-blue-50 dark:bg-slate-800"
       )}
     >
       <div
         className={cn(
-          "mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-slate-300",
+          "mr-3 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 border-slate-300",
           "dark:border-slate-500",
           isSelected &&
             "border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500"
         )}
       >
-        {isSelected && <Check className="h-3 w-3" />}
+        {isSelected && <Check className="h-4 w-4" />}
       </div>
-      <span className="text-gray-900 dark:text-slate-200">{option}</span>
+      <span className="text-gray-900 dark:text-slate-200 leading-tight">
+        {option}
+      </span>
     </div>
   );
 });
@@ -64,6 +70,7 @@ export function MultiSelect({
 }: MultiSelectProps) {
   const [open, setOpen] = React.useState(false);
   const [isDragging, setIsDragging] = React.useState(false);
+  const [isProcessing, setIsProcessing] = React.useState(false);
 
   // ✅ Use staged selection to prevent parent re-render while selecting
   const [stagedSelected, setStagedSelected] =
@@ -104,29 +111,36 @@ export function MultiSelect({
     });
   }, []);
 
-  const handleMouseDown = React.useCallback(
+  const handleClick = React.useCallback(
     (option: string, e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(true);
-      handleSelect(option);
+      // ป้องกันการคลิกซ้ำเร็วเกินไป
+      if (isProcessing) return;
+
+      setIsProcessing(true);
+
+      // เลือก/ยกเลิกเลือก option นี้
+      setStagedSelected((current) => {
+        const newSelection = current.includes(option)
+          ? current.filter((item) => item !== option)
+          : [...current, option];
+        console.log("Selection changed:", {
+          option,
+          from: current,
+          to: newSelection,
+        });
+        return newSelection;
+      });
+
+      // Reset processing flag after a short delay
+      setTimeout(() => setIsProcessing(false), 150);
     },
-    [handleSelect]
+    [isProcessing]
   );
 
-  const handleMouseEnter = React.useCallback(
-    (option: string) => {
-      if (isDragging) {
-        setStagedSelected((current) => {
-          if (!current.includes(option)) {
-            return [...current, option];
-          }
-          return current;
-        });
-      }
-    },
-    [isDragging]
-  );
+  const handleMouseEnter = React.useCallback((option: string) => {
+    // Drag select - currently disabled to prevent accidental selections
+    // Can be re-enabled if needed
+  }, []);
 
   const handleMouseUp = React.useCallback(() => {
     setIsDragging(false);
@@ -215,6 +229,8 @@ export function MultiSelect({
             align="start"
             sideOffset={4}
             onOpenAutoFocus={(e) => e.preventDefault()}
+            collisionPadding={10}
+            avoidCollisions={true}
           >
             {/* Header */}
             <div className="sticky top-0 z-10 border-b border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-700">
@@ -250,13 +266,13 @@ export function MultiSelect({
             </div>
 
             {/* Options */}
-            <div className="max-h-60 overflow-y-auto p-1">
+            <div className="max-h-60 overflow-y-auto p-2 space-y-1">
               {options.map((option) => (
                 <OptionItem
                   key={option}
                   option={option}
                   isSelected={stagedSelected.includes(option)}
-                  onMouseDown={handleMouseDown}
+                  onClick={handleClick}
                   onMouseEnter={handleMouseEnter}
                   onMouseUp={handleMouseUp}
                 />
