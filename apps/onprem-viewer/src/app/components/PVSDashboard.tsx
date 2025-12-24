@@ -1139,13 +1139,14 @@ export default function PVSDashboard() {
       });
       const printDateTime = `${printDate} ${printTime}`;
 
+      wsData.push([""]); // Empty row
       wsData.push(["รายงานอายุสินค้าคงคลัง (Inventory Aging Report)"]); // Report title
       wsData.push([companyText]); // Company info
       wsData.push([branchText]); // Branch info
       wsData.push([prodGrpText]); // Product group info
       wsData.push([`วันที่ของข้อมูล: ${dataMonth}`]); // Data month
       wsData.push([`วันที่พิมพ์: ${printDateTime}`]); // Print date with time
-      wsData.push([]); // Empty row
+      wsData.push([""]); // Empty row
 
       // Add header row
       wsData.push([
