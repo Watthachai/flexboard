@@ -185,16 +185,22 @@ export function RangeSelect({
             handleClose();
           }}
           onPointerDownOutside={(e) => {
-            // Block all outside clicks from closing
-            e.preventDefault();
+            // Allow outside clicks to close the dropdown
+            if (!shouldBlockCloseRef.current) {
+              handleClose();
+            }
           }}
           onFocusOutside={(e) => {
-            // Block all focus outside from closing
-            e.preventDefault();
+            // Allow focus outside to close the dropdown
+            if (!shouldBlockCloseRef.current) {
+              handleClose();
+            }
           }}
           onInteractOutside={(e) => {
-            // Block all interactions outside from closing
-            e.preventDefault();
+            // Allow interactions outside to close the dropdown
+            if (!shouldBlockCloseRef.current) {
+              handleClose();
+            }
           }}
           className={cn(
             "z-50 w-[500px] rounded-lg border border-gray-200 bg-white p-4 shadow-lg",

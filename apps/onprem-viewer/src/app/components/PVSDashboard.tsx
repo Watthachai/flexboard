@@ -734,6 +734,7 @@ export default function PVSDashboard() {
       const printDateTime = `${printDate} ${printTime}`;
 
       wsData.push([""]); // Empty row
+      wsData.push(["รายงานอายุสินค้าคงคลัง (Inventory Aging Report)"]); // Report title
       wsData.push([companyText]); // Company info
       wsData.push([branchText]); // Branch info
       wsData.push([prodGrpText]); // Product group info
@@ -833,25 +834,31 @@ export default function PVSDashboard() {
 
       // Define merges for title and grouped headers
       ws["!merges"] = [
-        // Company name (row 2, merge across all 16 columns: 0-15)
+        // Report title (row 2, merge across all 16 columns: 0-15)
         { s: { r: 1, c: 0 }, e: { r: 1, c: 15 } },
-        // Report name (row 3, merge across all 16 columns: 0-15)
+        // Company name (row 3, merge across all 16 columns: 0-15)
         { s: { r: 2, c: 0 }, e: { r: 2, c: 15 } },
-        // Date (row 4, merge across all 16 columns: 0-15)
+        // Branch (row 4, merge across all 16 columns: 0-15)
         { s: { r: 3, c: 0 }, e: { r: 3, c: 15 } },
+        // Product group (row 5, merge across all 16 columns: 0-15)
+        { s: { r: 4, c: 0 }, e: { r: 4, c: 15 } },
+        // Data month (row 6, merge across all 16 columns: 0-15)
+        { s: { r: 5, c: 0 }, e: { r: 5, c: 15 } },
+        // Print date (row 7, merge across all 16 columns: 0-15)
+        { s: { r: 6, c: 0 }, e: { r: 6, c: 15 } },
 
-        // Product Info group (row 6) - รวม รหัสสินค้า, ชื่อสินค้า, กลุ่มสินค้า, หน่วย (4 columns: 0-3)
-        { s: { r: 5, c: 0 }, e: { r: 5, c: 3 } },
+        // Product Info group (row 9) - รวม รหัสสินค้า, ชื่อสินค้า, กลุ่มสินค้า, หน่วย (4 columns: 0-3)
+        { s: { r: 8, c: 0 }, e: { r: 8, c: 3 } },
         // Total group (4 columns: ราคาทุน, Quantity, Unit Cost, Total Value = 4-7)
-        { s: { r: 5, c: 4 }, e: { r: 5, c: 7 } },
+        { s: { r: 8, c: 4 }, e: { r: 8, c: 7 } },
         // 0-90 Days group (2 columns: 8-9)
-        { s: { r: 5, c: 8 }, e: { r: 5, c: 9 } },
+        { s: { r: 8, c: 8 }, e: { r: 8, c: 9 } },
         // 91-180 Days group (2 columns: 10-11)
-        { s: { r: 5, c: 10 }, e: { r: 5, c: 11 } },
+        { s: { r: 8, c: 10 }, e: { r: 8, c: 11 } },
         // 181-365 Days group (2 columns: 12-13)
-        { s: { r: 5, c: 12 }, e: { r: 5, c: 13 } },
+        { s: { r: 8, c: 12 }, e: { r: 8, c: 13 } },
         // Over 365 Days group (2 columns: 14-15)
-        { s: { r: 5, c: 14 }, e: { r: 5, c: 15 } },
+        { s: { r: 8, c: 14 }, e: { r: 8, c: 15 } },
       ];
 
       // Apply styles to cells
@@ -862,19 +869,30 @@ export default function PVSDashboard() {
           const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
           if (!ws[cellAddress]) continue;
 
-          // Title rows styling (Company name, Report name, Date)
-          if (R === 1 || R === 2 || R === 3) {
+          // Report title styling (Row 2 = index 1)
+          if (R === 1) {
             ws[cellAddress].s = {
               alignment: { horizontal: "center", vertical: "center" },
               font: {
                 name: "Angsana New",
                 bold: true,
-                size: R === 1 ? 14 : 12,
+                size: 16,
               },
             };
           }
-          // Main header row styling (Row 6 - Product Info, Total, etc.)
-          else if (R === 5) {
+          // Title rows styling (Company, Branch, ProdGrp, DataMonth, PrintDate = Row 3-7 = index 2-6)
+          else if (R >= 2 && R <= 6) {
+            ws[cellAddress].s = {
+              alignment: { horizontal: "left", vertical: "center" },
+              font: {
+                name: "Angsana New",
+                bold: false,
+                size: 11,
+              },
+            };
+          }
+          // Main header row styling (Row 9 = index 8 - Product Info, Total, etc.)
+          else if (R === 8) {
             ws[cellAddress].s = {
               font: {
                 name: "Angsana New",
@@ -892,8 +910,8 @@ export default function PVSDashboard() {
               },
             };
           }
-          // Sub header row styling (Row 7)
-          else if (R === 6) {
+          // Sub header row styling (Row 10 = index 9)
+          else if (R === 9) {
             ws[cellAddress].s = {
               font: { name: "Angsana New", bold: true, sz: 11 },
               fill: { fgColor: { rgb: "D9E2F3" } }, // Light blue background
@@ -906,8 +924,8 @@ export default function PVSDashboard() {
               },
             };
           }
-          // Data rows (starting from row 8)
-          else if (R >= 7) {
+          // Data rows (starting from row 11 = index 10)
+          else if (R >= 10) {
             let fillColor = "FFFFFF"; // Default white
 
             // Apply age bucket colors
@@ -1121,6 +1139,7 @@ export default function PVSDashboard() {
       });
       const printDateTime = `${printDate} ${printTime}`;
 
+      wsData.push(["รายงานอายุสินค้าคงคลัง (Inventory Aging Report)"]); // Report title
       wsData.push([companyText]); // Company info
       wsData.push([branchText]); // Branch info
       wsData.push([prodGrpText]); // Product group info
@@ -1185,9 +1204,12 @@ export default function PVSDashboard() {
 
       // Add merge cells for title rows (13 columns: 0-12)
       ws["!merges"] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } }, // Company name (row 1, all columns)
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } }, // Report name (row 2, all columns)
-        { s: { r: 2, c: 0 }, e: { r: 2, c: 12 } }, // Date (row 3, all columns)
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } }, // Report title (row 1, all columns)
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } }, // Company name (row 2, all columns)
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 12 } }, // Branch (row 3, all columns)
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 12 } }, // Product group (row 4, all columns)
+        { s: { r: 4, c: 0 }, e: { r: 4, c: 12 } }, // Data month (row 5, all columns)
+        { s: { r: 5, c: 0 }, e: { r: 5, c: 12 } }, // Print date (row 6, all columns)
       ];
 
       // Set column widths
@@ -1355,7 +1377,9 @@ export default function PVSDashboard() {
 
       // Add title
       doc.setFontSize(18);
-      doc.text("รายงานข้อมูลดิบ (Raw Data)", 14, 15);
+      doc.text("รายงานอายุสินค้าคงคลัง (Inventory Aging Report)", 148, 15, {
+        align: "center",
+      });
 
       // Add filter information
       doc.setFontSize(10);
